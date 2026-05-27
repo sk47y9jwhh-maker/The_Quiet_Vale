@@ -1,0 +1,86 @@
+{
+  "player_count_min": {
+    "value": null,
+    "notes": "Standard game supports 1-4 players."
+  },
+  "player_count_max_standard": {
+    "value": null,
+    "notes": "5+ uses Council Variant."
+  },
+  "season_count": {
+    "value": null,
+    "notes": "Season I rounds 1-5; Season II 6-10; Season III 11-15."
+  },
+  "rounds_per_season": {
+    "value": null,
+    "notes": "Total 15 rounds."
+  },
+  "warehouse_cap_per_resource": {
+    "value": null,
+    "notes": "Applies unless a rule explicitly changes the cap."
+  },
+  "actions_per_player": {
+    "value": null,
+    "notes": "Standard 1-4p game."
+  },
+  "encounter_pool_per_player": {
+    "value": null,
+    "notes": "Build balanced pool before hands and deck."
+  },
+  "hidden_cards_per_player": {
+    "value": null,
+    "notes": "Standard 1-4p hidden hands."
+  },
+  "standard_deck_cards_per_player": {
+    "value": null,
+    "notes": "Initial Encounter Deck before Golden Boon."
+  },
+  "golden_boons_per_game": {
+    "value": null,
+    "notes": "Added to Encounter Deck; not dealt to hands."
+  },
+  "reveal_standard_cards_per_round": {
+    "value": null,
+    "notes": "Golden Boon is extra reveal and does not count."
+  },
+  "arrival_start_timer_tokens": {
+    "value": null,
+    "notes": "Active Arrival starts with 3 timer tokens."
+  },
+  "arrival_timer_max": {
+    "value": null,
+    "notes": "Timer tokens cannot exceed 3."
+  },
+  "strain_max_per_tile": {
+    "value": null,
+    "notes": "3 Strain = Overstrained."
+  },
+  "final_active_burden_penalty_renown": {
+    "value": null,
+    "notes": "Per active Burden."
+  },
+  "final_strain_penalty_renown": {
+    "value": null,
+    "notes": "Per Strain token on the board."
+  },
+  "recommended_success_threshold": {
+    "value": null,
+    "notes": "Population + Renown after adjustments."
+  },
+  "river_hex_default_placement": {
+    "value": null,
+    "notes": "No tile may be placed on a River hex unless that tile explicitly permits River placement."
+  },
+  "bridge_river_placement": {
+    "value": null,
+    "notes": "Bridge is the typical tile placed on River hexes and is a Travel Tile."
+  },
+  "river_crossing_without_bridge_action_cost": {
+    "value": null,
+    "notes": "Crossing the river without a Bridge connection costs 1 Action."
+  },
+  "river_adjacency": {
+    "value": null,
+    "notes": "Docks and Washhouse/Bathhouse use river-adjacent placement."
+  }
+}

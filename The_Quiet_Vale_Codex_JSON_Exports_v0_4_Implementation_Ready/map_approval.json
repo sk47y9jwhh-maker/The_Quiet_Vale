@@ -1,0 +1,86 @@
+[
+  {
+    "Field": "Approved Map",
+    "Value": "Option 01 — Balanced v0.4 Single Forking River",
+    "Status": "Approved",
+    "Notes": "Promote to Codex Default Map v0.1"
+  },
+  {
+    "Field": "Approval Date",
+    "Value": "2026-05-26",
+    "Status": "Approved",
+    "Notes": "User approved in chat"
+  },
+  {
+    "Field": "Geometry",
+    "Value": "Flat-top hexes",
+    "Status": "Locked",
+    "Notes": "Use even-q flat-top adjacency for validation"
+  },
+  {
+    "Field": "Rows",
+    "Value": "A–I",
+    "Status": "Locked",
+    "Notes": "9 rows"
+  },
+  {
+    "Field": "Columns",
+    "Value": "1–14",
+    "Status": "Locked",
+    "Notes": "14 columns"
+  },
+  {
+    "Field": "River System",
+    "Value": "Single connected forking barrier river",
+    "Status": "Approved",
+    "Notes": "No ponds or isolated water"
+  },
+  {
+    "Field": "River Components",
+    "Value": "1",
+    "Status": "Pass",
+    "Notes": "Validated under flat-top even-q adjacency"
+  },
+  {
+    "Field": "Water Hexes",
+    "Value": 15,
+    "Status": "Pass",
+    "Notes": "All Water hexes are part of the river system"
+  },
+  {
+    "Field": "Bridge Candidates",
+    "Value": "C7, H5, H9",
+    "Status": "Pass",
+    "Notes": "All are Water hexes"
+  },
+  {
+    "Field": "River Fork",
+    "Value": "F7",
+    "Status": "Pass",
+    "Notes": "Feature = River Fork"
+  },
+  {
+    "Field": "Ruins Placement",
+    "Value": "Near river fork, both sides",
+    "Status": "Pass",
+    "Notes": "Ruins at E5, E6, E8, F5, F9, G9"
+  },
+  {
+    "Field": "Arable Land Placement",
+    "Value": "Top and bottom of river",
+    "Status": "Pass",
+    "Notes": "Arable at A5, A6, B6 and H7, I6, I7"
+  },
+  {
+    "Field": "Edge Terrain Placement",
+    "Value": "Mountains, Woodland, Heaths at map edges",
+    "Status": "Pass",
+    "Notes": "Two clusters of three each"
+  },
+  {
+    "Field": "Codex Gate",
+    "Value": "Map approval gate complete",
+    "Status": "Complete",
+    "Notes": "Proceed to Codex simulation handoff"
+  }
+]

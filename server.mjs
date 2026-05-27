@@ -71,7 +71,7 @@ function listen(port) {
   });
 
   server.listen(port, host, () => {
-    console.log(`The Quiet Realm prototype is running at http://${host}:${port}/`);
+    console.log(`The Quiet Vale prototype is running at http://${host}:${port}/`);
   });
 }
 

@@ -67,7 +67,7 @@ const state = {
   selectedTileId: null,
   selectedOrientation: HEX_DIRECTIONS[0].id,
   playerCount: 1,
-  setupSeed: "quiet-realm-m2",
+  setupSeed: "quiet-vale-m2",
   showDebugLabels: true,
   revealHiddenSetup: false,
   debugSeedSelections: {},
@@ -3057,7 +3057,7 @@ function renderApp() {
       <header class="app-header">
         <div>
           <p class="eyebrow">Local Prototype</p>
-          <h1>The Quiet Realm</h1>
+          <h1>The Quiet Vale</h1>
         </div>
         <div class="approval-pill">
           <span>${escapeHtml(approval?.Status ?? "Approved")}</span>
