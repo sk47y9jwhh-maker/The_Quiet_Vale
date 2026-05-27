@@ -1,0 +1,10 @@
+{
+  "project": "The Quiet Vale: Seasons of Settlement",
+  "handoff_version": "Codex Implementation Handoff v0.1",
+  "date_created": "2026-05-26",
+  "map": "Codex Default Map v0.1, promoted from Option 01 - Balanced v0.4 Single Forking River",
+  "grid": "14 columns x 9 rows, flat-top hexes only",
+  "scope": "Standard 1-4 player MVP only; Council Variant and Artist Mode deferred",
+  "source_table_file": "The_Quiet_Vale_Codex_Source_Tables_v0_3_Map_Approved.xlsx",
+  "notes": "This v0.4 JSON export corrects the earlier empty encounter_cards.json and tiles.json from v0.3."
+}

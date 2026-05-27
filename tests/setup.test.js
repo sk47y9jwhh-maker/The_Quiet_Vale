@@ -6,6 +6,7 @@ import {
   createEncounterIndex,
   createInitialGameState,
   countEncounterTypes,
+  hashSeed,
   resolveEncounterCards
 } from "../src/game/setup.js";
 
@@ -59,6 +60,11 @@ test("setup is deterministic for a given seed", () => {
 
   assert.deepEqual(first.players.map((player) => player.hand), second.players.map((player) => player.hand));
   assert.deepEqual(first.encounter.deck, second.encounter.deck);
+});
+
+test("renamed default seeds keep the prototype setup baseline", () => {
+  assert.equal(hashSeed("quiet-vale"), 0x7fd0d1c9);
+  assert.equal(hashSeed("quiet-vale-m2"), 0x6abed5f3);
 });
 
 test("standard setup rejects Council Variant player counts", () => {

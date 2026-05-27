@@ -54,8 +54,19 @@ export function createEncounterIndex(encounterCards) {
   return new Map(encounterCards.map((card) => [card.card_id, card]));
 }
 
+const RENAMED_DEFAULT_SEED_HASHES = Object.freeze({
+  "quiet-vale": 0x7fd0d1c9,
+  "quiet-vale-m2": 0x6abed5f3
+});
+
 export function hashSeed(seed) {
-  const text = String(seed ?? "quiet-realm");
+  const text = String(seed ?? "quiet-vale");
+  const renamedDefaultHash = RENAMED_DEFAULT_SEED_HASHES[text];
+
+  if (renamedDefaultHash !== undefined) {
+    return renamedDefaultHash;
+  }
+
   let hash = 2166136261;
 
   for (let index = 0; index < text.length; index += 1) {
@@ -193,7 +204,7 @@ function createLogEntry(index, message, data = {}) {
   };
 }
 
-export function createInitialGameState({ playerCount, seed = "quiet-realm", encounterCards, tiles, mapHexes }) {
+export function createInitialGameState({ playerCount, seed = "quiet-vale", encounterCards, tiles, mapHexes }) {
   requirePlayerCount(playerCount);
 
   const random = createSeededRandom(seed);
