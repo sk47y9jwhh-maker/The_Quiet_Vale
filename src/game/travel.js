@@ -246,6 +246,58 @@ export function calculatePlacedTileActionCost(state, placedTile, context, operat
   };
 }
 
+function effectMatchesDisconnectedTravelDiscount(effect, baseActionCost) {
+  return (
+    effect.type === "golden_vial_disconnected_travel" &&
+    baseActionCost.disconnectedTravelActionCost > 0 &&
+    (effect.uses ?? 0) < (effect.maxUses ?? 1)
+  );
+}
+
+function getPendingDisconnectedTravelDiscountEffect(state, baseActionCost) {
+  return (
+    (state.encounter?.roundEffects ?? []).find((effect) =>
+      effectMatchesDisconnectedTravelDiscount(effect, baseActionCost)
+    ) ?? null
+  );
+}
+
+export function getDiscountedDisconnectedTravelActionCost(state, operation, baseActionCost) {
+  const effect = getPendingDisconnectedTravelDiscountEffect(state, baseActionCost);
+
+  if (!effect) {
+    return {
+      actionCost: baseActionCost,
+      actionCostDiscount: null
+    };
+  }
+
+  const amountReduced = Math.min(baseActionCost.disconnectedTravelActionCost, baseActionCost.total);
+  const actionCost = {
+    ...baseActionCost,
+    originalTotal: baseActionCost.originalTotal ?? baseActionCost.total,
+    disconnectedTravelActionCost: 0,
+    total: Math.max(0, baseActionCost.total - amountReduced)
+  };
+
+  return {
+    actionCost,
+    actionCostDiscount: {
+      source: "golden_boon",
+      type: effect.type,
+      reason: "once_per_round_disconnected_travel_action",
+      effectId: effect.id,
+      cardId: effect.cardId,
+      cardName: effect.cardName,
+      round: state.round,
+      operation,
+      originalActionCost: baseActionCost,
+      actionCost,
+      amountReduced
+    }
+  };
+}
+
 function getOperationActionCostKey(operation) {
   return {
     placement: "placeActionCost",

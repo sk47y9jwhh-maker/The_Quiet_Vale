@@ -229,7 +229,7 @@ test("revealing draws standard cards equal to player count", () => {
 });
 
 test("Golden Boon reveal does not consume a standard reveal slot", () => {
-  const goldenId = firstCardIdOfType(ENCOUNTER_TYPES.GOLDEN_BOON);
+  const goldenId = "golden_boon_the_golden_vial";
   const boonId = firstCardIdOfType(ENCOUNTER_TYPES.BOON);
   const arrivalId = firstCardIdOfType(ENCOUNTER_TYPES.ARRIVAL);
   const base = newState(2);
@@ -254,6 +254,522 @@ test("Golden Boon reveal does not consume a standard reveal slot", () => {
   assert.equal(nextState.encounter.active.length, 1);
   assert.equal(nextState.encounter.active[0].cardId, arrivalId);
   assert.equal(nextState.encounter.active[0].timerTokens, 3);
+});
+
+test("The Golden Bell reveals an Arrival from the game box as an active Arrival", () => {
+  const boonId = "golden_boon_the_golden_bell";
+  const standardId = firstCardIdOfType(ENCOUNTER_TYPES.BOON);
+  const base = newState(1);
+  const state = {
+    ...base,
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    encounter: {
+      ...base.encounter,
+      deck: [boonId, standardId],
+      discard: [],
+      active: [],
+      roundEffects: [],
+      revealedRounds: []
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+  const effect = result.revealed[0].immediateEffect;
+  const activeArrival = nextState.encounter.active.find(
+    (activeState) => activeState.cardId === effect.revealedArrivalCardId
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.goldenRevealed, 1);
+  assert.equal(result.standardRevealed, 1);
+  assert.equal(effect.type, "golden_bell_active_arrival_from_box");
+  assert.equal(effect.chosenArrivalCardIds.length, 3);
+  assert.equal(effect.returnedArrivalCardIds.length, 2);
+  assert.equal(effect.chosenArrivalCardIds.includes(effect.revealedArrivalCardId), true);
+  assert.equal(base.encounter.setup.selectedStandardPoolIds.includes(effect.revealedArrivalCardId), false);
+  assert.ok(activeArrival);
+  assert.equal(activeArrival.encounterType, ENCOUNTER_TYPES.ARRIVAL);
+  assert.equal(activeArrival.timerTokens, 3);
+  assert.deepEqual(nextState.encounter.discard, [boonId, standardId]);
+});
+
+test("The Golden Bell requires three Arrival Cards in the game box", () => {
+  const boonId = "golden_boon_the_golden_bell";
+  const standardId = firstCardIdOfType(ENCOUNTER_TYPES.BOON);
+  const base = newState(1);
+  const allArrivalCardIds = encounterCards
+    .filter((card) => card.encounter_type === ENCOUNTER_TYPES.ARRIVAL)
+    .map((card) => card.card_id);
+  const state = {
+    ...base,
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    encounter: {
+      ...base.encounter,
+      deck: [boonId, standardId],
+      discard: [],
+      active: [],
+      revealedRounds: [],
+      setup: {
+        ...base.encounter.setup,
+        selectedStandardPoolIds: [...new Set([...base.encounter.setup.selectedStandardPoolIds, ...allArrivalCardIds])]
+      }
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /needs 3 Arrival Cards in the game box/);
+  assert.equal(nextState, state);
+});
+
+test("The Golden Scroll stays active for hand refresh choices", () => {
+  const boonId = "golden_boon_the_golden_scroll";
+  const standardId = firstCardIdOfType(ENCOUNTER_TYPES.BOON);
+  const base = newState(1);
+  const state = {
+    ...base,
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    encounter: {
+      ...base.encounter,
+      deck: [boonId, standardId],
+      discard: [],
+      active: [],
+      roundEffects: [],
+      revealedRounds: []
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+  const activeScroll = nextState.encounter.active.find((activeState) => activeState.cardId === boonId);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.goldenRevealed, 1);
+  assert.equal(result.standardRevealed, 1);
+  assert.equal(result.revealed[0].immediateEffect.type, "golden_scroll_hand_refresh");
+  assert.ok(activeScroll);
+  assert.equal(activeScroll.encounterType, ENCOUNTER_TYPES.GOLDEN_BOON);
+  assert.equal(activeScroll.pending, true);
+  assert.equal(activeScroll.effect.type, "golden_scroll_hand_refresh");
+  assert.deepEqual(nextState.encounter.discard, [standardId]);
+});
+
+test("resolving The Golden Scroll discards chosen hand cards and draws standards from the box", () => {
+  const boonId = "golden_boon_the_golden_scroll";
+  const standardId = firstCardIdOfType(ENCOUNTER_TYPES.BOON);
+  const base = newState(1);
+  const revealedState = dispatch(
+    {
+      ...base,
+      phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+      encounter: {
+        ...base.encounter,
+        deck: [boonId, standardId],
+        discard: [],
+        active: [],
+        roundEffects: [],
+        revealedRounds: []
+      }
+    },
+    { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS }
+  ).state;
+  const activeScroll = revealedState.encounter.active.find((activeState) => activeState.cardId === boonId);
+  const discardedCardIds = revealedState.players[0].hand.slice(0, 2);
+  const { state: nextState, result } = dispatch(revealedState, {
+    type: TILE_ACTION_TYPES.RESOLVE_BOON,
+    activeEncounterId: activeScroll.id,
+    discardSelections: {
+      P1: discardedCardIds
+    }
+  });
+  const drawnCards = result.drawnCardIds.map((cardId) => encounterCards.find((card) => card.card_id === cardId));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.discardedCardIds.length, 2);
+  assert.equal(result.drawnCardIds.length, 2);
+  assert.equal(nextState.players[0].hand.length, revealedState.players[0].hand.length);
+  assert.equal(nextState.players[0].hand.some((cardId) => discardedCardIds.includes(cardId)), false);
+  assert.ok(result.drawnCardIds.every((cardId) => nextState.players[0].hand.includes(cardId)));
+  assert.ok(drawnCards.every((card) => card.encounter_type !== ENCOUNTER_TYPES.GOLDEN_BOON));
+  assert.equal(nextState.encounter.active.some((activeState) => activeState.id === activeScroll.id), false);
+  assert.deepEqual(nextState.encounter.discard.slice(-3), [...discardedCardIds, boonId]);
+});
+
+test("The Golden Scroll draws as many replacement cards as the box has available", () => {
+  const boonId = "golden_boon_the_golden_scroll";
+  const standardId = firstCardIdOfType(ENCOUNTER_TYPES.BOON);
+  const base = newState(1);
+  const allStandardCardIds = encounterCards
+    .filter((card) => card.encounter_type !== ENCOUNTER_TYPES.GOLDEN_BOON)
+    .map((card) => card.card_id);
+  const availableBoxCardId = allStandardCardIds.find(
+    (cardId) => !base.players[0].hand.includes(cardId) && cardId !== standardId
+  );
+  const revealedState = dispatch(
+    {
+      ...base,
+      phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+      encounter: {
+        ...base.encounter,
+        deck: [boonId, standardId],
+        discard: [],
+        active: [],
+        roundEffects: [],
+        revealedRounds: [],
+        setup: {
+          ...base.encounter.setup,
+          selectedStandardPoolIds: allStandardCardIds.filter((cardId) => cardId !== availableBoxCardId)
+        }
+      }
+    },
+    { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS }
+  ).state;
+  const activeScroll = revealedState.encounter.active.find((activeState) => activeState.cardId === boonId);
+  const discardedCardIds = revealedState.players[0].hand.slice(0, 2);
+  const { state: nextState, result } = dispatch(revealedState, {
+    type: TILE_ACTION_TYPES.RESOLVE_BOON,
+    activeEncounterId: activeScroll.id,
+    discardSelections: {
+      P1: discardedCardIds
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.drawnCardIds, [availableBoxCardId]);
+  assert.equal(nextState.players[0].hand.length, revealedState.players[0].hand.length - 1);
+  assert.equal(nextState.players[0].hand.includes(availableBoxCardId), true);
+});
+
+test("The Golden Scroll rejects cards outside the player's hand", () => {
+  const boonId = "golden_boon_the_golden_scroll";
+  const standardId = firstCardIdOfType(ENCOUNTER_TYPES.BOON);
+  const base = newState(1);
+  const revealedState = dispatch(
+    {
+      ...base,
+      phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+      encounter: {
+        ...base.encounter,
+        deck: [boonId, standardId],
+        discard: [],
+        active: [],
+        roundEffects: [],
+        revealedRounds: []
+      }
+    },
+    { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS }
+  ).state;
+  const activeScroll = revealedState.encounter.active.find((activeState) => activeState.cardId === boonId);
+  const notInHandCardId = encounterCards
+    .filter((card) => card.encounter_type !== ENCOUNTER_TYPES.GOLDEN_BOON)
+    .find((card) => !revealedState.players[0].hand.includes(card.card_id)).card_id;
+  const { state: nextState, result } = dispatch(revealedState, {
+    type: TILE_ACTION_TYPES.RESOLVE_BOON,
+    activeEncounterId: activeScroll.id,
+    discardSelections: {
+      P1: [notInHandCardId]
+    }
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /not in their hand/);
+  assert.equal(nextState, revealedState);
+});
+
+function revealGoldenSignetWithPlacedTiles(placedTiles) {
+  const boonId = "golden_boon_the_golden_signet_ring";
+  const standardId = firstCardIdOfType(ENCOUNTER_TYPES.BOON);
+  const base = {
+    ...newState(1),
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    map: {
+      ...newState(1).map,
+      placedTiles
+    },
+    players: newState(1).players.map((player) =>
+      player.id === "P1" && placedTiles[0]
+        ? {
+            ...player,
+            lastInteraction: {
+              type: "place",
+              placedTileId: placedTiles[0].id,
+              coordinate: placedTiles[0].coordinate,
+              round: 1,
+              season: "I"
+            }
+          }
+        : player
+    )
+  };
+
+  return dispatch(
+    {
+      ...base,
+      encounter: {
+        ...base.encounter,
+        deck: [boonId, standardId],
+        discard: [],
+        active: [],
+        roundEffects: [],
+        revealedRounds: []
+      }
+    },
+    { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS }
+  ).state;
+}
+
+test("The Golden Signet Ring stays active for tile relocation choices", () => {
+  const boonId = "golden_boon_the_golden_signet_ring";
+  const standardId = firstCardIdOfType(ENCOUNTER_TYPES.BOON);
+  const base = newState(1);
+  const state = {
+    ...base,
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    encounter: {
+      ...base.encounter,
+      deck: [boonId, standardId],
+      discard: [],
+      active: [],
+      roundEffects: [],
+      revealedRounds: []
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+  const activeSignet = nextState.encounter.active.find((activeState) => activeState.cardId === boonId);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.goldenRevealed, 1);
+  assert.equal(result.revealed[0].immediateEffect.type, "golden_signet_ring_relocate_tiles");
+  assert.ok(activeSignet);
+  assert.equal(activeSignet.pending, true);
+  assert.equal(activeSignet.effect.maxTiles, 5);
+  assert.deepEqual(nextState.encounter.discard, [standardId]);
+});
+
+test("The Golden Signet Ring relocates a tile and keeps its state", () => {
+  const revealedState = revealGoldenSignetWithPlacedTiles([
+    {
+      id: "tile-001",
+      tileId: "core_forest_basic",
+      coordinate: "A13",
+      coordinates: ["A13"],
+      orientation: "rotation-0",
+      strain: 2,
+      supported: true,
+      supportedUsedThisRound: true,
+      activatedEffectSeasons: ["I"]
+    }
+  ]);
+  const activeSignet = revealedState.encounter.active.find(
+    (activeState) => activeState.cardId === "golden_boon_the_golden_signet_ring"
+  );
+  const { state: nextState, result } = dispatch(revealedState, {
+    type: TILE_ACTION_TYPES.RESOLVE_BOON,
+    activeEncounterId: activeSignet.id,
+    relocations: [
+      {
+        placedTileId: "tile-001",
+        coordinate: "A14"
+      }
+    ]
+  });
+  const movedTile = nextState.map.placedTiles.find((placedTile) => placedTile.id === "tile-001");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.moves.length, 1);
+  assert.equal(movedTile.coordinate, "A14");
+  assert.deepEqual(movedTile.coordinates, ["A14"]);
+  assert.equal(movedTile.strain, 2);
+  assert.equal(movedTile.supported, true);
+  assert.equal(movedTile.supportedUsedThisRound, true);
+  assert.deepEqual(movedTile.activatedEffectSeasons, ["I"]);
+  assert.equal(nextState.players[0].lastInteraction.placedTileId, "tile-001");
+  assert.equal(nextState.players[0].lastInteraction.coordinate, "A14");
+  assert.equal(nextState.encounter.active.some((activeState) => activeState.id === activeSignet.id), false);
+  assert.equal(nextState.encounter.discard.at(-1), "golden_boon_the_golden_signet_ring");
+});
+
+test("The Golden Signet Ring can swap chosen tiles through vacated spaces", () => {
+  const revealedState = revealGoldenSignetWithPlacedTiles([
+    {
+      id: "tile-001",
+      tileId: "core_cottage_basic",
+      coordinate: "A3",
+      coordinates: ["A3"],
+      orientation: "rotation-0",
+      strain: 0
+    },
+    {
+      id: "tile-002",
+      tileId: "core_cottage_basic",
+      coordinate: "A4",
+      coordinates: ["A4"],
+      orientation: "rotation-0",
+      strain: 1
+    }
+  ]);
+  const activeSignet = revealedState.encounter.active.find(
+    (activeState) => activeState.cardId === "golden_boon_the_golden_signet_ring"
+  );
+  const { state: nextState, result } = dispatch(revealedState, {
+    type: TILE_ACTION_TYPES.RESOLVE_BOON,
+    activeEncounterId: activeSignet.id,
+    relocations: [
+      { placedTileId: "tile-001", coordinate: "A4" },
+      { placedTileId: "tile-002", coordinate: "A3" }
+    ]
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(nextState.map.placedTiles.find((tile) => tile.id === "tile-001").coordinate, "A4");
+  assert.equal(nextState.map.placedTiles.find((tile) => tile.id === "tile-002").coordinate, "A3");
+  assert.equal(nextState.map.placedTiles.find((tile) => tile.id === "tile-002").strain, 1);
+});
+
+test("The Golden Signet Ring relocates multihex tiles with a legal new footprint", () => {
+  const revealedState = revealGoldenSignetWithPlacedTiles([
+    {
+      id: "tile-001",
+      tileId: "core_gravel_path_basic",
+      coordinate: "A3",
+      coordinates: ["A3", "A4"],
+      orientation: "rotation-0",
+      strain: 0
+    }
+  ]);
+  const activeSignet = revealedState.encounter.active.find(
+    (activeState) => activeState.cardId === "golden_boon_the_golden_signet_ring"
+  );
+  const { state: nextState, result } = dispatch(revealedState, {
+    type: TILE_ACTION_TYPES.RESOLVE_BOON,
+    activeEncounterId: activeSignet.id,
+    relocations: [
+      {
+        placedTileId: "tile-001",
+        coordinate: "C1",
+        orientation: "rotation-0"
+      }
+    ]
+  });
+  const movedTile = nextState.map.placedTiles.find((placedTile) => placedTile.id === "tile-001");
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(movedTile.coordinates, ["C1", "C2"]);
+  assert.equal(movedTile.orientation, "rotation-0");
+});
+
+test("The Golden Signet Ring rejects moves onto unchosen occupied hexes", () => {
+  const revealedState = revealGoldenSignetWithPlacedTiles([
+    {
+      id: "tile-001",
+      tileId: "core_cottage_basic",
+      coordinate: "A3",
+      coordinates: ["A3"],
+      orientation: "rotation-0",
+      strain: 0
+    },
+    {
+      id: "tile-002",
+      tileId: "core_cottage_basic",
+      coordinate: "A4",
+      coordinates: ["A4"],
+      orientation: "rotation-0",
+      strain: 0
+    }
+  ]);
+  const activeSignet = revealedState.encounter.active.find(
+    (activeState) => activeState.cardId === "golden_boon_the_golden_signet_ring"
+  );
+  const { state: nextState, result } = dispatch(revealedState, {
+    type: TILE_ACTION_TYPES.RESOLVE_BOON,
+    activeEncounterId: activeSignet.id,
+    relocations: [{ placedTileId: "tile-001", coordinate: "A4" }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /A4 already has a placed tile/);
+  assert.equal(nextState, revealedState);
+});
+
+test("The Golden Signet Ring keeps terrain restrictions", () => {
+  const revealedState = revealGoldenSignetWithPlacedTiles([
+    {
+      id: "tile-001",
+      tileId: "core_forest_basic",
+      coordinate: "A13",
+      coordinates: ["A13"],
+      orientation: "rotation-0",
+      strain: 0
+    }
+  ]);
+  const activeSignet = revealedState.encounter.active.find(
+    (activeState) => activeState.cardId === "golden_boon_the_golden_signet_ring"
+  );
+  const { state: nextState, result } = dispatch(revealedState, {
+    type: TILE_ACTION_TYPES.RESOLVE_BOON,
+    activeEncounterId: activeSignet.id,
+    relocations: [{ placedTileId: "tile-001", coordinate: "A5" }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /must be placed on Woodland/);
+  assert.equal(nextState, revealedState);
+});
+
+test("The Golden Vial creates a rest-of-game disconnected Travel discount", () => {
+  const boonId = "golden_boon_the_golden_vial";
+  const arrivalId = firstCardIdOfType(ENCOUNTER_TYPES.ARRIVAL);
+  const base = newState(1);
+  const state = {
+    ...base,
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    encounter: {
+      ...base.encounter,
+      deck: [boonId, arrivalId],
+      discard: [],
+      active: [],
+      roundEffects: [],
+      revealedRounds: []
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.goldenRevealed, 1);
+  assert.deepEqual(nextState.encounter.discard, [boonId]);
+  assert.equal(nextState.encounter.roundEffects.length, 1);
+  assert.equal(nextState.encounter.roundEffects[0].source, "golden_boon");
+  assert.equal(nextState.encounter.roundEffects[0].type, "golden_vial_disconnected_travel");
+  assert.equal(nextState.encounter.roundEffects[0].maxUses, 1);
+  assert.equal(nextState.encounter.roundEffects[0].expiresAtEndOfRound, false);
+  assert.equal(nextState.encounter.roundEffects[0].resetUsesEachRound, true);
+  assert.equal(result.revealed[0].roundEffect.type, "golden_vial_disconnected_travel");
+});
+
+test("The Golden Eyed Traveler creates an additional Player Turns phase effect", () => {
+  const boonId = "golden_boon_the_golden_eyed_traveler";
+  const arrivalId = firstCardIdOfType(ENCOUNTER_TYPES.ARRIVAL);
+  const base = newState(1);
+  const state = {
+    ...base,
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    encounter: {
+      ...base.encounter,
+      deck: [boonId, arrivalId],
+      discard: [],
+      active: [],
+      roundEffects: [],
+      revealedRounds: []
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.goldenRevealed, 1);
+  assert.deepEqual(nextState.encounter.discard, [boonId]);
+  assert.equal(nextState.encounter.roundEffects.length, 1);
+  assert.equal(nextState.encounter.roundEffects[0].source, "golden_boon");
+  assert.equal(nextState.encounter.roundEffects[0].type, "golden_eyed_traveler_extra_turns");
+  assert.equal(nextState.encounter.roundEffects[0].maxUses, 1);
+  assert.equal(nextState.encounter.roundEffects[0].expiresAtEndOfRound, true);
+  assert.equal(result.revealed[0].roundEffect.type, "golden_eyed_traveler_extra_turns");
 });
 
 test("revealing a resource Burden places its current Season Strain effect", () => {
@@ -2424,6 +2940,39 @@ test("end-of-round keeps pending next-action Boon effects visible", () => {
   assert.equal(nextState.encounter.roundEffects[0].id, "discount-1");
 });
 
+test("end-of-round resets The Golden Vial once-per-round use", () => {
+  const base = newState(1);
+  const state = {
+    ...base,
+    phase: GAME_PHASES.END_ROUND,
+    encounter: {
+      ...base.encounter,
+      roundEffects: [
+        {
+          id: "golden-vial",
+          source: "golden_boon",
+          type: "golden_vial_disconnected_travel",
+          cardId: "golden_boon_the_golden_vial",
+          cardName: "The Golden Vial",
+          round: 1,
+          season: "I",
+          effectText: "Once per round, disconnected Travel costs 0 Actions.",
+          maxUses: 1,
+          uses: 1,
+          expiresAtEndOfRound: false,
+          resetUsesEachRound: true
+        }
+      ]
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.END_ROUND });
+
+  assert.equal(result.ok, true);
+  assert.equal(nextState.round, 2);
+  assert.equal(nextState.encounter.roundEffects.length, 1);
+  assert.equal(nextState.encounter.roundEffects[0].uses, 0);
+});
+
 test("revealing can only happen once per round", () => {
   const base = {
     ...newState(1),
@@ -2847,6 +3396,46 @@ test("resolving a fixed-cost Burden spends 1 Action, pays resources, and discard
   assert.equal(nextState.encounter.completed[0].resolved, true);
   assert.equal(nextState.score.activeBurdenCount, 0);
   assert.equal(nextState.log.at(-1).type, "encounter");
+});
+
+test("source Burdens without To resolve text stay active and cannot be resolved", () => {
+  const base = newState(1);
+  const burdenCard = encounterCards.find((card) => card.card_id === "burden_smoke_over_hearths");
+  const state = {
+    ...base,
+    phase: GAME_PHASES.PLAYER_TURNS,
+    activePlayerId: "P1",
+    encounter: {
+      ...base.encounter,
+      active: [
+        {
+          id: "burden-active",
+          cardId: burdenCard.card_id,
+          encounterType: ENCOUNTER_TYPES.BURDEN,
+          revealedRound: 1,
+          revealedSeason: "I",
+          resolved: false,
+          appliedSeasons: ["I"],
+          applications: [
+            {
+              round: 1,
+              season: "I",
+              reason: "reveal",
+              effectText: burdenCard.season_i
+            }
+          ]
+        }
+      ]
+    }
+  };
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.RESOLVE_BURDEN,
+    activeEncounterId: "burden-active"
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /no source-defined resolution cost/);
+  assert.equal(nextState, state);
 });
 
 test("Shared Hands, Lighter Loads discounts the next fixed-cost Burden resolution and is discarded", () => {

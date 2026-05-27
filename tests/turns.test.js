@@ -99,6 +99,56 @@ test("ending the last player turn moves to end-of-round effects", () => {
   );
 });
 
+test("The Golden Eyed Traveler opens one additional Player Turns phase before end of round", () => {
+  const base = advanceToPlayerTurns(newState(2));
+  let state = {
+    ...base,
+    encounter: {
+      ...base.encounter,
+      roundEffects: [
+        {
+          id: "golden-eyed-traveler",
+          source: "golden_boon",
+          type: "golden_eyed_traveler_extra_turns",
+          cardId: "golden_boon_the_golden_eyed_traveler",
+          cardName: "The Golden Eyed Traveler",
+          round: 1,
+          season: "I",
+          effectText: "Open one additional Player Turns phase.",
+          maxUses: 1,
+          uses: 0,
+          expiresAtEndOfRound: true
+        }
+      ]
+    }
+  };
+  state = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN }).state;
+  const extraPhase = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN });
+
+  assert.equal(extraPhase.result.ok, true);
+  assert.equal(extraPhase.result.extraPlayerTurns, true);
+  assert.equal(extraPhase.state.phase, GAME_PHASES.PLAYER_TURNS);
+  assert.equal(extraPhase.state.round, 1);
+  assert.equal(extraPhase.state.activePlayerId, "P1");
+  assert.deepEqual(
+    extraPhase.state.players.map((player) => player.actionsRemaining),
+    [4, 4]
+  );
+  assert.equal(extraPhase.state.encounter.roundEffects[0].uses, 1);
+
+  state = dispatch(extraPhase.state, { type: TILE_ACTION_TYPES.END_TURN }).state;
+  const endRoundReady = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN });
+
+  assert.equal(endRoundReady.result.ok, true);
+  assert.equal(endRoundReady.result.readyForEndRound, true);
+  assert.equal(endRoundReady.state.phase, GAME_PHASES.END_ROUND);
+  assert.equal(endRoundReady.state.activePlayerId, null);
+  assert.deepEqual(
+    endRoundReady.state.players.map((player) => player.actionsRemaining),
+    [0, 0]
+  );
+});
+
 test("resolving end-of-round effects advances the round and resets actions", () => {
   let state = advanceToPlayerTurns(newState(2));
   state = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN }).state;

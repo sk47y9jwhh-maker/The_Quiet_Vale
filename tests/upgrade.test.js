@@ -55,6 +55,23 @@ function coreUpgradeDiscount({ id = "discount-1", amount = 2, season = "II" } = 
   };
 }
 
+function goldenVialEffect({ uses = 0 } = {}) {
+  return {
+    id: "golden-vial",
+    source: "golden_boon",
+    type: "golden_vial_disconnected_travel",
+    cardId: "golden_boon_the_golden_vial",
+    cardName: "The Golden Vial",
+    round: 1,
+    season: "I",
+    effectText: "Once per round, disconnected Travel costs 0 Actions.",
+    maxUses: 1,
+    uses,
+    expiresAtEndOfRound: false,
+    resetUsesEachRound: true
+  };
+}
+
 function feudsHousingDiscount({ amount = 2, freeResourceCost = false } = {}) {
   return {
     id: "round-effect-boon-feuds",
@@ -546,6 +563,51 @@ test("upgrading a disconnected tile spends one Travel action plus one Upgrade ac
   assert.equal(result.actionCost.upgradeActionCost, 1);
   assert.equal(result.actionCost.disconnectedTravelActionCost, 1);
   assert.equal(nextState.players[0].actionsRemaining, 2);
+  assert.equal(nextState.map.placedTiles[1].tileId, "core_managed_woodlands_upgraded");
+});
+
+test("The Golden Vial waives disconnected upgrade Travel", () => {
+  const base = newState();
+  const state = {
+    ...base,
+    map: {
+      ...base.map,
+      placedTiles: [
+        {
+          id: "tile-001",
+          tileId: "core_gravel_path_basic",
+          coordinate: "C1",
+          coordinates: ["C1", "C2"],
+          orientation: "rotation-0",
+          strain: 0
+        },
+        {
+          id: "tile-002",
+          tileId: "core_forest_basic",
+          coordinate: "A13",
+          coordinates: ["A13"],
+          orientation: "rotation-0",
+          strain: 0
+        }
+      ]
+    },
+    encounter: {
+      ...base.encounter,
+      roundEffects: [goldenVialEffect()]
+    }
+  };
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.UPGRADE_TILE,
+    placedTileId: "tile-002"
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.actionCost.total, 1);
+  assert.equal(result.actionCost.originalTotal, 2);
+  assert.equal(result.actionCost.upgradeActionCost, 1);
+  assert.equal(result.actionCost.disconnectedTravelActionCost, 0);
+  assert.equal(result.disconnectedTravelActionDiscount.cardId, "golden_boon_the_golden_vial");
+  assert.equal(nextState.encounter.roundEffects[0].uses, 1);
   assert.equal(nextState.map.placedTiles[1].tileId, "core_managed_woodlands_upgraded");
 });
 

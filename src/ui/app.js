@@ -35,6 +35,7 @@ import {
   buildTravelNetworks,
   calculatePlacedTileActionCost,
   calculatePlacementActionCost,
+  getDiscountedDisconnectedTravelActionCost,
   getDiscountedTileActionCost,
   getNetworkForPlacedTile,
   getRiverCrossingActionCost
@@ -42,6 +43,7 @@ import {
 import { getActivationDetails, getAdjacentPlacedTiles } from "../game/activation.js";
 import { getEffectiveSupportDetails } from "../game/passives.js";
 import { SEED_PACKET_POSITIONS, getBurdenResolutionCost } from "../game/encounters.js";
+import { createEncounterCoverageAudit } from "../game/encounterCoverage.js";
 import {
   STEWARD_POWER_TYPES,
   getAvailableStewardPowerProviders,
@@ -79,6 +81,8 @@ const state = {
   boonExchangeGains: {},
   boonExchangeAmounts: {},
   boonStewardHelpGains: {},
+  goldenScrollDiscards: {},
+  goldenSignetMoves: {},
   placementCostDiscounts: {},
   burdenResolutionDiscounts: {},
   arrivalRequirementDiscounts: {},
@@ -161,6 +165,8 @@ function createGame() {
   state.boonExchangeGains = {};
   state.boonExchangeAmounts = {};
   state.boonStewardHelpGains = {};
+  state.goldenScrollDiscards = {};
+  state.goldenSignetMoves = {};
   state.placementCostDiscounts = {};
   state.burdenResolutionDiscounts = {};
   state.arrivalRequirementDiscounts = {};
@@ -475,6 +481,89 @@ function renderTypeChips(counts) {
   `;
 }
 
+const COVERAGE_STATUS_LABELS = Object.freeze({
+  supported: "Supported",
+  partial: "Partial",
+  unsupported: "Unsupported"
+});
+
+function renderEncounterCoverageSummary(audit) {
+  const counts = audit.statusCounts;
+
+  return `
+    <ul class="metric-list compact-metrics">
+      <li><span>Total Cards</span><strong>${audit.total}</strong></li>
+      <li><span>Supported</span><strong class="ok">${counts.supported}</strong></li>
+      <li><span>Partial</span><strong class="warn">${counts.partial}</strong></li>
+      <li><span>Unsupported</span><strong class="bad">${counts.unsupported}</strong></li>
+    </ul>
+  `;
+}
+
+function renderEncounterCoverageByType(audit) {
+  return `
+    <div class="coverage-type-grid">
+      ${Object.entries(audit.typeCounts)
+        .map(
+          ([type, summary]) => `
+            <div class="coverage-type-row type-${slug(type)}">
+              <strong>${escapeHtml(type)}</strong>
+              <span>${summary.statuses.supported}/${summary.total} supported</span>
+              ${
+                summary.statuses.partial || summary.statuses.unsupported
+                  ? `<small>${summary.statuses.partial} partial, ${summary.statuses.unsupported} unsupported</small>`
+                  : `<small>Complete</small>`
+              }
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderEncounterCoverageRows(cards) {
+  return cards
+    .map((card) => {
+      const statusLabel = COVERAGE_STATUS_LABELS[card.status] ?? card.status;
+      const templates = card.implementationAreas?.length ? card.implementationAreas.join(", ") : "None";
+
+      return `
+        <tr>
+          <td><span class="coverage-status coverage-${escapeHtml(card.status)}">${escapeHtml(statusLabel)}</span></td>
+          <td>${escapeHtml(card.encounterType)}</td>
+          <td>
+            <strong>${escapeHtml(card.cardName)}</strong>
+            <small>${escapeHtml(card.reason)}</small>
+          </td>
+          <td>${escapeHtml(templates)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+function renderEncounterCoveragePanel(data, game) {
+  const audit = createEncounterCoverageAudit(data.encounterCards, {
+    tiles: data.tiles,
+    resources: game.rules.resources
+  });
+
+  return `
+    <div class="panel-section">
+      <h2>Encounter Coverage</h2>
+      ${renderEncounterCoverageSummary(audit)}
+      ${renderEncounterCoverageByType(audit)}
+      <div class="coverage-table-wrap">
+        <table class="coverage-table">
+          <thead><tr><th>Status</th><th>Type</th><th>Card</th><th>Template</th></tr></thead>
+          <tbody>${renderEncounterCoverageRows(audit.cards)}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 function getCards(cardIds, encounterIndex) {
   return resolveEncounterCards(cardIds, encounterIndex);
 }
@@ -542,6 +631,14 @@ function getActiveEncounterPrototypeText(activeState) {
     return "Pending Burden reveal choice.";
   }
 
+  if (activeState.effect?.type === "golden_scroll_hand_refresh") {
+    return "Pending Golden Scroll hand choices.";
+  }
+
+  if (activeState.effect?.type === "golden_signet_ring_relocate_tiles") {
+    return "Pending Golden Signet Ring relocation choices.";
+  }
+
   if (activeState.encounterType === ENCOUNTER_TYPES.BURDEN) {
     const latestApplication = activeState.applications?.at(-1)?.effect;
     return latestApplication
@@ -566,6 +663,14 @@ function getRevealPrototypeText(data) {
   }
 
   if (data.immediateEffect) {
+    if (data.immediateEffect.type === "golden_scroll_hand_refresh") {
+      return "Created pending Golden Scroll hand choices.";
+    }
+
+    if (data.immediateEffect.type === "golden_signet_ring_relocate_tiles") {
+      return "Created pending Golden Signet Ring relocation choices.";
+    }
+
     return `Applied immediate effect: ${data.immediateEffect.type}.`;
   }
 
@@ -1606,6 +1711,138 @@ function renderBoonStewardHelpControls(game, activeState) {
   `;
 }
 
+function getGoldenScrollDiscardChoices(activeEncounterId, playerId) {
+  return state.goldenScrollDiscards[activeEncounterId]?.[playerId] ?? [];
+}
+
+function renderGoldenScrollControls(game, encounterIndex, activeState) {
+  return `
+    <div class="golden-scroll-grid" aria-label="Golden Scroll hand discards">
+      ${game.players
+        .map((player) => {
+          const selectedCardIds = getGoldenScrollDiscardChoices(activeState.id, player.id);
+
+          return `
+            <div class="golden-scroll-player">
+              <span>${escapeHtml(player.name)}</span>
+              ${
+                player.hand.length
+                  ? player.hand
+                      .map((cardId) => {
+                        const card = encounterIndex.get(cardId);
+
+                        return `
+                          <label class="checkbox-chip">
+                            <input
+                              class="golden-scroll-discard-choice"
+                              data-active-encounter-id="${escapeHtml(activeState.id)}"
+                              data-player-id="${escapeHtml(player.id)}"
+                              type="checkbox"
+                              value="${escapeHtml(cardId)}"
+                              ${selectedCardIds.includes(cardId) ? "checked" : ""}
+                            />
+                            <span>${escapeHtml(card?.card_name ?? cardId)}</span>
+                          </label>
+                        `;
+                      })
+                      .join("")
+                  : `<small>No cards in hand</small>`
+              }
+            </div>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function getGoldenSignetMoveChoices(activeEncounterId) {
+  return state.goldenSignetMoves[activeEncounterId] ?? {};
+}
+
+function getGoldenSignetRelocations(activeEncounterId) {
+  const choices = getGoldenSignetMoveChoices(activeEncounterId);
+
+  return Object.entries(choices)
+    .filter(([, choice]) => choice?.selected)
+    .map(([placedTileId, choice]) => ({
+      placedTileId,
+      coordinate: choice.coordinate,
+      orientation: choice.orientation
+    }));
+}
+
+function renderCoordinateOptions(mapHexes, selectedCoordinate) {
+  return mapHexes
+    .map(
+      (hex) =>
+        `<option value="${escapeHtml(hex.Coordinate)}" ${hex.Coordinate === selectedCoordinate ? "selected" : ""}>${escapeHtml(hex.Coordinate)}</option>`
+    )
+    .join("");
+}
+
+function renderGoldenSignetControls(game, tileIndex, activeState) {
+  const choices = getGoldenSignetMoveChoices(activeState.id);
+
+  return `
+    <div class="golden-signet-grid" aria-label="Golden Signet Ring tile relocations">
+      ${
+        game.map.placedTiles.length
+          ? game.map.placedTiles
+              .map((placedTile) => {
+                const tile = tileIndex.get(placedTile.tileId);
+                const choice = choices[placedTile.id] ?? {};
+                const selected = Boolean(choice.selected);
+                const selectedCoordinate = choice.coordinate ?? placedTile.coordinate ?? getPlacedTileAnchorCoordinate(placedTile);
+                const selectedOrientation = choice.orientation ?? placedTile.orientation ?? HEX_DIRECTIONS[0].id;
+
+                return `
+                  <div class="golden-signet-row">
+                    <label class="checkbox-chip">
+                      <input
+                        class="golden-signet-move-choice"
+                        data-active-encounter-id="${escapeHtml(activeState.id)}"
+                        data-placed-tile-id="${escapeHtml(placedTile.id)}"
+                        type="checkbox"
+                        ${selected ? "checked" : ""}
+                      />
+                      <span>${escapeHtml(tile?.tile_name ?? placedTile.tileId)}</span>
+                    </label>
+                    <select
+                      class="golden-signet-coordinate"
+                      data-active-encounter-id="${escapeHtml(activeState.id)}"
+                      data-placed-tile-id="${escapeHtml(placedTile.id)}"
+                      aria-label="${escapeHtml(`${tile?.tile_name ?? placedTile.tileId} new coordinate`)}"
+                      ${selected ? "" : "disabled"}
+                    >
+                      ${renderCoordinateOptions(game.map.hexes, selectedCoordinate)}
+                    </select>
+                    ${
+                      tile?.size_hexes > 1
+                        ? `<select
+                            class="golden-signet-orientation"
+                            data-active-encounter-id="${escapeHtml(activeState.id)}"
+                            data-placed-tile-id="${escapeHtml(placedTile.id)}"
+                            aria-label="${escapeHtml(`${tile.tile_name} new rotation`)}"
+                            ${selected ? "" : "disabled"}
+                          >
+                            ${HEX_DIRECTIONS.map(
+                              (direction) =>
+                                `<option value="${escapeHtml(direction.id)}" ${direction.id === selectedOrientation ? "selected" : ""}>${escapeHtml(direction.label)}</option>`
+                            ).join("")}
+                          </select>`
+                        : ""
+                    }
+                  </div>
+                `;
+              })
+              .join("")
+          : `<small>No placed tiles</small>`
+      }
+    </div>
+  `;
+}
+
 function renderActiveEncounterList(activeStates, encounterIndex, game) {
   if (activeStates.length === 0) {
     return `<p class="empty-note">None</p>`;
@@ -1633,6 +1870,16 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
           const boonStewardHelp =
             activeState.encounterType === ENCOUNTER_TYPES.BOON &&
             activeState.effect?.type === "steward_help"
+              ? activeState.effect
+              : null;
+          const goldenScroll =
+            activeState.encounterType === ENCOUNTER_TYPES.GOLDEN_BOON &&
+            activeState.effect?.type === "golden_scroll_hand_refresh"
+              ? activeState.effect
+              : null;
+          const goldenSignet =
+            activeState.encounterType === ENCOUNTER_TYPES.GOLDEN_BOON &&
+            activeState.effect?.type === "golden_signet_ring_relocate_tiles"
               ? activeState.effect
               : null;
           const burdenRevealChoice =
@@ -1663,8 +1910,8 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
             ? `<span class="card-type">${activeState.timerTokens} timers</span>`
               : activeState.encounterType === ENCOUNTER_TYPES.BURDEN
                 ? `<span class="card-type">${burdenRevealChoice ? "Pending Burden choice" : `${activeState.applications?.length ?? 0} applications${burdenResolution?.supported ? ` · ${escapeHtml(formatBurdenResolutionLabel(burdenResolution))}` : ""}`}</span>`
-                : boonStrainRelief || boonExchange || boonStewardHelp
-                  ? `<span class="card-type">Pending Boon</span>`
+                : boonStrainRelief || boonExchange || boonStewardHelp || goldenScroll || goldenSignet
+                  ? `<span class="card-type">${goldenScroll || goldenSignet ? "Pending Golden Boon" : "Pending Boon"}</span>`
                   : `<span class="card-type">${escapeHtml(activeState.encounterType)}</span>`;
           const burdenChoices = burdenResolution?.requiresPaymentChoice
             ? getBurdenPaymentChoices(activeState.id, burdenResolution)
@@ -1710,9 +1957,13 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
             game.phase === GAME_PHASES.PLAYER_TURNS &&
             canAffordCost(game.warehouse, getBurdenChoicePaymentCost(activeState));
           const canResolveBoon =
-            Boolean(boonStrainRelief || boonExchange || boonStewardHelp) &&
+            Boolean(boonStrainRelief || boonExchange || boonStewardHelp || goldenScroll || goldenSignet) &&
             game.phase === GAME_PHASES.PLAYER_TURNS &&
-            (boonStewardHelp
+            (goldenScroll
+              ? true
+              : goldenSignet
+              ? getGoldenSignetRelocations(activeState.id).length <= (goldenSignet.maxTiles ?? 5)
+              : boonStewardHelp
               ? getBoonStewardHelpGainChoices(activeState.id, boonStewardHelp).every(Boolean)
               : boonStrainRelief
               ? boonStrainReliefTargetIds.length > 0 && canAffordCost(game.warehouse, boonStrainRelief.cost)
@@ -1756,6 +2007,8 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
                 }
                 ${boonExchange ? renderBoonExchangeControls(game, activeState) : ""}
                 ${boonStewardHelp ? renderBoonStewardHelpControls(game, activeState) : ""}
+                ${goldenScroll ? renderGoldenScrollControls(game, encounterIndex, activeState) : ""}
+                ${goldenSignet ? renderGoldenSignetControls(game, tileIndex, activeState) : ""}
                 ${
                   canCompleteArrival
                     ? `<button class="mini-action-button complete-arrival" data-active-encounter-id="${escapeHtml(activeState.id)}" type="button">Complete</button>`
@@ -1772,7 +2025,7 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
                     : ""
                 }
                 ${
-                  boonStrainRelief || boonExchange || boonStewardHelp
+                  boonStrainRelief || boonExchange || boonStewardHelp || goldenScroll || goldenSignet
                     ? `<button class="mini-action-button resolve-boon" data-active-encounter-id="${escapeHtml(activeState.id)}" type="button" ${canResolveBoon ? "" : "disabled"}>Resolve</button>
                        ${boonStewardHelp ? "" : `<button class="mini-action-button skip-boon" data-active-encounter-id="${escapeHtml(activeState.id)}" type="button">Skip</button>`}`
                     : ""
@@ -1880,6 +2133,8 @@ function renderMapDebugPanel(data, countValidation, mapValidation, game, tileInd
         <h2>Source Counts</h2>
         <ul class="metric-list">${renderCounts(countValidation)}</ul>
       </div>
+
+      ${renderEncounterCoveragePanel(data, game)}
 
       <div class="panel-section">
         <h2>Selected Hex</h2>
@@ -2590,11 +2845,18 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex) {
   const activationActionCost = selectedPlacedTile
     ? calculatePlacedTileActionCost(game, selectedPlacedTile, { tileIndex }, "activationActionCost")
     : null;
+  const displayedActivationActionCost = activationActionCost
+    ? getDiscountedDisconnectedTravelActionCost(game, "activation", activationActionCost).actionCost
+    : null;
   const baseUpgradeActionCost = upgradeTile
     ? calculatePlacedTileActionCost(game, selectedPlacedTile, { tileIndex }, "upgradeActionCost")
     : null;
   const upgradeActionCost = upgradeTile
-    ? getDiscountedTileActionCost(game, selectedTileDefinition, "upgrade", baseUpgradeActionCost).actionCost
+    ? getDiscountedDisconnectedTravelActionCost(
+        game,
+        "upgrade",
+        getDiscountedTileActionCost(game, selectedTileDefinition, "upgrade", baseUpgradeActionCost).actionCost
+      ).actionCost
     : null;
   const upgradeStewardPowerProviders = upgradeTile
     ? getUpgradeStewardPowerProviders(game, selectedTileDefinition, tileIndex)
@@ -2723,7 +2985,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex) {
         <li><span>Selected Tile</span><strong>${escapeHtml(selectedPlacedTile ? getTileNameByPlacedId(game, tileIndex, selectedPlacedTile.id) : "None")}</strong></li>
         <li><span>Supported</span><strong>${escapeHtml(formatSupportDetails(selectedSupportDetails))}</strong></li>
         <li><span>Activation</span><strong>${escapeHtml(activationLabel)}</strong></li>
-        <li><span>Activation Action</span><strong>${escapeHtml(renderActionCost(activationActionCost))}</strong></li>
+        <li><span>Activation Action</span><strong>${escapeHtml(renderActionCost(displayedActivationActionCost))}</strong></li>
         <li><span>Upgrade</span><strong>${escapeHtml(upgradeLabel)}</strong></li>
         <li><span>Upgrade Action</span><strong>${escapeHtml(renderActionCost(displayedUpgradeActionCost))}</strong></li>
         <li><span>Steward Power</span><strong>${escapeHtml(formatStewardPowerStatus(selectedPlacedTile, selectedTileDefinition, game))}</strong></li>
@@ -2818,12 +3080,16 @@ function renderTilePlacementPanel(game, tileIndex) {
   const baseActionCost = footprint ? calculatePlacementActionCost(game, footprint, { tileIndex }) : null;
   const actionCost =
     baseActionCost && selectedTile
-      ? getDiscountedTileActionCost(game, selectedTile, "placement", baseActionCost).actionCost
+      ? getDiscountedDisconnectedTravelActionCost(
+          game,
+          "placement",
+          getDiscountedTileActionCost(game, selectedTile, "placement", baseActionCost).actionCost
+        ).actionCost
       : null;
   const placementStewardPowerProviders = getPlacementStewardPowerProviders(
     game,
     selectedTile,
-    baseActionCost,
+    actionCost,
     tileIndex
   );
   const selectedPlacementStewardPowerId = getSelectedStewardPowerId(
@@ -3129,10 +3395,18 @@ function bindEvents() {
       ? getFootprintCoordinates(state.selectedCoordinate, tile.size_hexes, state.selectedOrientation, state.game.map.hexes)
       : null;
     const baseActionCost = footprint ? calculatePlacementActionCost(state.game, footprint, { tileIndex }) : null;
+    const actionCost =
+      baseActionCost && tile
+        ? getDiscountedDisconnectedTravelActionCost(
+            state.game,
+            "placement",
+            getDiscountedTileActionCost(state.game, tile, "placement", baseActionCost).actionCost
+          ).actionCost
+        : null;
     const placementStewardPowerProviders = getPlacementStewardPowerProviders(
       state.game,
       tile,
-      baseActionCost,
+      actionCost,
       tileIndex
     );
     const stewardPowerPlacedTileId = getSelectedStewardPowerId(
@@ -3413,6 +3687,14 @@ function bindEvents() {
           : activeState?.effect?.type === "steward_help"
             ? getResourcePaymentAction(state.boonStewardHelpGains[activeEncounterId] ?? [])
           : undefined;
+      const discardSelections =
+        activeState?.effect?.type === "golden_scroll_hand_refresh"
+          ? state.goldenScrollDiscards[activeEncounterId] ?? {}
+          : undefined;
+      const relocations =
+        activeState?.effect?.type === "golden_signet_ring_relocate_tiles"
+          ? getGoldenSignetRelocations(activeEncounterId)
+          : undefined;
       const { state: nextGame, result } = dispatchGameAction(
         state.game,
         {
@@ -3420,7 +3702,9 @@ function bindEvents() {
           activeEncounterId,
           targetPlacedTileIds,
           payment,
-          gains
+          gains,
+          discardSelections,
+          relocations
         },
         { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
       );
@@ -3432,6 +3716,8 @@ function bindEvents() {
         delete state.boonExchangeGains[activeEncounterId];
         delete state.boonExchangeAmounts[activeEncounterId];
         delete state.boonStewardHelpGains[activeEncounterId];
+        delete state.goldenScrollDiscards[activeEncounterId];
+        delete state.goldenSignetMoves[activeEncounterId];
       }
       renderApp();
     });
@@ -3457,6 +3743,8 @@ function bindEvents() {
         delete state.boonExchangeGains[activeEncounterId];
         delete state.boonExchangeAmounts[activeEncounterId];
         delete state.boonStewardHelpGains[activeEncounterId];
+        delete state.goldenScrollDiscards[activeEncounterId];
+        delete state.goldenSignetMoves[activeEncounterId];
       }
       renderApp();
     });
@@ -3546,6 +3834,100 @@ function bindEvents() {
       state.boonStewardHelpGains = {
         ...state.boonStewardHelpGains,
         [activeEncounterId]: choices
+      };
+      renderApp();
+    });
+  });
+
+  root.querySelectorAll(".golden-scroll-discard-choice").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const activeEncounterId = checkbox.dataset.activeEncounterId;
+      const playerId = checkbox.dataset.playerId;
+      const checkedCardIds = [
+        ...root.querySelectorAll(
+          `.golden-scroll-discard-choice[data-active-encounter-id="${CSS.escape(activeEncounterId)}"][data-player-id="${CSS.escape(playerId)}"]:checked`
+        )
+      ].map((input) => input.value);
+      state.goldenScrollDiscards = {
+        ...state.goldenScrollDiscards,
+        [activeEncounterId]: {
+          ...(state.goldenScrollDiscards[activeEncounterId] ?? {}),
+          [playerId]: checkedCardIds
+        }
+      };
+      renderApp();
+    });
+  });
+
+  root.querySelectorAll(".golden-signet-move-choice").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const activeEncounterId = checkbox.dataset.activeEncounterId;
+      const placedTileId = checkbox.dataset.placedTileId;
+      const placedTile = state.game.map.placedTiles.find((candidate) => candidate.id === placedTileId);
+      const currentChoices = { ...(state.goldenSignetMoves[activeEncounterId] ?? {}) };
+
+      if (checkbox.checked) {
+        currentChoices[placedTileId] = {
+          ...(currentChoices[placedTileId] ?? {}),
+          selected: true,
+          coordinate: currentChoices[placedTileId]?.coordinate ?? placedTile?.coordinate ?? getPlacedTileAnchorCoordinate(placedTile),
+          orientation: currentChoices[placedTileId]?.orientation ?? placedTile?.orientation ?? HEX_DIRECTIONS[0].id
+        };
+      } else {
+        delete currentChoices[placedTileId];
+      }
+
+      state.goldenSignetMoves = {
+        ...state.goldenSignetMoves,
+        [activeEncounterId]: currentChoices
+      };
+      renderApp();
+    });
+  });
+
+  root.querySelectorAll(".golden-signet-coordinate").forEach((select) => {
+    select.addEventListener("change", () => {
+      const activeEncounterId = select.dataset.activeEncounterId;
+      const placedTileId = select.dataset.placedTileId;
+      const placedTile = state.game.map.placedTiles.find((candidate) => candidate.id === placedTileId);
+      state.goldenSignetMoves = {
+        ...state.goldenSignetMoves,
+        [activeEncounterId]: {
+          ...(state.goldenSignetMoves[activeEncounterId] ?? {}),
+          [placedTileId]: {
+            ...(state.goldenSignetMoves[activeEncounterId]?.[placedTileId] ?? {}),
+            selected: true,
+            coordinate: select.value,
+            orientation:
+              state.goldenSignetMoves[activeEncounterId]?.[placedTileId]?.orientation ??
+              placedTile?.orientation ??
+              HEX_DIRECTIONS[0].id
+          }
+        }
+      };
+      renderApp();
+    });
+  });
+
+  root.querySelectorAll(".golden-signet-orientation").forEach((select) => {
+    select.addEventListener("change", () => {
+      const activeEncounterId = select.dataset.activeEncounterId;
+      const placedTileId = select.dataset.placedTileId;
+      const placedTile = state.game.map.placedTiles.find((candidate) => candidate.id === placedTileId);
+      state.goldenSignetMoves = {
+        ...state.goldenSignetMoves,
+        [activeEncounterId]: {
+          ...(state.goldenSignetMoves[activeEncounterId] ?? {}),
+          [placedTileId]: {
+            ...(state.goldenSignetMoves[activeEncounterId]?.[placedTileId] ?? {}),
+            selected: true,
+            coordinate:
+              state.goldenSignetMoves[activeEncounterId]?.[placedTileId]?.coordinate ??
+              placedTile?.coordinate ??
+              getPlacedTileAnchorCoordinate(placedTile),
+            orientation: select.value
+          }
+        }
       };
       renderApp();
     });

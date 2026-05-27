@@ -1,5 +1,5 @@
 import { createMapIndex, getNeighborCoordinates } from "./map.js";
-import { ENCOUNTER_TYPES, createEncounterIndex } from "./setup.js";
+import { ENCOUNTER_TYPES, createEncounterIndex, createSeededRandom, shuffle } from "./setup.js";
 import { getEffectiveSupportDetails } from "./passives.js";
 import { applyStrainToPlacedTile } from "./strain.js";
 import { createTileIndex, getPlacedTileCoordinates, isOverstrainedPlacedTile } from "./tiles.js";
@@ -53,6 +53,16 @@ const OPTIONAL_RESOURCE_EXCHANGE =
   /^Exchange up to (\d+) resources in the Warehouse for the same number of resources of any type\.$/i;
 const STEWARD_TOKEN_BOON_HELP =
   /^Choose each tile occupied by one or more Steward Tokens\. For each chosen tile, remove 1 Strain from it\. For each chosen tile that had no Strain, gain (\d+) resources? of your choice instead\. Gain no more than (\d+) total resources this way\.$/i;
+const GOLDEN_BELL_ACTIVE_ARRIVAL =
+  /^When revealed, choose 3 Arrival Cards from the game box\. Shuffle those chosen cards, reveal 1 at random, and place it on the Stewards Board as an active Arrival with 3 timer tokens\. Return the other chosen Arrival Cards to the box\. Then discard this card\.$/i;
+const GOLDEN_EYED_TRAVELER_EXTRA_TURNS =
+  /^When revealed, after the normal Player Turns phase this round, the group immediately resolves one additional Player Turns phase before Phase Four\. Do not seed or reveal Encounter Cards, remove Arrival timers, resolve other end-of-round effects, or advance the Round Timer for this additional phase\. Each player takes one additional turn with the normal action allowance for the current player count\. Then discard this card\.$/i;
+const GOLDEN_SCROLL_HAND_REFRESH =
+  /^When revealed, each player may discard any number of standard Encounter Cards from their own hand\. For each card discarded this way, that player draws 1 random standard Encounter Card from the game box into their hand\. Golden Boons may not be drawn this way\. If there are not enough standard Encounter Cards in the box, draw as many as possible\. Then discard this card\.$/i;
+const GOLDEN_SIGNET_RING_RELOCATE_TILES =
+  /^When revealed, choose up to 5 placed tiles\. Remove those chosen tiles, then place each chosen tile into a legal empty map space\. Chosen tiles may be placed into spaces vacated by other chosen tiles\. Ignore adjacency and reachability restrictions for these placements, but terrain restrictions still apply\. If moving a multi-hex tile, every covered hex in the new position must be empty and legal\. Chosen tiles keep Strain, Supported, upgrade state, and any tokens\. Recalculate Travel Networks and Overstrained effects immediately\. Then discard this card\.$/i;
+const GOLDEN_VIAL_DISCONNECTED_TRAVEL =
+  /^When revealed, this effect remains for the rest of the game: once per round, during any player's turn, that player may take the Travel to a Disconnected Tile action without spending an Action\. All normal destination and placement rules still apply\. Then discard this card\.$/i;
 const RESOURCE_BURDEN_STRAIN_PLACEMENT =
   /^Choose 1 (Farm|Forest|Mine|Wildlands|Dig Site) with fewer than 3 Strain\. Place (\d+) Strain on it(?:\. Then choose 1 adjacent (placed tile|Travel Tile or Resource Tile|Housing Tile or Travel Tile) with fewer than 3 Strain\. Place 1 Strain on it)?\.$/i;
 const ADJACENT_CATEGORY_BURDEN_STRAIN_PLACEMENT =
@@ -84,12 +94,93 @@ const QUIET_FRACTURES_OVERSTRAINED_SPREAD =
 const STEWARD_TOKEN_BURDEN_STRAIN_PLACEMENT =
   /^Choose each tile occupied by one or more Steward Tokens with fewer than 3 Strain\. Place 1 Strain on each chosen tile(?:\. Then choose 1 Steward House with fewer than 3 Strain\. Place 1 Strain on it)?\.$/i;
 
+const BOON_EFFECT_TEMPLATES = Object.freeze([
+  ["core_upgrade_discount", NEXT_CORE_UPGRADE_DISCOUNT],
+  ["arrival_requirement_discount", NEXT_ARRIVAL_REQUIREMENT_DISCOUNT],
+  ["burden_resolution_discount", NEXT_BURDEN_RESOLUTION_DISCOUNT],
+  ["placement_resource_discount", NEXT_PLACED_CATEGORY_ALLOWED_RESOURCE_DISCOUNT],
+  ["tile_placement_resource_discount", TILE_PLACEMENT_RESOURCE_DISCOUNT],
+  ["category_place_or_upgrade_resource_discount", CATEGORY_PLACED_OR_UPGRADED_RESOURCE_DISCOUNT],
+  ["tile_place_or_upgrade_resource_discount", TILE_PLACED_OR_UPGRADED_RESOURCE_DISCOUNT],
+  ["free_tile_placement_cost", FREE_NEXT_TILE_PLACEMENT],
+  ["travel_tile_action_discount", TRAVEL_TILE_ACTION_DISCOUNT],
+  ["choice_resource_production_bonus", CHOICE_RESOURCE_PRODUCTION_BONUS],
+  ["next_resource_production_bonus", NEXT_RESOURCE_PRODUCTION_BONUS],
+  ["limited_resource_production_bonus", LIMITED_RESOURCE_PRODUCTION_BONUS],
+  ["each_resource_production_bonus", EACH_RESOURCE_PRODUCTION_BONUS],
+  ["arrival_timer_token", ADD_ONE_TIMER_TO_ACTIVE_ARRIVAL],
+  ["arrival_timer_tokens", ADD_TIMERS_AMONG_ACTIVE_ARRIVALS],
+  ["encounter_deck_peek_same_order", LOOK_AT_ENCOUNTER_DECK_SAME_ORDER],
+  ["encounter_deck_peek_any_order", LOOK_AT_ENCOUNTER_DECK_ANY_ORDER],
+  ["supported_strain_relief", REMOVE_STRAIN_FROM_SUPPORTED_TILE],
+  ["from_the_brink_strain_relief", FROM_THE_BRINK_STRAIN_RELIEF],
+  ["optional_resource_strain_relief", OPTIONAL_RESOURCE_STRAIN_RELIEF],
+  ["optional_resource_exchange", OPTIONAL_RESOURCE_EXCHANGE],
+  ["steward_help", STEWARD_TOKEN_BOON_HELP]
+]);
+
+const BURDEN_EFFECT_TEMPLATES = Object.freeze([
+  ["resource_family_strain_placement", RESOURCE_BURDEN_STRAIN_PLACEMENT],
+  ["adjacent_strained_category_strain_placement", ADJACENT_STRAINED_CATEGORY_BURDEN_STRAIN_PLACEMENT],
+  ["adjacent_category_strain_placement", ADJACENT_CATEGORY_BURDEN_STRAIN_PLACEMENT],
+  ["not_adjacent_category_strain_placement", NOT_ADJACENT_CATEGORY_BURDEN_STRAIN_PLACEMENT],
+  ["other_category_strain_placement", OTHER_CATEGORY_BURDEN_STRAIN_PLACEMENT],
+  ["category_choice_strain_placement", DIRECT_CATEGORY_CHOICE_BURDEN_STRAIN_PLACEMENT],
+  ["pay_or_strain_choice", CATEGORY_PAY_OR_STRAIN_BURDEN_CHOICE],
+  ["arrival_pay_or_timer_choice", ARRIVAL_PAY_OR_TIMER_BURDEN_CHOICE],
+  ["resource_loss_or_strain_choice", CHOSEN_RESOURCE_LOSS_OR_STRAIN_BURDEN_CHOICE],
+  ["most_resource_loss_or_strain_choice", MOST_RESOURCE_LOSS_OR_STRAIN_BURDEN_CHOICE],
+  ["upgraded_core_strain_placement", UPGRADED_CORE_BURDEN_STRAIN_PLACEMENT],
+  ["renown_strain_placement", RENOWN_BURDEN_STRAIN_PLACEMENT],
+  ["quiet_fractures_strained_tile", QUIET_FRACTURES_STRAINED_TILE],
+  ["quiet_fractures_overstrained_spread", QUIET_FRACTURES_OVERSTRAINED_SPREAD],
+  ["steward_token_strain_placement", STEWARD_TOKEN_BURDEN_STRAIN_PLACEMENT]
+]);
+
 export function createEncounterStateId(state) {
   return `encounter-r${String(state.round).padStart(2, "0")}-${String(state.encounter.active.length + 1).padStart(2, "0")}`;
 }
 
 export function getEncounterSeasonEffect(card, season) {
   return card?.[SEASON_EFFECT_FIELDS[season]] ?? null;
+}
+
+function getEffectTemplateSupport(effectText, templates) {
+  const text = String(effectText ?? "").trim();
+
+  if (!text) {
+    return {
+      supported: false,
+      template: null,
+      effectText: text
+    };
+  }
+
+  const template = templates.find(([, pattern]) => pattern.test(text));
+
+  return {
+    supported: Boolean(template),
+    template: template?.[0] ?? null,
+    effectText: text
+  };
+}
+
+export function getBoonEffectSupport(effectText) {
+  return getEffectTemplateSupport(effectText, BOON_EFFECT_TEMPLATES);
+}
+
+export function getBurdenEffectSupport(effectText) {
+  return getEffectTemplateSupport(effectText, BURDEN_EFFECT_TEMPLATES);
+}
+
+export function getGoldenBoonEffectSupport(effectText) {
+  return getEffectTemplateSupport(effectText, [
+    ["golden_bell_active_arrival_from_box", GOLDEN_BELL_ACTIVE_ARRIVAL],
+    ["golden_eyed_traveler_extra_turns", GOLDEN_EYED_TRAVELER_EXTRA_TURNS],
+    ["golden_scroll_hand_refresh", GOLDEN_SCROLL_HAND_REFRESH],
+    ["golden_signet_ring_relocate_tiles", GOLDEN_SIGNET_RING_RELOCATE_TILES],
+    ["golden_vial_disconnected_travel", GOLDEN_VIAL_DISCONNECTED_TRAVEL]
+  ]);
 }
 
 function normalizeResourceSourceName(sourceName) {
@@ -1925,6 +2016,226 @@ function getSeedPacketIndex(deckLength, seedPosition) {
   return null;
 }
 
+function getEncounterCardIdsInPlay(state) {
+  return new Set([
+    ...(state.encounter.setup?.selectedStandardPoolIds ?? []),
+    ...(state.encounter.setup?.selectedGoldenBoonIds ?? []),
+    ...(state.encounter.deck ?? []),
+    ...(state.encounter.discard ?? []),
+    ...(state.encounter.active ?? []).map((activeState) => activeState.cardId),
+    ...(state.encounter.completed ?? []).map((activeState) => activeState.cardId),
+    ...(state.players ?? []).flatMap((player) => player.hand ?? [])
+  ]);
+}
+
+function getGoldenBellArrivalCandidates(state, encounterCards) {
+  const cardIdsInPlay = getEncounterCardIdsInPlay(state);
+
+  return encounterCards.filter(
+    (candidate) => candidate.encounter_type === ENCOUNTER_TYPES.ARRIVAL && !cardIdsInPlay.has(candidate.card_id)
+  );
+}
+
+function createGoldenScrollEffect(state, card) {
+  const effectText = String(card.effect ?? "").trim();
+
+  return {
+    source: "golden_boon",
+    type: "golden_scroll_hand_refresh",
+    cardId: card.card_id,
+    cardName: card.card_name,
+    round: state.round,
+    season: state.season,
+    effectText,
+    discardOnReveal: false
+  };
+}
+
+function createGoldenSignetRingEffect(state, card) {
+  const effectText = String(card.effect ?? "").trim();
+
+  return {
+    source: "golden_boon",
+    type: "golden_signet_ring_relocate_tiles",
+    cardId: card.card_id,
+    cardName: card.card_name,
+    round: state.round,
+    season: state.season,
+    effectText,
+    maxTiles: 5,
+    discardOnReveal: false
+  };
+}
+
+function resolveGoldenBoonImmediateEffect(state, card, activeStates, encounterCards, index = 0) {
+  if (card?.encounter_type !== ENCOUNTER_TYPES.GOLDEN_BOON) {
+    return {
+      valid: true,
+      state,
+      active: activeStates,
+      effect: null
+    };
+  }
+
+  const effectText = String(card.effect ?? "").trim();
+
+  if (GOLDEN_SCROLL_HAND_REFRESH.test(effectText)) {
+    const effect = createGoldenScrollEffect(state, card);
+    const activeState = createActiveEncounterState(
+      {
+        ...state,
+        encounter: {
+          ...state.encounter,
+          active: activeStates
+        }
+      },
+      card,
+      effect
+    );
+
+    return {
+      valid: true,
+      state,
+      active: [...activeStates, activeState],
+      effect
+    };
+  }
+
+  if (GOLDEN_SIGNET_RING_RELOCATE_TILES.test(effectText)) {
+    const effect = createGoldenSignetRingEffect(state, card);
+    const activeState = createActiveEncounterState(
+      {
+        ...state,
+        encounter: {
+          ...state.encounter,
+          active: activeStates
+        }
+      },
+      card,
+      effect
+    );
+
+    return {
+      valid: true,
+      state,
+      active: [...activeStates, activeState],
+      effect
+    };
+  }
+
+  if (!GOLDEN_BELL_ACTIVE_ARRIVAL.test(effectText)) {
+    return {
+      valid: true,
+      state,
+      active: activeStates,
+      effect: null
+    };
+  }
+
+  const candidates = getGoldenBellArrivalCandidates(
+    {
+      ...state,
+      encounter: {
+        ...state.encounter,
+        active: activeStates
+      }
+    },
+    encounterCards
+  );
+
+  if (candidates.length < 3) {
+    return {
+      valid: false,
+      errors: [
+        `${card.card_name} needs 3 Arrival Cards in the game box, but only ${candidates.length} available.`
+      ]
+    };
+  }
+
+  const random = createSeededRandom(`${state.seed}-golden-bell-${state.round}-${index + 1}`);
+  const chosenCards = shuffle(candidates, random).slice(0, 3);
+  const revealedArrival = shuffle(chosenCards, random)[0];
+  const activeArrival = createActiveEncounterState(
+    {
+      ...state,
+      encounter: {
+        ...state.encounter,
+        active: activeStates
+      }
+    },
+    revealedArrival
+  );
+  const returnedArrivalCardIds = chosenCards
+    .map((chosenCard) => chosenCard.card_id)
+    .filter((cardId) => cardId !== revealedArrival.card_id);
+
+  return {
+    valid: true,
+    state,
+    active: [...activeStates, activeArrival],
+    effect: {
+      source: "golden_boon",
+      type: "golden_bell_active_arrival_from_box",
+      cardId: card.card_id,
+      cardName: card.card_name,
+      round: state.round,
+      season: state.season,
+      effectText,
+      chosenArrivalCardIds: chosenCards.map((chosenCard) => chosenCard.card_id),
+      revealedArrivalCardId: revealedArrival.card_id,
+      returnedArrivalCardIds,
+      timerTokens: activeArrival.timerTokens,
+      deterministicChoice: true,
+      discardOnReveal: true
+    }
+  };
+}
+
+function createGoldenBoonRoundEffect(state, card, index = 0) {
+  if (card?.encounter_type !== ENCOUNTER_TYPES.GOLDEN_BOON) {
+    return null;
+  }
+
+  const effectText = String(card.effect ?? "").trim();
+
+  if (GOLDEN_EYED_TRAVELER_EXTRA_TURNS.test(effectText)) {
+    return {
+      id: `golden-eyed-traveler-r${String(state.round).padStart(2, "0")}-${String(index + 1).padStart(2, "0")}`,
+      source: "golden_boon",
+      type: "golden_eyed_traveler_extra_turns",
+      cardId: card.card_id,
+      cardName: card.card_name,
+      round: state.round,
+      season: state.season,
+      effectText,
+      maxUses: 1,
+      uses: 0,
+      expiresAtEndOfRound: true,
+      discardOnReveal: true
+    };
+  }
+
+  if (GOLDEN_VIAL_DISCONNECTED_TRAVEL.test(effectText)) {
+    return {
+      id: `golden-vial-r${String(state.round).padStart(2, "0")}-${String(index + 1).padStart(2, "0")}`,
+      source: "golden_boon",
+      type: "golden_vial_disconnected_travel",
+      cardId: card.card_id,
+      cardName: card.card_name,
+      round: state.round,
+      season: state.season,
+      effectText,
+      maxUses: 1,
+      uses: 0,
+      expiresAtEndOfRound: false,
+      resetUsesEachRound: true,
+      discardOnReveal: true
+    };
+  }
+
+  return null;
+}
+
 export function seedEncounterCards(state, options = {}) {
   if (state.encounter.seededRounds.includes(state.round)) {
     return {
@@ -2044,6 +2355,18 @@ function createActiveEncounterState(state, card, application = null) {
     };
   }
 
+  if (
+    card.encounter_type === ENCOUNTER_TYPES.GOLDEN_BOON &&
+    (application?.type === "golden_scroll_hand_refresh" ||
+      application?.type === "golden_signet_ring_relocate_tiles")
+  ) {
+    return {
+      ...base,
+      pending: true,
+      effect: application
+    };
+  }
+
   return base;
 }
 
@@ -2086,7 +2409,32 @@ export function revealEncounters(state, encounterCards, context = {}) {
 
     if (card.encounter_type === ENCOUNTER_TYPES.GOLDEN_BOON) {
       goldenRevealed += 1;
-      discard.push(cardId);
+      const immediateEffect = resolveGoldenBoonImmediateEffect(state, card, active, encounterCards, revealed.length - 1);
+      if (!immediateEffect.valid) {
+        return {
+          valid: false,
+          errors: immediateEffect.errors
+        };
+      }
+
+      state = immediateEffect.state;
+      active = immediateEffect.active;
+      if (immediateEffect.effect) {
+        entry.immediateEffect = immediateEffect.effect;
+      }
+
+      const roundEffect = createGoldenBoonRoundEffect(state, card, roundEffects.length);
+      if (roundEffect) {
+        roundEffects.push(roundEffect);
+        entry.roundEffect = roundEffect;
+      }
+
+      const discardOnReveal = roundEffect
+        ? roundEffect.discardOnReveal !== false
+        : immediateEffect.effect?.discardOnReveal !== false;
+      if (discardOnReveal) {
+        discard.push(cardId);
+      }
       continue;
     }
 

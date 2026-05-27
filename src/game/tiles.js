@@ -707,6 +707,26 @@ function validateTerrainRule(tile, hexes) {
   return matches ? null : `${tile.tile_name} must be placed on ${requiredTerrain}.`;
 }
 
+function validateTileTerrainPlacement(tile, footprintHexes) {
+  const errors = [];
+  const coveredRiverHexes = footprintHexes.filter(isWaterHex);
+
+  if (coveredRiverHexes.length > 0 && !tilePermitsRiverPlacement(tile)) {
+    errors.push(`${tile.tile_name} cannot cover a River hex.`);
+  }
+
+  if (coveredRiverHexes.length === 0 && tilePermitsRiverPlacement(tile)) {
+    errors.push(`${tile.tile_name} must be placed on a River hex.`);
+  }
+
+  const terrainError = validateTerrainRule(tile, footprintHexes);
+  if (terrainError) {
+    errors.push(terrainError);
+  }
+
+  return errors;
+}
+
 function validateAdjacencyRule(state, tile, coordinates, tileIndex) {
   if (tile.placement_rules === "Place adjacent to a River hex.") {
     const adjacentToRiver = hasAdjacentHexMatching(state, coordinates, (neighborHex) => isWaterHex(neighborHex));
@@ -789,21 +809,8 @@ export function validatePlaceTile(state, action, context) {
     }
   }
 
-  const coveredRiverHexes = footprintHexes.filter(isWaterHex);
-
-  if (coveredRiverHexes.length > 0 && !tilePermitsRiverPlacement(tile)) {
-    errors.push(`${tile.tile_name} cannot cover a River hex.`);
-  }
-
-  if (coveredRiverHexes.length === 0 && tilePermitsRiverPlacement(tile)) {
-    errors.push(`${tile.tile_name} must be placed on a River hex.`);
-  }
-
   if (footprintCoordinates) {
-    const terrainError = validateTerrainRule(tile, footprintHexes);
-    if (terrainError) {
-      errors.push(terrainError);
-    }
+    errors.push(...validateTileTerrainPlacement(tile, footprintHexes));
 
     if (!footprintHexes.some(isWaterHex)) {
       const adjacencyError = validateAdjacencyRule(state, tile, footprintCoordinates, tileIndex);
@@ -826,6 +833,109 @@ export function validatePlaceTile(state, action, context) {
     footprintCoordinates,
     hex,
     tile
+  };
+}
+
+export function validateRelocatePlacedTiles(state, action, context) {
+  const tileIndex = context.tileIndex ?? createTileIndex(context.tiles ?? []);
+  const mapIndex = createMapIndex(state.map.hexes);
+  const relocations = action.relocations ?? [];
+  const errors = [];
+  const moves = [];
+
+  if (!Array.isArray(relocations)) {
+    return {
+      valid: false,
+      errors: ["Tile relocation choices must be a list."],
+      moves: []
+    };
+  }
+
+  if (relocations.length > 5) {
+    errors.push("The Golden Signet Ring can move up to 5 placed tiles.");
+  }
+
+  const duplicateIds = relocations
+    .map((relocation) => relocation.placedTileId)
+    .filter((placedTileId, index, placedTileIds) => placedTileId && placedTileIds.indexOf(placedTileId) !== index);
+
+  if (duplicateIds.length > 0) {
+    errors.push("Each placed tile can only be chosen once for The Golden Signet Ring.");
+  }
+
+  const selectedIds = new Set(relocations.map((relocation) => relocation.placedTileId).filter(Boolean));
+  const occupiedByUnselectedTile = new Map(
+    state.map.placedTiles
+      .filter((placedTile) => !selectedIds.has(placedTile.id))
+      .flatMap((placedTile) => getPlacedTileCoordinates(placedTile).map((coordinate) => [coordinate, placedTile]))
+  );
+  const finalFootprintByCoordinate = new Map();
+
+  for (const relocation of relocations) {
+    const placedTile = state.map.placedTiles.find((candidate) => candidate.id === relocation.placedTileId);
+    if (!placedTile) {
+      errors.push(`Unknown placed tile: ${relocation.placedTileId}`);
+      continue;
+    }
+
+    const tile = tileIndex.get(placedTile.tileId);
+    if (!tile) {
+      errors.push(`Unknown tile definition: ${placedTile.tileId}`);
+      continue;
+    }
+
+    const coordinate = relocation.coordinate;
+    if (!mapIndex.has(coordinate)) {
+      errors.push(`Unknown map coordinate: ${coordinate}`);
+      continue;
+    }
+
+    const orientation =
+      tile.size_hexes > 1
+        ? relocation.orientation ?? placedTile.orientation ?? HEX_DIRECTIONS[0].id
+        : placedTile.orientation ?? HEX_DIRECTIONS[0].id;
+    const footprintCoordinates = getFootprintCoordinates(coordinate, tile.size_hexes, orientation, mapIndex);
+
+    if (!footprintCoordinates) {
+      errors.push(`${tile.tile_name} footprint leaves the approved map.`);
+      continue;
+    }
+
+    const footprintHexes = footprintCoordinates.map((footprintCoordinate) => mapIndex.get(footprintCoordinate));
+    errors.push(...validateTileTerrainPlacement(tile, footprintHexes));
+
+    for (const footprintCoordinate of footprintCoordinates) {
+      const occupiedTile = occupiedByUnselectedTile.get(footprintCoordinate);
+      if (occupiedTile) {
+        errors.push(`${footprintCoordinate} already has a placed tile.`);
+      }
+
+      const previousMove = finalFootprintByCoordinate.get(footprintCoordinate);
+      if (previousMove && previousMove.placedTileId !== placedTile.id) {
+        errors.push(`${footprintCoordinate} would be occupied by multiple moved tiles.`);
+      }
+
+      finalFootprintByCoordinate.set(footprintCoordinate, {
+        placedTileId: placedTile.id,
+        tileName: tile.tile_name
+      });
+    }
+
+    moves.push({
+      placedTile,
+      tile,
+      fromCoordinate: placedTile.coordinate ?? getPlacedTileCoordinates(placedTile)[0],
+      fromCoordinates: getPlacedTileCoordinates(placedTile),
+      toCoordinate: coordinate,
+      toCoordinates: footprintCoordinates,
+      orientation
+    });
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    moves
   };
 }
 

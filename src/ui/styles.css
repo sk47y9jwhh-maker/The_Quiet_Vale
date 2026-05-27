@@ -375,6 +375,10 @@ input {
   color: #247349;
 }
 
+.warn {
+  color: #9c6f19;
+}
+
 .bad {
   color: #9d2f2f;
 }
@@ -601,6 +605,88 @@ input {
 
 .compact-metrics {
   margin-bottom: 12px;
+}
+
+.coverage-type-grid {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.coverage-type-row {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border-left: 4px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.coverage-type-row strong {
+  font-size: 0.82rem;
+}
+
+.coverage-type-row span,
+.coverage-type-row small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.coverage-table-wrap {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.coverage-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.74rem;
+}
+
+.coverage-table th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  color: var(--muted);
+  text-align: left;
+}
+
+.coverage-table th,
+.coverage-table td {
+  padding: 7px 6px;
+  border-bottom: 1px solid rgba(201, 208, 202, 0.65);
+  vertical-align: top;
+}
+
+.coverage-table small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  line-height: 1.25;
+}
+
+.coverage-status {
+  display: inline-flex;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #f7f8f6;
+  font-weight: 900;
+}
+
+.coverage-supported {
+  color: #247349;
+}
+
+.coverage-partial {
+  color: #9c6f19;
+}
+
+.coverage-unsupported {
+  color: #9d2f2f;
 }
 
 .mini-card {
@@ -854,6 +940,66 @@ input {
   display: grid;
   gap: 4px;
   justify-items: stretch;
+}
+
+.golden-scroll-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+  min-width: min(100%, 340px);
+}
+
+.golden-scroll-player {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.golden-scroll-player > span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.checkbox-chip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  border: 1px solid rgba(201, 208, 202, 0.75);
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.checkbox-chip span {
+  overflow-wrap: anywhere;
+}
+
+.golden-signet-grid {
+  display: grid;
+  gap: 6px;
+  min-width: min(100%, 360px);
+}
+
+.golden-signet-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(74px, 0.5fr);
+  gap: 5px;
+  align-items: center;
+}
+
+.golden-signet-row select {
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.golden-signet-row .golden-signet-orientation {
+  grid-column: 1 / -1;
 }
 
 .steward-exchange-controls,

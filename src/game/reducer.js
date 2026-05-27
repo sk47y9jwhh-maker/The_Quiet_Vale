@@ -8,14 +8,16 @@ import {
   markPlacementDiscountRound,
   spendWarehouseResources,
   validatePlaceTile,
+  validateRelocatePlacedTiles,
   validateUpgradeTile
 } from "./tiles.js";
 import {
+  getDiscountedDisconnectedTravelActionCost,
   calculatePlacedTileActionCost,
   calculatePlacementActionCost,
   getDiscountedTileActionCost
 } from "./travel.js";
-import { ENCOUNTER_TYPES, GAME_PHASES, getSeasonForRound } from "./setup.js";
+import { ENCOUNTER_TYPES, GAME_PHASES, createSeededRandom, getSeasonForRound, shuffle } from "./setup.js";
 import {
   applyStrainReliefEffect,
   getBurdenResolutionCost,
@@ -581,7 +583,7 @@ function applyPlacementCostReductionUse(encounter, placementCostReduction) {
 }
 
 function applyActionCostDiscountUse(encounter, actionCostDiscount) {
-  if (actionCostDiscount?.source !== "boon" || !actionCostDiscount.effectId) {
+  if (!["boon", "golden_boon"].includes(actionCostDiscount?.source) || !actionCostDiscount.effectId) {
     return encounter;
   }
 
@@ -589,6 +591,41 @@ function applyActionCostDiscountUse(encounter, actionCostDiscount) {
     ...encounter,
     roundEffects: (encounter.roundEffects ?? []).map((effect) =>
       effect.id === actionCostDiscount.effectId
+        ? {
+            ...effect,
+            uses: (effect.uses ?? 0) + 1
+          }
+        : effect
+    )
+  };
+}
+
+function resetRecurringRoundEffects(roundEffects = []) {
+  return roundEffects.map((effect) =>
+    effect.resetUsesEachRound
+      ? {
+          ...effect,
+          uses: 0
+        }
+      : effect
+  );
+}
+
+function getPendingExtraPlayerTurnsEffect(state) {
+  return (
+    (state.encounter.roundEffects ?? []).find(
+      (effect) =>
+        effect.type === "golden_eyed_traveler_extra_turns" &&
+        (effect.uses ?? 0) < (effect.maxUses ?? 1)
+    ) ?? null
+  );
+}
+
+function markRoundEffectUsed(encounter, effectId) {
+  return {
+    ...encounter,
+    roundEffects: (encounter.roundEffects ?? []).map((effect) =>
+      effect.id === effectId
         ? {
             ...effect,
             uses: (effect.uses ?? 0) + 1
@@ -1160,14 +1197,20 @@ function placeTile(state, action, context) {
     "placement",
     baseActionCost
   );
-  let actionCost = actionDiscount.actionCost;
+  const travelDiscount = getDiscountedDisconnectedTravelActionCost(
+    state,
+    "placement",
+    actionDiscount.actionCost
+  );
+  let actionCost = travelDiscount.actionCost;
   const actionCostDiscount = actionDiscount.actionCostDiscount;
+  const disconnectedTravelActionDiscount = travelDiscount.actionCostDiscount;
   const stewardPowerProvider = getRequestedPlacementStewardPowerProvider(
     state,
     action,
     context,
     validation.tile,
-    baseActionCost
+    actionCost
   );
 
   if (!stewardPowerProvider.valid) {
@@ -1252,13 +1295,17 @@ function placeTile(state, action, context) {
     encounterAfterPlacementDiscount,
     actionCostDiscount
   );
+  const encounterAfterTravelDiscount = applyActionCostDiscountUse(
+    encounterAfterActionDiscount,
+    disconnectedTravelActionDiscount
+  );
   const nextState = {
     ...actionState,
     map: {
       ...actionState.map,
       placedTiles: [...placedTilesAfterStewardPower, placedTile]
     },
-    encounter: encounterAfterActionDiscount,
+    encounter: encounterAfterTravelDiscount,
     tileSupply: updateTileSupply(actionState, action.tileId, (entry) => ({
       ...entry,
       available: entry.available - 1
@@ -1274,6 +1321,7 @@ function placeTile(state, action, context) {
         orientation: action.orientation,
         actionCost,
         actionCostDiscount,
+        disconnectedTravelActionDiscount,
         stewardPower,
         baseCost: validation.baseCost,
         cost: validation.cost,
@@ -1291,6 +1339,7 @@ function placeTile(state, action, context) {
       message: `Placed ${validation.tile.tile_name} on ${action.coordinate} for ${actionCost.total} Action${actionCost.total === 1 ? "" : "s"}.`,
       actionCost,
       actionCostDiscount,
+      disconnectedTravelActionDiscount,
       stewardPower,
       baseCost: validation.baseCost,
       cost: validation.cost,
@@ -1336,7 +1385,14 @@ function activateTile(state, action, context) {
     };
   }
 
-  const actionCost = calculatePlacedTileActionCost(state, validation.placedTile, context, "activationActionCost");
+  const baseActionCost = calculatePlacedTileActionCost(state, validation.placedTile, context, "activationActionCost");
+  const travelDiscount = getDiscountedDisconnectedTravelActionCost(
+    state,
+    "activation",
+    baseActionCost
+  );
+  const actionCost = travelDiscount.actionCost;
+  const disconnectedTravelActionDiscount = travelDiscount.actionCostDiscount;
 
   if (player.actionsRemaining < actionCost.total) {
     return {
@@ -1352,12 +1408,16 @@ function activateTile(state, action, context) {
     };
   }
 
-  const actionState = markPlayerMapInteraction(
+  const interactionState = markPlayerMapInteraction(
     spendPlayerActions(state, player.id, actionCost),
     player.id,
     validation.placedTile,
     "activate"
   );
+  const actionState = {
+    ...interactionState,
+    encounter: applyActionCostDiscountUse(interactionState.encounter, disconnectedTravelActionDiscount)
+  };
 
   if (validation.activation.type === "remove_strain_adjacent") {
     const nextTargetsById = new Map(
@@ -1748,8 +1808,14 @@ function upgradeTile(state, action, context) {
     "upgrade",
     baseActionCost
   );
-  let actionCost = actionDiscount.actionCost;
+  const travelDiscount = getDiscountedDisconnectedTravelActionCost(
+    state,
+    "upgrade",
+    actionDiscount.actionCost
+  );
+  let actionCost = travelDiscount.actionCost;
   const actionCostDiscount = actionDiscount.actionCostDiscount;
+  const disconnectedTravelActionDiscount = travelDiscount.actionCostDiscount;
   const stewardPowerProvider = getRequestedStewardPowerProvider(
     state,
     context,
@@ -1816,6 +1882,10 @@ function upgradeTile(state, action, context) {
     encounterAfterUpgradeCostReduction,
     actionCostDiscount
   );
+  const encounterAfterTravelDiscount = applyActionCostDiscountUse(
+    encounterAfterActionDiscount,
+    disconnectedTravelActionDiscount
+  );
   const nextState = {
     ...actionState,
     map: {
@@ -1828,7 +1898,7 @@ function upgradeTile(state, action, context) {
         actionState.season
       )
     },
-    encounter: encounterAfterActionDiscount,
+    encounter: encounterAfterTravelDiscount,
     warehouse: spendWarehouseResources(actionState.warehouse, validation.cost),
     log: [
       ...actionState.log,
@@ -1843,6 +1913,7 @@ function upgradeTile(state, action, context) {
           toTileId: validation.upgradeTile.tile_id,
           actionCost,
           actionCostDiscount,
+          disconnectedTravelActionDiscount,
           stewardPower,
           baseCost: validation.baseCost,
           upgradeCostReduction: validation.upgradeCostReduction,
@@ -1864,6 +1935,7 @@ function upgradeTile(state, action, context) {
       cost: validation.cost,
       actionCost,
       actionCostDiscount,
+      disconnectedTravelActionDiscount,
       stewardPower
     }
   };
@@ -2464,6 +2536,94 @@ function completeArrival(state, action, context) {
   };
 }
 
+function getEncounterCardIdsInPlay(state) {
+  return new Set([
+    ...(state.encounter.setup?.selectedStandardPoolIds ?? []),
+    ...(state.encounter.setup?.selectedGoldenBoonIds ?? []),
+    ...(state.encounter.deck ?? []),
+    ...(state.encounter.discard ?? []),
+    ...(state.encounter.active ?? []).map((activeState) => activeState.cardId),
+    ...(state.encounter.completed ?? []).map((activeState) => activeState.cardId),
+    ...(state.players ?? []).flatMap((player) => player.hand ?? [])
+  ]);
+}
+
+function getStandardEncounterBoxCandidates(state, encounterCards) {
+  const cardIdsInPlay = getEncounterCardIdsInPlay(state);
+
+  return encounterCards.filter(
+    (card) => card.encounter_type !== ENCOUNTER_TYPES.GOLDEN_BOON && !cardIdsInPlay.has(card.card_id)
+  );
+}
+
+function getGoldenScrollDiscardSelections(state, action, encounterIndex) {
+  const selectionsByPlayer = action.discardSelections ?? {};
+  const errors = [];
+  const playerSelections = [];
+
+  for (const player of state.players) {
+    const rawCardIds = selectionsByPlayer[player.id] ?? [];
+    const uniqueCardIds = [...new Set(rawCardIds)];
+
+    if (uniqueCardIds.length !== rawCardIds.length) {
+      errors.push(`${player.name} selected the same hand card more than once.`);
+    }
+
+    const selectedHandCardIds = [];
+
+    for (const cardId of uniqueCardIds) {
+      if (!player.hand.includes(cardId)) {
+        errors.push(`${player.name} cannot discard ${cardId}; it is not in their hand.`);
+        continue;
+      }
+
+      const card = encounterIndex.get(cardId);
+      if (!card) {
+        errors.push(`Unknown Encounter card: ${cardId}`);
+        continue;
+      }
+
+      if (card.encounter_type === ENCOUNTER_TYPES.GOLDEN_BOON) {
+        errors.push(`${player.name} cannot draw-discard ${card.card_name}; Golden Boons are not standard Encounter Cards.`);
+        continue;
+      }
+
+      selectedHandCardIds.push(cardId);
+    }
+
+    playerSelections.push({
+      playerId: player.id,
+      discardedCardIds: player.hand.filter((cardId) => selectedHandCardIds.includes(cardId))
+    });
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    playerSelections
+  };
+}
+
+function updatePlayerMarkersForRelocations(players, moves, state) {
+  const movesByPlacedTileId = new Map(moves.map((move) => [move.placedTile.id, move]));
+
+  return players.map((player) => {
+    const move = movesByPlacedTileId.get(player.lastInteraction?.placedTileId);
+
+    return move
+      ? {
+          ...player,
+          lastInteraction: {
+            ...player.lastInteraction,
+            coordinate: move.toCoordinate,
+            round: state.round,
+            season: state.season
+          }
+        }
+      : player;
+  });
+}
+
 function resolveBoon(state, action, context) {
   if (state.phase !== GAME_PHASES.PLAYER_TURNS) {
     return {
@@ -2489,9 +2649,18 @@ function resolveBoon(state, action, context) {
   }
 
   const effect = activeBoon.effect;
-  const supportedOptionalBoonTypes = ["optional_resource_strain_relief", "optional_resource_exchange", "steward_help"];
+  const supportedOptionalBoonTypes = [
+    "optional_resource_strain_relief",
+    "optional_resource_exchange",
+    "steward_help",
+    "golden_scroll_hand_refresh",
+    "golden_signet_ring_relocate_tiles"
+  ];
+  const supportedEncounterType =
+    activeBoon.encounterType === ENCOUNTER_TYPES.BOON ||
+    activeBoon.encounterType === ENCOUNTER_TYPES.GOLDEN_BOON;
 
-  if (activeBoon.encounterType !== ENCOUNTER_TYPES.BOON || !supportedOptionalBoonTypes.includes(effect?.type)) {
+  if (!supportedEncounterType || !supportedOptionalBoonTypes.includes(effect?.type)) {
     return {
       state,
       result: {
@@ -2540,6 +2709,170 @@ function resolveBoon(state, action, context) {
         action: TILE_ACTION_TYPES.RESOLVE_BOON,
         message: `Skipped ${effect.cardName}.`,
         skipped: true
+      }
+    };
+  }
+
+  if (effect.type === "golden_signet_ring_relocate_tiles") {
+    const relocation = validateRelocatePlacedTiles(state, action, context);
+
+    if (!relocation.valid) {
+      return {
+        state,
+        result: {
+          ok: false,
+          action: TILE_ACTION_TYPES.RESOLVE_BOON,
+          errors: relocation.errors
+        }
+      };
+    }
+
+    const movesByPlacedTileId = new Map(relocation.moves.map((move) => [move.placedTile.id, move]));
+    const nextState = {
+      ...state,
+      players: updatePlayerMarkersForRelocations(state.players, relocation.moves, state),
+      map: {
+        ...state.map,
+        placedTiles: state.map.placedTiles.map((placedTile) => {
+          const move = movesByPlacedTileId.get(placedTile.id);
+
+          return move
+            ? {
+                ...placedTile,
+                coordinate: move.toCoordinate,
+                coordinates: move.toCoordinates,
+                orientation: move.orientation
+              }
+            : placedTile;
+        })
+      },
+      encounter: {
+        ...state.encounter,
+        active: activeWithoutBoon,
+        discard: [...state.encounter.discard, activeBoon.cardId]
+      },
+      log: [
+        ...state.log,
+        createActionLogEntry(state, "encounter", `Resolved ${effect.cardName}.`, {
+          activeEncounterId: activeBoon.id,
+          cardId: activeBoon.cardId,
+          moves: relocation.moves.map((move) => ({
+            placedTileId: move.placedTile.id,
+            tileId: move.placedTile.tileId,
+            tileName: move.tile.tile_name,
+            fromCoordinate: move.fromCoordinate,
+            fromCoordinates: move.fromCoordinates,
+            toCoordinate: move.toCoordinate,
+            toCoordinates: move.toCoordinates,
+            orientation: move.orientation
+          }))
+        })
+      ]
+    };
+
+    return {
+      state: nextState,
+      result: {
+        ok: true,
+        action: TILE_ACTION_TYPES.RESOLVE_BOON,
+        message: `Resolved ${effect.cardName}; moved ${relocation.moves.length} tile${relocation.moves.length === 1 ? "" : "s"}.`,
+        activeEncounterId: activeBoon.id,
+        cardId: activeBoon.cardId,
+        moves: relocation.moves
+      }
+    };
+  }
+
+  if (effect.type === "golden_scroll_hand_refresh") {
+    const encounterIndex = context.encounterCards
+      ? new Map(context.encounterCards.map((card) => [card.card_id, card]))
+      : null;
+
+    if (!encounterIndex) {
+      return {
+        state,
+        result: {
+          ok: false,
+          action: TILE_ACTION_TYPES.RESOLVE_BOON,
+          errors: ["Golden Scroll choices need Encounter card data."]
+        }
+      };
+    }
+
+    const selections = getGoldenScrollDiscardSelections(state, action, encounterIndex);
+    if (!selections.valid) {
+      return {
+        state,
+        result: {
+          ok: false,
+          action: TILE_ACTION_TYPES.RESOLVE_BOON,
+          errors: selections.errors
+        }
+      };
+    }
+
+    const random = createSeededRandom(`${state.seed}-golden-scroll-${state.round}-${activeBoon.id}`);
+    const drawPool = shuffle(getStandardEncounterBoxCandidates(state, context.encounterCards), random).map(
+      (card) => card.card_id
+    );
+    let drawIndex = 0;
+    const playerResults = [];
+    const players = state.players.map((player) => {
+      const playerSelection =
+        selections.playerSelections.find((selection) => selection.playerId === player.id) ?? {
+          discardedCardIds: []
+        };
+      const discardSet = new Set(playerSelection.discardedCardIds);
+      const drawCount = Math.min(playerSelection.discardedCardIds.length, drawPool.length - drawIndex);
+      const drawnCardIds = drawPool.slice(drawIndex, drawIndex + drawCount);
+      drawIndex += drawCount;
+
+      playerResults.push({
+        playerId: player.id,
+        discardedCardIds: playerSelection.discardedCardIds,
+        drawnCardIds
+      });
+
+      return {
+        ...player,
+        hand: [...player.hand.filter((cardId) => !discardSet.has(cardId)), ...drawnCardIds]
+      };
+    });
+    const discardedCardIds = playerResults.flatMap((result) => result.discardedCardIds);
+    const drawnCardIds = playerResults.flatMap((result) => result.drawnCardIds);
+    const nextState = {
+      ...state,
+      players,
+      encounter: {
+        ...state.encounter,
+        active: activeWithoutBoon,
+        discard: [...state.encounter.discard, ...discardedCardIds, activeBoon.cardId]
+      },
+      log: [
+        ...state.log,
+        createActionLogEntry(state, "encounter", `Resolved ${effect.cardName}.`, {
+          activeEncounterId: activeBoon.id,
+          cardId: activeBoon.cardId,
+          playerResults,
+          discardedCardIds,
+          drawnCardIds,
+          availableDraws: drawPool.length
+        })
+      ]
+    };
+
+    return {
+      state: nextState,
+      result: {
+        ok: true,
+        action: TILE_ACTION_TYPES.RESOLVE_BOON,
+        message: `Resolved ${effect.cardName}; discarded ${discardedCardIds.length} hand card${discardedCardIds.length === 1 ? "" : "s"} and drew ${drawnCardIds.length}.`,
+        activeEncounterId: activeBoon.id,
+        cardId: activeBoon.cardId,
+        playerResults,
+        discardedCardIds,
+        drawnCardIds,
+        availableDraws: drawPool.length
       }
     };
   }
@@ -3068,6 +3401,49 @@ function endTurn(state) {
     };
   }
 
+  const extraPlayerTurnsEffect = getPendingExtraPlayerTurnsEffect(state);
+  if (extraPlayerTurnsEffect) {
+    const playersAfterReset = resetRoundActions({
+      ...state,
+      players: playersAfterPass
+    });
+    const nextState = {
+      ...state,
+      phase: GAME_PHASES.PLAYER_TURNS,
+      activePlayerId: playersAfterReset[0]?.id ?? null,
+      players: playersAfterReset,
+      encounter: markRoundEffectUsed(state.encounter, extraPlayerTurnsEffect.id),
+      log: [
+        ...state.log,
+        createActionLogEntry(
+          state,
+          "turn",
+          `${player.name} ended their turn. ${extraPlayerTurnsEffect.cardName} opens one additional Player Turns phase.`,
+          {
+            playerId: player.id,
+            passedActions,
+            cardId: extraPlayerTurnsEffect.cardId,
+            roundEffectId: extraPlayerTurnsEffect.id,
+            extraPlayerTurnsRound: state.round
+          }
+        )
+      ]
+    };
+
+    return {
+      state: nextState,
+      result: {
+        ok: true,
+        action: TILE_ACTION_TYPES.END_TURN,
+        message: `${extraPlayerTurnsEffect.cardName} opens one additional Player Turns phase.`,
+        advancedRound: false,
+        readyForEndRound: false,
+        extraPlayerTurns: true,
+        roundEffect: extraPlayerTurnsEffect
+      }
+    };
+  }
+
   const nextState = {
     ...state,
     phase: GAME_PHASES.END_ROUND,
@@ -3282,8 +3658,10 @@ function endRound(state, context) {
       ...state.encounter,
       active: burdenReapplication.active,
       discard: encounterResolution.discard,
-      roundEffects: (state.encounter.roundEffects ?? []).filter(
-        (effect) => effect.expiresAtEndOfRound === false || effect.round > state.round
+      roundEffects: resetRecurringRoundEffects(
+        (state.encounter.roundEffects ?? []).filter(
+          (effect) => effect.expiresAtEndOfRound === false || effect.round > state.round
+        )
       )
     },
     log: [
