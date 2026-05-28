@@ -36,6 +36,20 @@ function dispatch(state, action) {
   return dispatchGameAction(state, action, { tiles });
 }
 
+function withStewardMarker(state, placedTileId) {
+  return {
+    ...state,
+    players: state.players.map((player) =>
+      player.id === state.activePlayerId
+        ? {
+            ...player,
+            lastInteraction: { type: "debug", placedTileId, coordinate: "C1", round: state.round, season: state.season }
+          }
+        : player
+    )
+  };
+}
+
 function coreUpgradeDiscount({ id = "discount-1", amount = 2, season = "II" } = {}) {
   return {
     id,
@@ -529,7 +543,7 @@ test("resource tile upgrades cost only the Upgrade action when source cost is ze
 
 test("upgrading a disconnected tile spends one Travel action plus one Upgrade action", () => {
   const base = newState();
-  const state = {
+  const state = withStewardMarker({
     ...base,
     map: {
       ...base.map,
@@ -552,7 +566,7 @@ test("upgrading a disconnected tile spends one Travel action plus one Upgrade ac
         }
       ]
     }
-  };
+  }, "tile-001");
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.UPGRADE_TILE,
     placedTileId: "tile-002"
@@ -566,9 +580,42 @@ test("upgrading a disconnected tile spends one Travel action plus one Upgrade ac
   assert.equal(nextState.map.placedTiles[1].tileId, "core_managed_woodlands_upgraded");
 });
 
+test("upgrading the tile under the steward marker does not spend disconnected Travel", () => {
+  let state = dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_gravel_path_basic",
+    coordinate: "C1",
+    orientation: "rotation-0"
+  }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_forest_basic",
+    coordinate: "A13"
+  }).state;
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.UPGRADE_TILE,
+    placedTileId: "tile-002"
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.actionCost.total, 1);
+  assert.equal(result.actionCost.upgradeActionCost, 1);
+  assert.equal(result.actionCost.disconnectedTravelActionCost, 0);
+  assert.equal(nextState.players[0].actionsRemaining, 0);
+  assert.equal(nextState.map.placedTiles[1].tileId, "core_managed_woodlands_upgraded");
+  assert.deepEqual(nextState.players[0].lastInteraction, {
+    type: "upgrade",
+    placedTileId: "tile-002",
+    coordinate: "A13",
+    round: 1,
+    season: "I"
+  });
+});
+
 test("The Golden Vial waives disconnected upgrade Travel", () => {
   const base = newState();
-  const state = {
+  const state = withStewardMarker({
     ...base,
     map: {
       ...base.map,
@@ -595,7 +642,7 @@ test("The Golden Vial waives disconnected upgrade Travel", () => {
       ...base.encounter,
       roundEffects: [goldenVialEffect()]
     }
-  };
+  }, "tile-001");
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.UPGRADE_TILE,
     placedTileId: "tile-002"

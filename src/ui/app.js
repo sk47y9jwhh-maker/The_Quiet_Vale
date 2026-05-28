@@ -50,6 +50,18 @@ import {
   getStewardPowerDetails,
   isStewardPowerUsedThisSeason
 } from "../game/stewards.js";
+import { DEBUG_SCENARIO_DEFINITIONS, createDebugScenario } from "../game/debugScenarios.js";
+import { calculatePlaytestMetrics, getPlaytestPacingSignals } from "../game/playtestMetrics.js";
+import {
+  PLAYTEST_RATING_FIELDS,
+  PLAYTEST_TEXT_FIELDS,
+  createDefaultPlaytestNotes,
+  createPlaytestReportMarkdown
+} from "../game/playtestReport.js";
+import {
+  getEncounterFlavorText,
+  getEncounterRuleLines
+} from "../game/encounterPresentation.js";
 
 const DATA_PATHS = {
   encounterCards: "./src/data/encounter_cards.json",
@@ -97,6 +109,10 @@ const state = {
   stewardExchangePayments: {},
   stewardExchangeGains: {},
   stewardExchangeAmounts: {},
+  debugScenarioId: "",
+  playtestNotes: createDefaultPlaytestNotes(),
+  playtestReportMessage: "",
+  contextMenu: null,
   lastActionResult: null
 };
 
@@ -143,19 +159,7 @@ function formatPhase(phase) {
   return labels[phase] ?? phase;
 }
 
-function createGame() {
-  if (!state.data) {
-    return;
-  }
-
-  state.game = createInitialGameState({
-    playerCount: state.playerCount,
-    seed: state.setupSeed,
-    encounterCards: state.data.encounterCards,
-    tiles: state.data.tiles,
-    mapHexes: state.data.mapHexes
-  });
-  state.lastActionResult = null;
+function resetLocalTestingControls() {
   state.debugSeedSelections = {};
   state.debugSeedPosition = SEED_PACKET_POSITIONS.TOP;
   state.burdenPayments = {};
@@ -181,6 +185,25 @@ function createGame() {
   state.stewardExchangePayments = {};
   state.stewardExchangeGains = {};
   state.stewardExchangeAmounts = {};
+  state.contextMenu = null;
+}
+
+function createGame() {
+  if (!state.data) {
+    return;
+  }
+
+  state.game = createInitialGameState({
+    playerCount: state.playerCount,
+    seed: state.setupSeed,
+    encounterCards: state.data.encounterCards,
+    tiles: state.data.tiles,
+    mapHexes: state.data.mapHexes
+  });
+  state.lastActionResult = null;
+  state.debugScenarioId = "";
+  state.playtestReportMessage = "";
+  resetLocalTestingControls();
   syncSelectedTile();
 }
 
@@ -418,6 +441,68 @@ function renderHexMap(mapHexes, game, tileIndex) {
   `;
 }
 
+function getOrientationLabel(orientationId) {
+  return HEX_DIRECTIONS.find((direction) => direction.id === orientationId)?.label ?? orientationId;
+}
+
+function getNextOrientation(orientationId) {
+  const currentIndex = HEX_DIRECTIONS.findIndex((direction) => direction.id === orientationId);
+  const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % HEX_DIRECTIONS.length : 0;
+  return HEX_DIRECTIONS[nextIndex].id;
+}
+
+function getSelectedPlacementTile(tileIndex) {
+  return state.selectedTileId ? tileIndex.get(state.selectedTileId) : null;
+}
+
+function selectedPlacementTileCanRotate(tileIndex) {
+  const selectedTile = getSelectedPlacementTile(tileIndex);
+  return Boolean(selectedTile && Number(selectedTile.size_hexes ?? 1) > 1);
+}
+
+function renderMapContextLayer(game, tileIndex) {
+  if (!state.contextMenu) {
+    return "";
+  }
+
+  const placedTile = game.map.placedTiles.find((tile) => tile.id === state.contextMenu.placedTileId);
+
+  if (!placedTile) {
+    return "";
+  }
+
+  const tileDefinition = tileIndex.get(placedTile.tileId);
+  const upgradeTile = tileDefinition ? findUpgradeTile(tileDefinition, tileIndex) : null;
+  const activation = tileDefinition ? getActivationForDisplay(tileDefinition) : null;
+  const coordinate = state.contextMenu.coordinate ?? getPlacedTileAnchorCoordinate(placedTile);
+  const left = Math.max(8, Math.round(Number(state.contextMenu.x ?? 8)));
+  const top = Math.max(8, Math.round(Number(state.contextMenu.y ?? 8)));
+  const canAttemptUpgrade =
+    Boolean(upgradeTile && game.activePlayerId) &&
+    game.phase === GAME_PHASES.PLAYER_TURNS &&
+    !isOverstrainedPlacedTile(placedTile);
+  const canAttemptActivation =
+    Boolean(activation?.details && game.activePlayerId) &&
+    game.phase === GAME_PHASES.PLAYER_TURNS &&
+    !isOverstrainedPlacedTile(placedTile);
+
+  return `
+    <button class="map-context-backdrop" type="button" aria-label="Close map actions"></button>
+    <aside class="map-context-menu" style="left: ${left}px; top: ${top}px;" role="menu" aria-label="Map actions">
+      <header>
+        <strong>${escapeHtml(tileDefinition?.tile_name ?? placedTile.tileId)}</strong>
+        <small>${escapeHtml(coordinate)}</small>
+      </header>
+      <button class="map-context-action" data-context-action="activate" type="button" role="menuitem" ${canAttemptActivation ? "" : "disabled"}>
+        Produce / Interact
+      </button>
+      <button class="map-context-action" data-context-action="upgrade" type="button" role="menuitem" ${canAttemptUpgrade ? "" : "disabled"}>
+        Upgrade
+      </button>
+    </aside>
+  `;
+}
+
 function renderBadgeList(items, className = "") {
   return `
     <div class="badge-list ${className}">
@@ -550,8 +635,8 @@ function renderEncounterCoveragePanel(data, game) {
   });
 
   return `
-    <div class="panel-section">
-      <h2>Encounter Coverage</h2>
+    <details class="panel-section debug-details">
+      <summary>Encounter Coverage</summary>
       ${renderEncounterCoverageSummary(audit)}
       ${renderEncounterCoverageByType(audit)}
       <div class="coverage-table-wrap">
@@ -560,22 +645,12 @@ function renderEncounterCoveragePanel(data, game) {
           <tbody>${renderEncounterCoverageRows(audit.cards)}</tbody>
         </table>
       </div>
-    </div>
+    </details>
   `;
 }
 
 function getCards(cardIds, encounterIndex) {
   return resolveEncounterCards(cardIds, encounterIndex);
-}
-
-const ENCOUNTER_SEASON_FIELDS = Object.freeze({
-  I: "season_i",
-  II: "season_ii",
-  III: "season_iii"
-});
-
-function getCardSeasonText(card, season) {
-  return card?.[ENCOUNTER_SEASON_FIELDS[season]] ?? "";
 }
 
 function renderSourceLines(title, lines) {
@@ -600,14 +675,17 @@ function renderEncounterSourceText(card, season, prototypeText = "") {
     return "";
   }
 
-  return renderSourceLines("Card Says", [
-    { label: "This season", value: getCardSeasonText(card, season) },
-    { label: "Requirement", value: card.requirement },
-    { label: "Reward", value: card.reward },
-    { label: "Resolution", value: card.lifecycle_or_resolution },
-    { label: "Effect", value: card.effect },
-    { label: "Prototype did", value: prototypeText }
-  ]);
+  return renderSourceLines("Card Says", getEncounterRuleLines(card, season, prototypeText));
+}
+
+function renderEncounterFlavorText(card, { compact = false } = {}) {
+  const flavorText = getEncounterFlavorText(card);
+
+  if (!flavorText) {
+    return "";
+  }
+
+  return `<p class="encounter-flavor${compact ? " compact" : ""}">${escapeHtml(flavorText)}</p>`;
 }
 
 function getActiveEncounterPrototypeText(activeState) {
@@ -1853,7 +1931,7 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
   const tileIndex = state.data ? createTileIndex(state.data.tiles) : new Map();
 
   return `
-    <ol class="card-list">
+    <ol class="card-list encounter-active-list">
       ${activeStates
         .map((activeState) => {
           const card = encounterIndex.get(activeState.cardId);
@@ -1974,11 +2052,17 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
                   getResourcePaymentAction(getBoonExchangePaymentChoices(activeState.id, boonExchange))
                 ));
           return `
-            <li class="card-row type-${slug(activeState.encounterType)}">
-              <span class="card-order"></span>
-              <span class="card-name">${escapeHtml(card?.card_name ?? activeState.cardId)}</span>
-              <span class="card-actions">
-                ${timer}
+            <li class="card-row encounter-story-card type-${slug(activeState.encounterType)}">
+              <div class="encounter-card-main">
+                <header class="encounter-card-header">
+                  <span class="card-type">${escapeHtml(activeState.encounterType)}</span>
+                  <span class="card-name">${escapeHtml(card?.card_name ?? activeState.cardId)}</span>
+                  ${timer}
+                </header>
+                ${renderEncounterFlavorText(card)}
+                ${renderEncounterSourceText(card, game.season, getActiveEncounterPrototypeText(activeState))}
+              </div>
+              <div class="card-actions encounter-card-actions">
                 ${renderBurdenPaymentChoices(activeState, burdenResolution, game)}
                 ${renderBurdenChoiceControls(activeState)}
                 ${renderBurdenResolutionDiscountChoices(activeState, burdenResolutionDiscountCost, burdenResolutionDiscount)}
@@ -2030,8 +2114,7 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
                        ${boonStewardHelp ? "" : `<button class="mini-action-button skip-boon" data-active-encounter-id="${escapeHtml(activeState.id)}" type="button">Skip</button>`}`
                     : ""
                 }
-              </span>
-              ${renderEncounterSourceText(card, game.season, getActiveEncounterPrototypeText(activeState))}
+              </div>
             </li>
           `;
         })
@@ -2065,6 +2148,43 @@ function renderSetupControls() {
         <input id="show-debug-labels" type="checkbox" ${state.showDebugLabels ? "checked" : ""} />
         <span>Hex labels</span>
       </label>
+    </div>
+  `;
+}
+
+function renderDebugScenarioControls() {
+  const activeScenario = DEBUG_SCENARIO_DEFINITIONS.find((scenario) => scenario.id === state.debugScenarioId);
+
+  return `
+    <div class="panel-section debug-scenarios">
+      <h2>Scenario Presets</h2>
+      <p class="scenario-note">These reset to a focused 1-player testing state.</p>
+      ${
+        activeScenario
+          ? `
+            <div class="scenario-current">
+              <strong>Loaded: ${escapeHtml(activeScenario.title)}</strong>
+              <ul>
+                ${activeScenario.expected.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
+              </ul>
+            </div>
+          `
+          : ""
+      }
+      <div class="scenario-list">
+        ${DEBUG_SCENARIO_DEFINITIONS.map(
+          (scenario) => `
+            <article class="scenario-row ${scenario.id === state.debugScenarioId ? "is-active" : ""}">
+              <div>
+                <strong>${escapeHtml(scenario.title)}</strong>
+                <small>${escapeHtml(scenario.focus)}</small>
+                <p>${escapeHtml(scenario.summary)}</p>
+              </div>
+              <button class="mini-action-button debug-scenario-button" data-scenario-id="${escapeHtml(scenario.id)}" type="button">Load</button>
+            </article>
+          `
+        ).join("")}
+      </div>
     </div>
   `;
 }
@@ -2105,6 +2225,17 @@ function renderStewardMarkerDebugControls(game, tileIndex) {
   `;
 }
 
+function renderDebugDetails(title, body, { open = false, className = "" } = {}) {
+  const classes = ["panel-section", "debug-details", className].filter(Boolean).join(" ");
+
+  return `
+    <details class="${classes}" ${open ? "open" : ""}>
+      <summary>${escapeHtml(title)}</summary>
+      ${body}
+    </details>
+  `;
+}
+
 function renderMapDebugPanel(data, countValidation, mapValidation, game, tileIndex) {
   const mapHexes = data.mapHexes;
   const selectedHex = mapHexes.find((hex) => hex.Coordinate === state.selectedCoordinate) ?? mapHexes[0];
@@ -2125,14 +2256,12 @@ function renderMapDebugPanel(data, countValidation, mapValidation, game, tileInd
     .filter(Boolean);
 
   return `
-    <aside class="debug-panel">
+    <aside id="debug-panel" class="debug-panel">
+      ${renderDebugScenarioControls()}
       ${renderSetupControls()}
       ${renderStewardMarkerDebugControls(game, tileIndex)}
 
-      <div class="panel-section">
-        <h2>Source Counts</h2>
-        <ul class="metric-list">${renderCounts(countValidation)}</ul>
-      </div>
+      ${renderDebugDetails("Source Counts", `<ul class="metric-list">${renderCounts(countValidation)}</ul>`)}
 
       ${renderEncounterCoveragePanel(data, game)}
 
@@ -2149,14 +2278,15 @@ function renderMapDebugPanel(data, countValidation, mapValidation, game, tileInd
           <div><dt>Strain</dt><dd>${placedTile?.strain ?? 0}</dd></div>
           <div><dt>Supported</dt><dd>${escapeHtml(formatSupportDetails(supportDetails))}</dd></div>
           <div><dt>Supported Used</dt><dd>${placedTile?.supportedUsedThisRound ? "Yes" : "No"}</dd></div>
-          <div><dt>Travel Network</dt><dd>${escapeHtml(selectedNetwork?.id ?? "None")}</dd></div>
+          <div><dt>Settlement Network</dt><dd>${escapeHtml(selectedNetwork?.id ?? "None")}</dd></div>
         </dl>
         <h3>Neighbors</h3>
         ${renderBadgeList(selectedNeighbors)}
       </div>
 
-      <div class="panel-section">
-        <h2>Map Validation</h2>
+      ${renderDebugDetails(
+        "Map Validation",
+        `
         <ul class="metric-list">
           <li><span>Hexes</span><strong>${mapValidation.rowCount}</strong></li>
           <li><span>River Hexes</span><strong>${mapValidation.waterHexes.length}</strong></li>
@@ -2169,35 +2299,28 @@ function renderMapDebugPanel(data, countValidation, mapValidation, game, tileInd
             ? `<ul class="error-list">${mapValidation.errors.map((error) => `<li>${escapeHtml(error)}</li>`).join("")}</ul>`
             : `<p class="status-ok">Map validation passed.</p>`
         }
-      </div>
+      `,
+        { open: mapValidation.errors.length > 0 }
+      )}
 
-      <div class="panel-section">
-        <h2>Terrain</h2>
-        <ul class="metric-list">${renderTerrainSummary(mapHexes)}</ul>
-      </div>
+      ${renderDebugDetails("Terrain", `<ul class="metric-list">${renderTerrainSummary(mapHexes)}</ul>`)}
 
-      <div class="panel-section">
-        <h2>River Hexes</h2>
-        ${renderBadgeList(riverHexes, "river-list")}
-      </div>
+      ${renderDebugDetails("River Hexes", renderBadgeList(riverHexes, "river-list"))}
 
-      <div class="panel-section">
-        <h2>Bridge Candidates</h2>
-        ${renderBadgeList(bridgeCandidates, "bridge-list")}
-      </div>
+      ${renderDebugDetails("Bridge Candidates", renderBadgeList(bridgeCandidates, "bridge-list"))}
 
-      <div class="panel-section">
-        <h2>River Adjacent Land</h2>
-        ${renderBadgeList(riverAdjacentLand)}
-      </div>
+      ${renderDebugDetails("River Adjacent Land", renderBadgeList(riverAdjacentLand))}
 
-      <div class="panel-section coordinates-section">
-        <h2>Map Coordinates</h2>
+      ${renderDebugDetails(
+        "Map Coordinates",
+        `
         <table class="coordinate-table">
           <thead><tr><th>Hex</th><th>Terrain</th><th>Feature</th></tr></thead>
           <tbody>${renderCoordinateTable(mapHexes, selectedHex)}</tbody>
         </table>
-      </div>
+      `,
+        { className: "coordinates-section" }
+      )}
     </aside>
   `;
 }
@@ -2227,6 +2350,75 @@ function renderGameStatus(game, encounterIndex) {
   `;
 }
 
+function renderTestingBarAction(action, label, enabled, className = "secondary") {
+  return `
+    <button class="testing-action ${className}" data-quick-action="${escapeHtml(action)}" type="button" ${enabled ? "" : "disabled"}>
+      ${escapeHtml(label)}
+    </button>
+  `;
+}
+
+function renderTestingBarResult(result) {
+  if (!result) {
+    return "";
+  }
+
+  const message = result.ok ? result.message : result.errors?.[0];
+
+  if (!message) {
+    return "";
+  }
+
+  return `
+    <p class="testing-result ${result.ok ? "ok" : "bad"}">
+      <b>${result.ok ? "Last action" : "Blocked"}</b>
+      <span>${escapeHtml(message)}</span>
+    </p>
+  `;
+}
+
+function renderTestingBar(game, tileIndex) {
+  const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
+  const selectedPlacedTile = getPlacedTileAt(game, state.selectedCoordinate);
+  const selectedTileName = selectedPlacedTile
+    ? getTileNameByPlacedId(game, tileIndex, selectedPlacedTile.id)
+    : "Empty hex";
+  const seeded = game.encounter.seededRounds.includes(game.round);
+  const revealed = game.encounter.revealedRounds.includes(game.round);
+  const canSeed = game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded;
+  const canReveal = game.phase === GAME_PHASES.REVEAL_ENCOUNTERS && !revealed;
+  const canEndTurn = game.phase === GAME_PHASES.PLAYER_TURNS && Boolean(activePlayer);
+  const canEndRound = game.phase === GAME_PHASES.END_ROUND;
+  const stewardText = activePlayer ? formatPlayerLastInteraction(game, tileIndex, activePlayer) : "No active steward";
+
+  return `
+    <section class="testing-bar" aria-label="Prototype testing controls">
+      <div class="testing-status">
+        <span><b>${escapeHtml(formatPhase(game.phase))}</b></span>
+        <span>Round <b>${game.round}/${game.rules.totalRounds}</b></span>
+        <span>${escapeHtml(activePlayer?.name ?? "No active player")} <b>${activePlayer ? `${activePlayer.actionsRemaining}/${game.rules.actionsPerPlayer}` : "0/0"}</b></span>
+        <span>Selected <b>${escapeHtml(`${selectedTileName} at ${state.selectedCoordinate}`)}</b></span>
+        <span>Steward <b>${escapeHtml(stewardText)}</b></span>
+      </div>
+      <nav class="testing-jumps" aria-label="Prototype panel shortcuts">
+        <a href="#map-panel">Map</a>
+        <a href="#placement-panel">Place</a>
+        <a href="#selected-tile-panel">Selected Tile</a>
+        <a href="#encounter-panel">Encounters</a>
+        <a href="#playtest-notes-panel">Notes</a>
+        <a href="#debug-panel">Debug</a>
+      </nav>
+      <div class="testing-actions">
+        ${renderTestingBarAction("seed", "Seed", canSeed)}
+        ${renderTestingBarAction("reveal", "Reveal", canReveal, "primary")}
+        ${renderTestingBarAction("end-turn", "End Turn", canEndTurn, "primary")}
+        ${renderTestingBarAction("end-round", "End Round", canEndRound)}
+      </div>
+      ${renderTestingBarResult(state.lastActionResult)}
+    </section>
+  `;
+}
+
 function renderTurnPanel(game, tileIndex) {
   const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
   const canEndTurn = game.phase === GAME_PHASES.PLAYER_TURNS && activePlayer;
@@ -2244,7 +2436,7 @@ function renderTurnPanel(game, tileIndex) {
   }[game.phase];
 
   return `
-    <section class="state-panel turn-panel">
+    <section id="turn-panel" class="state-panel turn-panel">
       <h2>Turn</h2>
       <ul class="turn-list">
         ${game.players
@@ -2346,7 +2538,7 @@ function renderDebugSeedControls(game, encounterIndex) {
 
 function renderPlayerHands(game, encounterIndex, tileIndex) {
   return `
-    <section class="state-panel wide-panel">
+    <section id="player-hands-panel" class="state-panel wide-panel">
       <h2>Player Hands</h2>
       ${renderDebugSeedControls(game, encounterIndex)}
       <div class="player-hand-grid">
@@ -2375,6 +2567,71 @@ function renderPlayerHands(game, encounterIndex, tileIndex) {
   `;
 }
 
+function getRecentEncounterRevealEntries(game, limit = 4) {
+  return game.log
+    .filter((entry) => entry.type === "encounter" && entry.data?.cardId && entry.message.startsWith("Revealed "))
+    .slice(-limit)
+    .reverse();
+}
+
+function renderRecentEncounterStories(game, encounterIndex) {
+  const recentReveals = getRecentEncounterRevealEntries(game);
+
+  if (recentReveals.length === 0) {
+    return `<p class="empty-note">No revealed Encounter cards yet</p>`;
+  }
+
+  return `
+    <ol class="encounter-chronicle-list">
+      ${recentReveals
+        .map((entry) => {
+          const card = encounterIndex.get(entry.data.cardId);
+
+          return `
+            <li class="encounter-chronicle-item type-${slug(card?.encounter_type ?? entry.data.encounterType)}">
+              <header>
+                <span>Round ${entry.round} - Season ${escapeHtml(entry.season)}</span>
+                <strong>${escapeHtml(card?.card_name ?? entry.data.cardName ?? entry.data.cardId)}</strong>
+              </header>
+              ${renderEncounterFlavorText(card, { compact: true })}
+              ${renderEncounterSourceText(card, entry.season, getRevealPrototypeText(entry.data))}
+            </li>
+          `;
+        })
+        .join("")}
+    </ol>
+  `;
+}
+
+function renderRoundEffectsList(roundEffects, encounterIndex, game) {
+  if (roundEffects.length === 0) {
+    return `<p class="empty-note">No round effects</p>`;
+  }
+
+  return `
+    <div class="round-effect-list">
+      ${roundEffects
+        .map((effect) => {
+          const uses = effect.maxUses === null ? `${effect.uses ?? 0}` : `${effect.uses ?? 0}/${effect.maxUses}`;
+          const card = encounterIndex.get(effect.cardId);
+
+          return `
+            <article class="round-effect-row type-${slug(card?.encounter_type ?? effect.type)}">
+              <header>
+                <span>${escapeHtml(effect.cardName)}</span>
+                <small>${escapeHtml(effect.effectText)}</small>
+                <strong>${escapeHtml(uses)}</strong>
+              </header>
+              ${renderEncounterFlavorText(card, { compact: true })}
+              ${renderEncounterSourceText(card, effect.season ?? game.season, `Round effect: ${effect.type}. Uses ${uses}.`)}
+            </article>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
 function renderEncounterPanel(game, encounterIndex) {
   const seeded = game.encounter.seededRounds.includes(game.round);
   const revealed = game.encounter.revealedRounds.includes(game.round);
@@ -2384,7 +2641,7 @@ function renderEncounterPanel(game, encounterIndex) {
   const roundEffects = game.encounter.roundEffects ?? [];
 
   return `
-    <section class="state-panel wide-panel">
+    <section id="encounter-panel" class="state-panel encounter-panel">
       <h2>Encounter Board</h2>
       <div class="encounter-actions">
         <button id="seed-encounters" class="secondary-button" type="button" ${canSeed ? "" : "disabled"}>Seed Round</button>
@@ -2396,7 +2653,23 @@ function renderEncounterPanel(game, encounterIndex) {
         <li><span>Revealed This Round</span><strong>${revealed ? "Yes" : "No"}</strong></li>
         <li><span>Round Effects</span><strong>${roundEffects.length}</strong></li>
       </ul>
-      <div class="encounter-grid">
+      <div class="encounter-focus-grid">
+        <article class="mini-card encounter-active-card">
+          <header>
+            <h3>Active Encounters</h3>
+            <strong>${game.encounter.active.length}</strong>
+          </header>
+          ${renderActiveEncounterList(game.encounter.active, encounterIndex, game)}
+        </article>
+        <article class="mini-card encounter-chronicle-card">
+          <header>
+            <h3>Recent Reveals</h3>
+            <strong>${getRecentEncounterRevealEntries(game).length}</strong>
+          </header>
+          ${renderRecentEncounterStories(game, encounterIndex)}
+        </article>
+      </div>
+      <div class="encounter-grid encounter-support-grid">
         <article class="mini-card">
           <header>
             <h3>Deck</h3>
@@ -2409,37 +2682,10 @@ function renderEncounterPanel(game, encounterIndex) {
         </article>
         <article class="mini-card">
           <header>
-            <h3>Active</h3>
-            <strong>${game.encounter.active.length}</strong>
-          </header>
-          ${renderActiveEncounterList(game.encounter.active, encounterIndex, game)}
-        </article>
-        <article class="mini-card">
-          <header>
             <h3>Round Effects</h3>
             <strong>${roundEffects.length}</strong>
           </header>
-          ${
-            roundEffects.length
-              ? `<div class="tile-list">
-                  ${roundEffects
-                    .map((effect) => {
-                      const uses = effect.maxUses === null ? `${effect.uses ?? 0}` : `${effect.uses ?? 0}/${effect.maxUses}`;
-                      const card = encounterIndex.get(effect.cardId);
-
-                      return `
-                        <div class="tile-row">
-                          <span>${escapeHtml(effect.cardName)}</span>
-                          <small>${escapeHtml(effect.effectText)}</small>
-                          <strong>${escapeHtml(uses)}</strong>
-                          ${renderEncounterSourceText(card, effect.season ?? game.season, `Round effect: ${effect.type}. Uses ${uses}.`)}
-                        </div>
-                      `;
-                    })
-                    .join("")}
-                </div>`
-              : `<p class="empty-note">No round effects</p>`
-          }
+          ${renderRoundEffectsList(roundEffects, encounterIndex, game)}
         </article>
         <article class="mini-card">
           <header>
@@ -2467,7 +2713,7 @@ function renderEncounterPanel(game, encounterIndex) {
 
 function renderWarehousePanel(game) {
   return `
-    <section class="state-panel">
+    <section id="warehouse-panel" class="state-panel warehouse-panel">
       <h2>Warehouse</h2>
       <ul class="metric-list">
         ${Object.entries(game.warehouse.resources)
@@ -2978,8 +3224,8 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex) {
     upgradeCostDiscountReady;
 
   return `
-    <section class="state-panel wide-panel travel-panel">
-      <h2>Travel Networks</h2>
+    <section id="selected-tile-panel" class="state-panel wide-panel travel-panel">
+      <h2>Selected Tile</h2>
       <ul class="metric-list">
         <li><span>Networks</span><strong>${networks.length}</strong></li>
         <li><span>Selected Tile</span><strong>${escapeHtml(selectedPlacedTile ? getTileNameByPlacedId(game, tileIndex, selectedPlacedTile.id) : "None")}</strong></li>
@@ -3056,7 +3302,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex) {
                       </header>
                       <p>${network.tileIds.map((tileId) => escapeHtml(getTileNameByPlacedId(game, tileIndex, tileId))).join(", ")}</p>
                       <small>Hexes: ${escapeHtml(network.coordinates.join(", "))}</small>
-                      <small>Adjacent reachable non-Travel tiles: ${network.adjacentNonTravelTileIds.length}</small>
+                      <small>Network hexes: ${network.coordinates.length}</small>
                     </li>
                   `
                 )
@@ -3110,7 +3356,7 @@ function renderTilePlacementPanel(game, tileIndex) {
     Boolean(selectedTile && activePlayer && game.phase === GAME_PHASES.PLAYER_TURNS) && placementCostDiscountReady;
 
   return `
-    <section class="state-panel placement-panel">
+    <section id="placement-panel" class="state-panel placement-panel">
       <h2>Place Tile</h2>
       <label class="stacked-field">
         <span>Tile</span>
@@ -3254,6 +3500,144 @@ function renderScorePanel(game) {
   `;
 }
 
+function renderCategoryChips(categories) {
+  const entries = Object.entries(categories).sort(([left], [right]) => left.localeCompare(right));
+
+  if (entries.length === 0) {
+    return `<span class="empty-note">No placed tiles yet.</span>`;
+  }
+
+  return `
+    <div class="type-chips">
+      ${entries
+        .map(([category, count]) => `<span class="type-chip">${escapeHtml(category)} <strong>${count}</strong></span>`)
+        .join("")}
+    </div>
+  `;
+}
+
+function renderPlaytestPulsePanel(game, tileIndex) {
+  const metrics = calculatePlaytestMetrics(game, { tileIndex });
+  const signals = getPlaytestPacingSignals(metrics);
+
+  return `
+    <section id="playtest-pulse-panel" class="state-panel wide-panel playtest-panel">
+      <h2>Playtest Pulse</h2>
+      <ul class="metric-list">
+        <li><span>Logged Actions</span><strong>${metrics.totalLoggedActionsSpent}</strong></li>
+        <li><span>This Round</span><strong>${metrics.currentRoundActionsSpent}/${game.playerCount * game.rules.actionsPerPlayer}</strong></li>
+        <li><span>Placed</span><strong>${metrics.actionMix.placements}</strong></li>
+        <li><span>Upgraded</span><strong>${metrics.actionMix.upgrades}</strong></li>
+        <li><span>Activated</span><strong>${metrics.actionMix.activations}</strong></li>
+        <li><span>Saved Actions</span><strong>${metrics.actionsSavedByDiscounts}</strong></li>
+        <li><span>Travel Paid</span><strong>${metrics.disconnectedTravel.paid}</strong></li>
+        <li><span>Travel Waived</span><strong>${metrics.disconnectedTravel.waived}</strong></li>
+        <li><span>Active Arrivals</span><strong>${metrics.encounters.active.arrivals}</strong></li>
+        <li><span>Active Burdens</span><strong>${metrics.encounters.active.burdens}</strong></li>
+        <li><span>Strain</span><strong>${metrics.board.strainTokens}</strong></li>
+        <li><span>Total Score</span><strong>${metrics.score.total}</strong></li>
+      </ul>
+      <h3>Board Shape</h3>
+      ${renderCategoryChips(metrics.board.categories)}
+      <h3>Pacing Signals</h3>
+      <ul class="playtest-signals">
+        ${signals.map((signal) => `<li>${escapeHtml(signal)}</li>`).join("")}
+      </ul>
+    </section>
+  `;
+}
+
+function getCurrentPlaytestReport() {
+  const tileIndex = createTileIndex(state.data.tiles);
+  const metrics = calculatePlaytestMetrics(state.game, { tileIndex });
+  const pacingSignals = getPlaytestPacingSignals(metrics);
+
+  return createPlaytestReportMarkdown({
+    state: state.game,
+    metrics,
+    pacingSignals,
+    notes: state.playtestNotes
+  });
+}
+
+function updatePlaytestReportText() {
+  const reportField = root.querySelector("#playtest-report");
+
+  if (reportField) {
+    reportField.value = getCurrentPlaytestReport();
+  }
+}
+
+function renderPlaytestRatingField(field) {
+  const selectedValue = state.playtestNotes[field.key] ?? "";
+
+  return `
+    <label class="stacked-field">
+      <span>${escapeHtml(field.label)}</span>
+      <select class="playtest-note-field" data-note-key="${escapeHtml(field.key)}" aria-label="${escapeHtml(field.label)} rating">
+        <option value="">Unrated</option>
+        ${field.options
+          .map((option) => `<option value="${escapeHtml(option)}" ${option === selectedValue ? "selected" : ""}>${escapeHtml(option)}</option>`)
+          .join("")}
+      </select>
+    </label>
+  `;
+}
+
+function renderPlaytestTextField(field) {
+  return `
+    <label class="stacked-field">
+      <span>${escapeHtml(field.label)}</span>
+      <textarea
+        class="playtest-note-field"
+        data-note-key="${escapeHtml(field.key)}"
+        rows="3"
+        placeholder="${escapeHtml(field.placeholder)}"
+      >${escapeHtml(state.playtestNotes[field.key] ?? "")}</textarea>
+    </label>
+  `;
+}
+
+function renderPlaytestNotesPanel(game, tileIndex) {
+  const metrics = calculatePlaytestMetrics(game, { tileIndex });
+  const pacingSignals = getPlaytestPacingSignals(metrics);
+  const report = createPlaytestReportMarkdown({
+    state: game,
+    metrics,
+    pacingSignals,
+    notes: state.playtestNotes
+  });
+
+  return `
+    <section id="playtest-notes-panel" class="state-panel wide-panel playtest-notes-panel">
+      <h2>Playtest Notes</h2>
+      <div class="playtest-rating-grid">
+        <label class="stacked-field">
+          <span>Session label</span>
+          <input class="playtest-note-field" data-note-key="sessionLabel" value="${escapeHtml(state.playtestNotes.sessionLabel)}" placeholder="Solo test, first winter, 2-player table..." />
+        </label>
+        ${PLAYTEST_RATING_FIELDS.map(renderPlaytestRatingField).join("")}
+      </div>
+      <div class="playtest-text-grid">
+        ${PLAYTEST_TEXT_FIELDS.map(renderPlaytestTextField).join("")}
+      </div>
+      <div class="button-row playtest-note-actions">
+        <button id="copy-playtest-report" class="primary-button" type="button">Copy Report</button>
+        <button id="clear-playtest-notes" class="secondary-button" type="button">Clear Notes</button>
+      </div>
+      ${
+        state.playtestReportMessage
+          ? `<p class="result-message ok">${escapeHtml(state.playtestReportMessage)}</p>`
+          : ""
+      }
+      <label class="stacked-field">
+        <span>Generated report</span>
+        <textarea id="playtest-report" class="playtest-report" rows="12" readonly>${escapeHtml(report)}</textarea>
+      </label>
+    </section>
+  `;
+}
+
 function renderActionLog(game, encounterIndex, tileIndex) {
   return `
     <section class="state-panel wide-panel">
@@ -3286,15 +3670,11 @@ function renderGameDashboard(game, encounterIndex) {
   const tileIndex = createTileIndex(state.data.tiles);
 
   return `
-    <section class="game-dashboard">
+    <section class="game-dashboard support-dashboard">
       ${renderGameStatus(game, encounterIndex)}
       ${renderTurnPanel(game, tileIndex)}
-      ${renderWarehousePanel(game)}
       ${renderScorePanel(game)}
-      ${renderTilePlacementPanel(game, tileIndex)}
-      ${renderTravelNetworksPanel(game, tileIndex, encounterIndex)}
       ${renderPlayerHands(game, encounterIndex, tileIndex)}
-      ${renderEncounterPanel(game, encounterIndex)}
       ${renderTileSupplyPanel(game)}
       ${renderActionLog(game, encounterIndex, tileIndex)}
     </section>
@@ -3330,13 +3710,29 @@ function renderApp() {
           <strong>${escapeHtml(approval?.Value ?? "Codex Default Map v0.1")}</strong>
         </div>
       </header>
-      <section class="workspace">
-        <section class="map-panel" aria-label="Map panel">
-          ${renderHexMap(state.data.mapHexes, state.game, tileIndex)}
+      ${renderTestingBar(state.game, tileIndex)}
+      <section class="play-layout">
+        <section class="play-top-grid">
+          <section class="play-main-column" aria-label="Map and Encounter area">
+            <section id="map-panel" class="map-panel" aria-label="Map panel">
+              ${renderHexMap(state.data.mapHexes, state.game, tileIndex)}
+            </section>
+            ${renderEncounterPanel(state.game, encounterIndex)}
+          </section>
+          <aside class="play-side-rail" aria-label="Primary play controls">
+            ${renderWarehousePanel(state.game)}
+            ${renderTilePlacementPanel(state.game, tileIndex)}
+            ${renderTravelNetworksPanel(state.game, tileIndex, encounterIndex)}
+          </aside>
         </section>
-        ${renderMapDebugPanel(state.data, countValidation, mapValidation, state.game, tileIndex)}
+        ${renderGameDashboard(state.game, encounterIndex)}
+        <section class="play-bottom-tools" aria-label="Prototype testing and playtest notes">
+          ${renderPlaytestPulsePanel(state.game, tileIndex)}
+          ${renderMapDebugPanel(state.data, countValidation, mapValidation, state.game, tileIndex)}
+          ${renderPlaytestNotesPanel(state.game, tileIndex)}
+        </section>
       </section>
-      ${renderGameDashboard(state.game, encounterIndex)}
+      ${renderMapContextLayer(state.game, tileIndex)}
     </main>
   `;
 
@@ -3345,6 +3741,321 @@ function renderApp() {
 
 function selectCoordinate(coordinate) {
   state.selectedCoordinate = coordinate;
+  state.contextMenu = null;
+  renderApp();
+}
+
+function rotateSelectedPlacementTileAt(coordinate) {
+  const tileIndex = createTileIndex(state.data.tiles);
+  const selectedTile = getSelectedPlacementTile(tileIndex);
+
+  state.selectedCoordinate = coordinate;
+  state.contextMenu = null;
+
+  if (!selectedTile || Number(selectedTile.size_hexes ?? 1) <= 1) {
+    renderApp();
+    return;
+  }
+
+  state.selectedOrientation = getNextOrientation(state.selectedOrientation);
+  state.lastActionResult = {
+    ok: true,
+    action: "ROTATE_TILE_PREVIEW",
+    message: `${selectedTile.tile_name} preview rotated to ${getOrientationLabel(state.selectedOrientation)} at ${coordinate}.`
+  };
+  renderApp();
+}
+
+function openMapContextMenu(event, coordinate) {
+  const placedTile = getPlacedTileAt(state.game, coordinate);
+  const tileIndex = createTileIndex(state.data.tiles);
+
+  event.preventDefault();
+  state.selectedCoordinate = coordinate;
+
+  if (placedTile) {
+    state.contextMenu = {
+      x: event.clientX,
+      y: event.clientY,
+      coordinate,
+      placedTileId: placedTile.id
+    };
+    renderApp();
+    return;
+  }
+
+  if (selectedPlacementTileCanRotate(tileIndex)) {
+    rotateSelectedPlacementTileAt(coordinate);
+    return;
+  }
+
+  state.contextMenu = null;
+  renderApp();
+}
+
+function closeMapContextMenu() {
+  state.contextMenu = null;
+  renderApp();
+}
+
+function upgradePlacedTile(placedTileId) {
+  const placedTile = state.game.map.placedTiles.find((candidate) => candidate.id === placedTileId);
+  const tileIndex = createTileIndex(state.data.tiles);
+  const tileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
+  const upgradeTile = tileDefinition ? findUpgradeTile(tileDefinition, tileIndex) : null;
+  const upgradeCost = upgradeTile ? parseResourceCostForDisplay(upgradeTile.upgrade_cost) : null;
+  const upgradeResourceDiscount = getPendingUpgradeResourceDiscount(state.game, tileDefinition);
+  const upgradeStewardPowerProviders = upgradeTile
+    ? getUpgradeStewardPowerProviders(state.game, tileDefinition, tileIndex)
+    : [];
+  const stewardPowerPlacedTileId = getSelectedStewardPowerId(
+    state.stewardUpgradePowerId,
+    upgradeStewardPowerProviders
+  );
+  const { state: nextGame, result } = dispatchGameAction(
+    state.game,
+    {
+      type: TILE_ACTION_TYPES.UPGRADE_TILE,
+      placedTileId: placedTile?.id,
+      stewardPowerPlacedTileId,
+      upgradeCostReductionResources:
+        placedTile && upgradeCost && !upgradeCost.error
+          ? getUpgradeCostDiscountAction(placedTile.id, upgradeCost.cost, upgradeResourceDiscount)
+          : []
+    },
+    { tiles: state.data.tiles }
+  );
+
+  state.game = nextGame;
+  state.lastActionResult = result;
+  state.contextMenu = null;
+
+  if (result.ok && placedTile) {
+    delete state.upgradeCostDiscounts[placedTile.id];
+    state.stewardUpgradePowerId = "";
+  }
+
+  renderApp();
+}
+
+function activatePlacedTile(placedTileId) {
+  const placedTile = state.game.map.placedTiles.find((candidate) => candidate.id === placedTileId);
+  const tileIndex = createTileIndex(state.data.tiles);
+  const tileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
+  let targetPlacedTileId;
+  let targetPlacedTileIds;
+  let targetActiveEncounterId;
+  let payment;
+  let gains;
+
+  try {
+    const activationDetails = tileDefinition ? getActivationDetails(tileDefinition) : null;
+
+    if (activationDetails?.type === "remove_strain_adjacent") {
+      const maxTargets = activationDetails.maxTargets ?? 1;
+      const targetCandidates = getAdjacentPlacedTiles(state.game, placedTile).filter(
+        (candidate) =>
+          (candidate.strain ?? 0) > 0 &&
+          matchesActivationTargetCategories(tileIndex, candidate, activationDetails)
+      );
+      const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
+      const validSavedTargetIds = savedTargetIds.filter((targetId) =>
+        targetCandidates.some((candidate) => candidate.id === targetId)
+      );
+      targetPlacedTileIds = (
+        validSavedTargetIds.length ? validSavedTargetIds : targetCandidates.slice(0, 1).map((candidate) => candidate.id)
+      ).slice(0, maxTargets);
+      targetPlacedTileId = targetPlacedTileIds[0];
+    }
+
+    if (activationDetails?.type === "add_arrival_timer") {
+      const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
+      const targetCandidates = state.game.encounter.active.filter((activeEncounter) => {
+        const timerMax = state.game.rules.arrivalTimerMax ?? 3;
+        const currentTimerTokens = Number(
+          activeEncounter.timerTokens ?? state.game.rules.arrivalStartTimerTokens ?? 3
+        );
+
+        return (
+          activeEncounter.encounterType === ENCOUNTER_TYPES.ARRIVAL &&
+          !activeEncounter.completed &&
+          currentTimerTokens < timerMax
+        );
+      });
+      targetActiveEncounterId = targetCandidates.some((candidate) => candidate.id === savedTargetIds[0])
+        ? savedTargetIds[0]
+        : targetCandidates[0]?.id;
+    }
+
+    if (activationDetails?.type === "resolve_active_burden") {
+      const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
+      const targetCandidates = state.game.encounter.active.filter(
+        (activeEncounter) => activeEncounter.encounterType === ENCOUNTER_TYPES.BURDEN && !activeEncounter.resolved
+      );
+      targetActiveEncounterId = targetCandidates.some((candidate) => candidate.id === savedTargetIds[0])
+        ? savedTargetIds[0]
+        : targetCandidates[0]?.id;
+    }
+
+    if (activationDetails?.type === "resource_exchange") {
+      payment = getActivationPaymentAction(placedTile.id);
+    }
+
+    if (activationDetails?.type === "flexible_resource_exchange") {
+      payment = getActivationPaymentAction(placedTile.id);
+      gains = getResourcePaymentAction(state.activationGains[placedTile.id] ?? []);
+    }
+  } catch {
+    targetPlacedTileId = undefined;
+    targetPlacedTileIds = undefined;
+    targetActiveEncounterId = undefined;
+    payment = undefined;
+    gains = undefined;
+  }
+
+  const { state: nextGame, result } = dispatchGameAction(
+    state.game,
+    {
+      type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+      placedTileId: placedTile?.id,
+      targetPlacedTileId,
+      targetPlacedTileIds,
+      targetActiveEncounterId,
+      payment,
+      gains
+    },
+    { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
+  );
+
+  state.game = nextGame;
+  state.lastActionResult = result;
+  state.contextMenu = null;
+
+  if (result.ok && placedTile) {
+    const activationTargets = { ...state.activationTargets };
+    delete activationTargets[placedTile.id];
+    state.activationTargets = activationTargets;
+    const activationPayments = { ...state.activationPayments };
+    delete activationPayments[placedTile.id];
+    state.activationPayments = activationPayments;
+    const activationGains = { ...state.activationGains };
+    delete activationGains[placedTile.id];
+    state.activationGains = activationGains;
+    const activationExchangeAmounts = { ...state.activationExchangeAmounts };
+    delete activationExchangeAmounts[placedTile.id];
+    state.activationExchangeAmounts = activationExchangeAmounts;
+  }
+
+  renderApp();
+}
+
+function runMapContextAction(actionName) {
+  const placedTileId = state.contextMenu?.placedTileId;
+
+  if (!placedTileId) {
+    closeMapContextMenu();
+    return;
+  }
+
+  if (actionName === "upgrade") {
+    upgradePlacedTile(placedTileId);
+    return;
+  }
+
+  if (actionName === "activate") {
+    activatePlacedTile(placedTileId);
+    return;
+  }
+
+  closeMapContextMenu();
+}
+
+function applyDebugScenario(scenarioId) {
+  try {
+    const scenario = createDebugScenario(scenarioId, {
+      encounterCards: state.data.encounterCards,
+      tiles: state.data.tiles,
+      mapHexes: state.data.mapHexes
+    });
+
+    state.game = scenario.game;
+    state.playerCount = scenario.game.playerCount;
+    state.selectedCoordinate = scenario.selectedCoordinate;
+    state.selectedTileId = scenario.selectedTileId;
+    state.selectedOrientation = scenario.selectedOrientation;
+    state.debugScenarioId = scenario.id;
+    resetLocalTestingControls();
+    state.lastActionResult = {
+      ok: true,
+      action: "DEBUG_SCENARIO",
+      message: `Loaded ${scenario.title}.`
+    };
+    renderApp();
+  } catch (error) {
+    state.lastActionResult = {
+      ok: false,
+      action: "DEBUG_SCENARIO",
+      errors: [error.message]
+    };
+    renderApp();
+  }
+}
+
+function runQuickAction(actionName) {
+  let outcome = null;
+
+  if (actionName === "seed") {
+    outcome = dispatchGameAction(
+      state.game,
+      {
+        type: TILE_ACTION_TYPES.SEED_ENCOUNTERS,
+        seedSelections: getDebugSeedSelectionsForAction(state.game),
+        seedPosition: state.debugSeedPosition
+      },
+      { tiles: state.data.tiles }
+    );
+
+    if (outcome.result.ok) {
+      state.debugSeedSelections = {};
+    }
+  }
+
+  if (actionName === "reveal") {
+    outcome = dispatchGameAction(
+      state.game,
+      {
+        type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS
+      },
+      { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
+    );
+  }
+
+  if (actionName === "end-turn") {
+    outcome = dispatchGameAction(
+      state.game,
+      {
+        type: TILE_ACTION_TYPES.END_TURN
+      },
+      { tiles: state.data.tiles }
+    );
+  }
+
+  if (actionName === "end-round") {
+    outcome = dispatchGameAction(
+      state.game,
+      {
+        type: TILE_ACTION_TYPES.END_ROUND
+      },
+      { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
+    );
+  }
+
+  if (!outcome) {
+    return;
+  }
+
+  state.game = outcome.state;
+  state.lastActionResult = outcome.result;
   renderApp();
 }
 
@@ -3357,6 +4068,58 @@ function bindEvents() {
         selectCoordinate(element.dataset.coordinate);
       }
     });
+  });
+
+  root.querySelectorAll(".hex[data-coordinate]").forEach((element) => {
+    element.addEventListener("contextmenu", (event) => openMapContextMenu(event, element.dataset.coordinate));
+  });
+
+  root.querySelector(".map-context-backdrop")?.addEventListener("click", closeMapContextMenu);
+
+  root.querySelectorAll("[data-context-action]").forEach((button) => {
+    button.addEventListener("click", () => runMapContextAction(button.dataset.contextAction));
+  });
+
+  root.querySelectorAll("[data-quick-action]").forEach((button) => {
+    button.addEventListener("click", () => runQuickAction(button.dataset.quickAction));
+  });
+
+  root.querySelectorAll(".debug-scenario-button").forEach((button) => {
+    button.addEventListener("click", () => applyDebugScenario(button.dataset.scenarioId));
+  });
+
+  root.querySelectorAll(".playtest-note-field").forEach((field) => {
+    field.addEventListener("input", () => {
+      state.playtestNotes = {
+        ...state.playtestNotes,
+        [field.dataset.noteKey]: field.value
+      };
+      state.playtestReportMessage = "";
+      updatePlaytestReportText();
+    });
+  });
+
+  root.querySelector("#clear-playtest-notes")?.addEventListener("click", () => {
+    state.playtestNotes = createDefaultPlaytestNotes();
+    state.playtestReportMessage = "Playtest notes cleared.";
+    renderApp();
+  });
+
+  root.querySelector("#copy-playtest-report")?.addEventListener("click", async () => {
+    const report = getCurrentPlaytestReport();
+
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard is not available in this browser.");
+      }
+
+      await navigator.clipboard.writeText(report);
+      state.playtestReportMessage = "Playtest report copied.";
+    } catch {
+      state.playtestReportMessage = "Copy was not available; the report text is ready below.";
+    }
+
+    renderApp();
   });
 
   root.querySelector("#player-count")?.addEventListener("change", (event) => {
@@ -4197,38 +4960,7 @@ function bindEvents() {
 
   root.querySelector("#upgrade-selected")?.addEventListener("click", () => {
     const placedTile = getPlacedTileAt(state.game, state.selectedCoordinate);
-    const tileIndex = createTileIndex(state.data.tiles);
-    const tileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
-    const upgradeTile = tileDefinition ? findUpgradeTile(tileDefinition, tileIndex) : null;
-    const upgradeCost = upgradeTile ? parseResourceCostForDisplay(upgradeTile.upgrade_cost) : null;
-    const upgradeResourceDiscount = getPendingUpgradeResourceDiscount(state.game, tileDefinition);
-    const upgradeStewardPowerProviders = upgradeTile
-      ? getUpgradeStewardPowerProviders(state.game, tileDefinition, tileIndex)
-      : [];
-    const stewardPowerPlacedTileId = getSelectedStewardPowerId(
-      state.stewardUpgradePowerId,
-      upgradeStewardPowerProviders
-    );
-    const { state: nextGame, result } = dispatchGameAction(
-      state.game,
-      {
-        type: TILE_ACTION_TYPES.UPGRADE_TILE,
-        placedTileId: placedTile?.id,
-        stewardPowerPlacedTileId,
-        upgradeCostReductionResources:
-          placedTile && upgradeCost && !upgradeCost.error
-            ? getUpgradeCostDiscountAction(placedTile.id, upgradeCost.cost, upgradeResourceDiscount)
-            : []
-      },
-      { tiles: state.data.tiles }
-    );
-    state.game = nextGame;
-    state.lastActionResult = result;
-    if (result.ok && placedTile) {
-      delete state.upgradeCostDiscounts[placedTile.id];
-      state.stewardUpgradePowerId = "";
-    }
-    renderApp();
+    upgradePlacedTile(placedTile?.id);
   });
 
   root.querySelector("#steward-upgrade-power")?.addEventListener("change", (event) => {
@@ -4238,109 +4970,7 @@ function bindEvents() {
 
   root.querySelector("#activate-selected")?.addEventListener("click", () => {
     const placedTile = getPlacedTileAt(state.game, state.selectedCoordinate);
-    const tileIndex = createTileIndex(state.data.tiles);
-    const tileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
-    let targetPlacedTileId;
-    let targetPlacedTileIds;
-    let targetActiveEncounterId;
-    let payment;
-    let gains;
-
-    try {
-      const activationDetails = tileDefinition ? getActivationDetails(tileDefinition) : null;
-
-      if (activationDetails?.type === "remove_strain_adjacent") {
-        const maxTargets = activationDetails.maxTargets ?? 1;
-        const targetCandidates = getAdjacentPlacedTiles(state.game, placedTile).filter(
-          (candidate) =>
-            (candidate.strain ?? 0) > 0 &&
-            matchesActivationTargetCategories(tileIndex, candidate, activationDetails)
-        );
-        const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
-        const validSavedTargetIds = savedTargetIds.filter((targetId) =>
-          targetCandidates.some((candidate) => candidate.id === targetId)
-        );
-        targetPlacedTileIds = (
-          validSavedTargetIds.length ? validSavedTargetIds : targetCandidates.slice(0, 1).map((candidate) => candidate.id)
-        ).slice(0, maxTargets);
-        targetPlacedTileId = targetPlacedTileIds[0];
-      }
-
-      if (activationDetails?.type === "add_arrival_timer") {
-        const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
-        const targetCandidates = state.game.encounter.active.filter((activeEncounter) => {
-          const timerMax = state.game.rules.arrivalTimerMax ?? 3;
-          const currentTimerTokens = Number(
-            activeEncounter.timerTokens ?? state.game.rules.arrivalStartTimerTokens ?? 3
-          );
-
-          return (
-            activeEncounter.encounterType === ENCOUNTER_TYPES.ARRIVAL &&
-            !activeEncounter.completed &&
-            currentTimerTokens < timerMax
-          );
-        });
-        targetActiveEncounterId = targetCandidates.some((candidate) => candidate.id === savedTargetIds[0])
-          ? savedTargetIds[0]
-          : targetCandidates[0]?.id;
-      }
-
-      if (activationDetails?.type === "resolve_active_burden") {
-        const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
-        const targetCandidates = state.game.encounter.active.filter(
-          (activeEncounter) => activeEncounter.encounterType === ENCOUNTER_TYPES.BURDEN && !activeEncounter.resolved
-        );
-        targetActiveEncounterId = targetCandidates.some((candidate) => candidate.id === savedTargetIds[0])
-          ? savedTargetIds[0]
-          : targetCandidates[0]?.id;
-      }
-
-      if (activationDetails?.type === "resource_exchange") {
-        payment = getActivationPaymentAction(placedTile.id);
-      }
-
-      if (activationDetails?.type === "flexible_resource_exchange") {
-        payment = getActivationPaymentAction(placedTile.id);
-        gains = getResourcePaymentAction(state.activationGains[placedTile.id] ?? []);
-      }
-    } catch {
-      targetPlacedTileId = undefined;
-      targetPlacedTileIds = undefined;
-      targetActiveEncounterId = undefined;
-      payment = undefined;
-      gains = undefined;
-    }
-
-    const { state: nextGame, result } = dispatchGameAction(
-      state.game,
-      {
-        type: TILE_ACTION_TYPES.ACTIVATE_TILE,
-        placedTileId: placedTile?.id,
-        targetPlacedTileId,
-        targetPlacedTileIds,
-        targetActiveEncounterId,
-        payment,
-        gains
-      },
-      { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
-    );
-    state.game = nextGame;
-    state.lastActionResult = result;
-    if (result.ok && placedTile) {
-      const activationTargets = { ...state.activationTargets };
-      delete activationTargets[placedTile.id];
-      state.activationTargets = activationTargets;
-      const activationPayments = { ...state.activationPayments };
-      delete activationPayments[placedTile.id];
-      state.activationPayments = activationPayments;
-      const activationGains = { ...state.activationGains };
-      delete activationGains[placedTile.id];
-      state.activationGains = activationGains;
-      const activationExchangeAmounts = { ...state.activationExchangeAmounts };
-      delete activationExchangeAmounts[placedTile.id];
-      state.activationExchangeAmounts = activationExchangeAmounts;
-    }
-    renderApp();
+    activatePlacedTile(placedTile?.id);
   });
 
   root.querySelector("#apply-strain-selected")?.addEventListener("click", () => {

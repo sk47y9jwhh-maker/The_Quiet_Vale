@@ -1190,7 +1190,10 @@ function placeTile(state, action, context) {
     };
   }
 
-  const baseActionCost = calculatePlacementActionCost(state, validation.footprintCoordinates, context);
+  const baseActionCost = calculatePlacementActionCost(state, validation.footprintCoordinates, {
+    ...context,
+    playerId: player.id
+  });
   const actionDiscount = getDiscountedTileActionCost(
     state,
     validation.tile,
@@ -1385,7 +1388,15 @@ function activateTile(state, action, context) {
     };
   }
 
-  const baseActionCost = calculatePlacedTileActionCost(state, validation.placedTile, context, "activationActionCost");
+  const baseActionCost = calculatePlacedTileActionCost(
+    state,
+    validation.placedTile,
+    {
+      ...context,
+      playerId: player.id
+    },
+    "activationActionCost"
+  );
   const travelDiscount = getDiscountedDisconnectedTravelActionCost(
     state,
     "activation",
@@ -1801,7 +1812,15 @@ function upgradeTile(state, action, context) {
     };
   }
 
-  const baseActionCost = calculatePlacedTileActionCost(state, validation.placedTile, context, "upgradeActionCost");
+  const baseActionCost = calculatePlacedTileActionCost(
+    state,
+    validation.placedTile,
+    {
+      ...context,
+      playerId: player.id
+    },
+    "upgradeActionCost"
+  );
   const actionDiscount = getDiscountedTileActionCost(
     state,
     validation.tile,

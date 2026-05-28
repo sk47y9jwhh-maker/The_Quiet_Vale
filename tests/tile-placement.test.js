@@ -25,11 +25,11 @@ function newState() {
     mapHexes
   });
 
-  return {
+  return withWarehouseResources({
     ...state,
     phase: GAME_PHASES.PLAYER_TURNS,
     activePlayerId: "P1"
-  };
+  }, {});
 }
 
 function dispatch(state, action) {

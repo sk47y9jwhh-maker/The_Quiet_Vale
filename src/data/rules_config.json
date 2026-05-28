@@ -19,6 +19,10 @@
     "value": null,
     "notes": "Applies unless a rule explicitly changes the cap."
   },
+  "starting_warehouse_resources_by_player_count": {
+    "value": null,
+    "notes": "Starting Warehouse resources per resource type: 1p starts with 15 each, 2p with 10 each, 3p with 5 each, 4p with 0 each."
+  },
   "actions_per_player": {
     "value": null,
     "notes": "Standard 1-4p game."

@@ -70,6 +70,20 @@ function withPlacedTiles(state, placedTiles) {
   };
 }
 
+function withStewardMarker(state, placedTileId, coordinate = "C1") {
+  return {
+    ...state,
+    players: state.players.map((player) =>
+      player.id === state.activePlayerId
+        ? {
+            ...player,
+            lastInteraction: { type: "debug", placedTileId, coordinate, round: state.round, season: state.season }
+          }
+        : player
+    )
+  };
+}
+
 test("debug marker control can set and clear the player's Steward marker", () => {
   const state = withPlacedTiles(newState(2), [
     {
@@ -124,8 +138,9 @@ test("Vanguard Home can make an eligible placement cost 0 Actions once per Seaso
 
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_forest_basic",
-    coordinate: "A13",
+    tileId: "core_gravel_path_basic",
+    coordinate: "C1",
+    orientation: "rotation-0",
     stewardPowerPlacedTileId: "tile-001"
   });
 
@@ -134,7 +149,7 @@ test("Vanguard Home can make an eligible placement cost 0 Actions once per Seaso
   assert.equal(result.stewardPower.type, "free_placement_action");
   assert.deepEqual(nextState.map.placedTiles[0].stewardPowerSeasons, ["I"]);
   assert.equal(nextState.players[0].actionsRemaining, 0);
-  assert.equal(nextState.map.placedTiles.at(-1).tileId, "core_forest_basic");
+  assert.equal(nextState.map.placedTiles.at(-1).tileId, "core_gravel_path_basic");
 });
 
 test("Vanguard Home does not waive the disconnected Travel action", () => {
@@ -255,32 +270,35 @@ test("Sentinel Home can make a Core upgrade cost 0 Actions once per Season", () 
 
 test("Sentinel Home does not waive the disconnected Travel action for an upgrade", () => {
   const state = withPlayerActions(
-    withPlacedTiles(newState(), [
-      {
-        id: "tile-001",
-        tileId: "core_sentinel_home_upgraded",
-        coordinate: "B1",
-        coordinates: ["B1"],
-        orientation: "rotation-0",
-        strain: 0
-      },
-      {
-        id: "tile-002",
-        tileId: "core_gravel_path_basic",
-        coordinate: "C1",
-        coordinates: ["C1", "C2"],
-        orientation: "rotation-0",
-        strain: 0
-      },
-      {
-        id: "tile-003",
-        tileId: "core_forest_basic",
-        coordinate: "A13",
-        coordinates: ["A13"],
-        orientation: "rotation-0",
-        strain: 0
-      }
-    ]),
+    withStewardMarker(
+      withPlacedTiles(newState(), [
+        {
+          id: "tile-001",
+          tileId: "core_sentinel_home_upgraded",
+          coordinate: "B1",
+          coordinates: ["B1"],
+          orientation: "rotation-0",
+          strain: 0
+        },
+        {
+          id: "tile-002",
+          tileId: "core_gravel_path_basic",
+          coordinate: "C1",
+          coordinates: ["C1", "C2"],
+          orientation: "rotation-0",
+          strain: 0
+        },
+        {
+          id: "tile-003",
+          tileId: "core_forest_basic",
+          coordinate: "A13",
+          coordinates: ["A13"],
+          orientation: "rotation-0",
+          strain: 0
+        }
+      ]),
+      "tile-002"
+    ),
     1
   );
 

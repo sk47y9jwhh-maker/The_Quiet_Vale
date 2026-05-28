@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   ENCOUNTER_TYPES,
+  STANDARD_RULES,
   createEncounterIndex,
   createInitialGameState,
   countEncounterTypes,
@@ -51,6 +52,15 @@ for (const playerCount of [1, 2, 3, 4]) {
     assert.deepEqual(state.encounter.discard, []);
     assert.deepEqual(state.encounter.active, []);
     assert.equal(state.warehouse.cap, 15);
+    assert.deepEqual(
+      state.warehouse.resources,
+      Object.fromEntries(
+        STANDARD_RULES.resources.map((resource) => [
+          resource,
+          STANDARD_RULES.startingWarehouseResourcesByPlayerCount[playerCount]
+        ])
+      )
+    );
   });
 }
 

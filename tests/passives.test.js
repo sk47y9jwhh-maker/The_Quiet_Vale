@@ -195,6 +195,7 @@ test("The Pleasence grants Supported to multiple adjacent Housing tiles", () => 
     tileId: "core_common_land_basic",
     coordinate: "A4"
   }).state;
+  state = dispatch(state, { type: TILE_ACTION_TYPES.DEBUG_RESET_ACTIONS }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.UPGRADE_TILE,
     placedTileId: "tile-003"

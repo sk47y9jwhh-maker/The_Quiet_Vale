@@ -25,11 +25,11 @@ function newState() {
     mapHexes
   });
 
-  return {
+  return withWarehouseResources({
     ...state,
     phase: GAME_PHASES.PLAYER_TURNS,
     activePlayerId: "P1"
-  };
+  }, {});
 }
 
 function dispatch(state, action) {
@@ -1158,6 +1158,7 @@ test("Burden resolution activation also triggers Resting Hall Strain removal", (
     coordinate: "C1",
     orientation: "rotation-0"
   }).state;
+  state = dispatch(state, { type: TILE_ACTION_TYPES.DEBUG_RESET_ACTIONS }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
     tileId: "core_tavern_basic",

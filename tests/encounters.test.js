@@ -30,6 +30,16 @@ function dispatch(state, action) {
   return dispatchGameAction(state, action, { tiles, encounterCards });
 }
 
+function withWarehouseResources(state, resources) {
+  return {
+    ...state,
+    warehouse: {
+      ...state.warehouse,
+      resources: Object.fromEntries(state.rules.resources.map((resource) => [resource, resources[resource] ?? 0]))
+    }
+  };
+}
+
 function unlockSpecial(state, tileId) {
   return {
     ...state,
@@ -1351,7 +1361,7 @@ test("The Burden of Command Season III also strains one Steward House", () => {
 });
 
 test("Where Help Stands waits for resource choices when marked tiles are calm", () => {
-  const base = newState(2);
+  const base = withWarehouseResources(newState(2), {});
   const state = {
     ...base,
     phase: GAME_PHASES.REVEAL_ENCOUNTERS,
@@ -1677,7 +1687,7 @@ test("The Welcome Wears Thin has no reveal choice when there are no active Arriv
 });
 
 test("The Welcome Wears Thin rejects timer payment choices without enough Herbs", () => {
-  const base = newState(1);
+  const base = withWarehouseResources(newState(1), {});
   const arrivalId = firstCardIdOfType(ENCOUNTER_TYPES.ARRIVAL);
   const state = {
     ...base,
@@ -1805,20 +1815,12 @@ test("The Storehouses Disagree can strain Resource tiles instead of losing resou
 });
 
 test("Stores Run Thin loses the current most-stocked Warehouse resource", () => {
-  const base = newState(1);
+  const base = withWarehouseResources(newState(1), { Wood: 4, Food: 2 });
   const state = {
     ...base,
     round: 6,
     season: "II",
     phase: GAME_PHASES.REVEAL_ENCOUNTERS,
-    warehouse: {
-      ...base.warehouse,
-      resources: {
-        ...base.warehouse.resources,
-        Wood: 4,
-        Food: 2
-      }
-    },
     map: {
       ...base.map,
       placedTiles: [{ id: "tile-001", tileId: "core_cottage_basic", coordinate: "A3", coordinates: ["A3"], strain: 0 }]
@@ -2390,6 +2392,7 @@ test("Shelter Holds counts passive Supported providers and ignores unsupported s
     tileId: "special_theater",
     coordinate: "A12"
   }).state;
+  state = dispatch(state, { type: TILE_ACTION_TYPES.DEBUG_RESET_ACTIONS }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
     tileId: "core_cottage_basic",
@@ -3102,7 +3105,7 @@ test("completing an Arrival spends 1 Action, moves it to completed, and unlocks 
 });
 
 test("Arrival completion requires the listed resource requirement", () => {
-  const base = newState(1);
+  const base = withWarehouseResources(newState(1), {});
   const state = {
     ...base,
     phase: GAME_PHASES.PLAYER_TURNS,
@@ -3685,7 +3688,7 @@ test("Burden resolution uses the current Season fixed cost", () => {
 });
 
 test("Burden resolution is blocked without enough resources", () => {
-  const base = newState(1);
+  const base = withWarehouseResources(newState(1), {});
   const state = {
     ...base,
     phase: GAME_PHASES.PLAYER_TURNS,

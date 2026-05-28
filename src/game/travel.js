@@ -23,6 +23,10 @@ export function isActiveTravelTile(placedTile, tileIndex) {
   return isTravelTileDefinition(definition) && !isOverstrainedPlacedTile(placedTile);
 }
 
+function isActiveNetworkTile(placedTile) {
+  return !isOverstrainedPlacedTile(placedTile);
+}
+
 export function createPlacedTileCoordinateIndex(placedTiles) {
   return new Map(
     placedTiles.flatMap((placedTile) =>
@@ -39,15 +43,15 @@ function sortTileIds(tileIds) {
   });
 }
 
-function buildTravelAdjacency(state, tileIndex) {
+function buildSettlementAdjacency(state, tileIndex) {
   const mapIndex = createMapIndex(state.map.hexes);
   const placedByCoordinate = createPlacedTileCoordinateIndex(state.map.placedTiles);
-  const activeTravelTiles = state.map.placedTiles.filter((placedTile) => isActiveTravelTile(placedTile, tileIndex));
-  const activeTravelIds = new Set(activeTravelTiles.map((placedTile) => placedTile.id));
-  const adjacency = new Map(activeTravelTiles.map((placedTile) => [placedTile.id, new Set()]));
+  const activeNetworkTiles = state.map.placedTiles.filter(isActiveNetworkTile);
+  const activeNetworkIds = new Set(activeNetworkTiles.map((placedTile) => placedTile.id));
+  const adjacency = new Map(activeNetworkTiles.map((placedTile) => [placedTile.id, new Set()]));
   const riverAdjacentDocks = [];
 
-  for (const placedTile of activeTravelTiles) {
+  for (const placedTile of activeNetworkTiles) {
     const definition = tileIndex.get(placedTile.tileId);
     const riverAdjacent = getPlacedTileCoordinates(placedTile).some((coordinate) =>
       getNeighborCoordinates(coordinate, mapIndex).some((neighborCoordinate) => isWaterHex(mapIndex.get(neighborCoordinate)))
@@ -61,7 +65,7 @@ function buildTravelAdjacency(state, tileIndex) {
       for (const neighborCoordinate of getNeighborCoordinates(coordinate, mapIndex)) {
         const neighborTile = placedByCoordinate.get(neighborCoordinate);
 
-        if (!neighborTile || neighborTile.id === placedTile.id || !activeTravelIds.has(neighborTile.id)) {
+        if (!neighborTile || neighborTile.id === placedTile.id || !activeNetworkIds.has(neighborTile.id)) {
           continue;
         }
 
@@ -78,7 +82,7 @@ function buildTravelAdjacency(state, tileIndex) {
     }
   }
 
-  return { activeTravelTiles, adjacency };
+  return { activeNetworkTiles, adjacency };
 }
 
 function getAdjacentNonTravelTileIds(state, networkTileIds, tileIndex) {
@@ -109,9 +113,9 @@ function getAdjacentNonTravelTileIds(state, networkTileIds, tileIndex) {
 
 export function buildTravelNetworks(state, context) {
   const tileIndex = context.tileIndex ?? createTileIndex(context.tiles);
-  const { activeTravelTiles, adjacency } = buildTravelAdjacency(state, tileIndex);
-  const activeById = new Map(activeTravelTiles.map((placedTile) => [placedTile.id, placedTile]));
-  const unvisited = new Set(activeTravelTiles.map((placedTile) => placedTile.id));
+  const { activeNetworkTiles, adjacency } = buildSettlementAdjacency(state, tileIndex);
+  const activeById = new Map(activeNetworkTiles.map((placedTile) => [placedTile.id, placedTile]));
+  const unvisited = new Set(activeNetworkTiles.map((placedTile) => placedTile.id));
   const networks = [];
 
   while (unvisited.size > 0) {
@@ -150,6 +154,41 @@ export function buildTravelNetworks(state, context) {
 
 export function getNetworkForPlacedTile(networks, placedTileId) {
   return networks.find((network) => network.tileIds.includes(placedTileId)) ?? null;
+}
+
+function getPlayerTravelAnchorTile(state, context = {}) {
+  const playerId = context.playerId ?? state.activePlayerId;
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  const placedTileId = player?.lastInteraction?.placedTileId;
+
+  if (!placedTileId) {
+    return null;
+  }
+
+  return state.map.placedTiles.find((placedTile) => placedTile.id === placedTileId) ?? null;
+}
+
+function getReachableNetworkCoordinates(state, networks, context = {}) {
+  const anchorTile = getPlayerTravelAnchorTile(state, context);
+
+  if (!anchorTile) {
+    return new Set(networks.flatMap((network) => network.coordinates));
+  }
+
+  const anchorNetwork = getNetworkForPlacedTile(networks, anchorTile.id);
+  const networkCoordinates = anchorNetwork?.coordinates ?? [];
+  return new Set([...networkCoordinates, ...getPlacedTileCoordinates(anchorTile)]);
+}
+
+function hasFootprintAdjacencyToCoordinates(state, footprintCoordinates, targetCoordinates) {
+  const mapIndex = createMapIndex(state.map.hexes);
+  const footprint = new Set(footprintCoordinates);
+
+  return [...footprint].some((coordinate) =>
+    getNeighborCoordinates(coordinate, mapIndex).some((neighborCoordinate) =>
+      targetCoordinates.has(neighborCoordinate)
+    )
+  );
 }
 
 export function getRiverCrossingActionCost(state, riverCoordinate, context) {
@@ -192,14 +231,9 @@ export function isPlacementConnectedToTravelNetwork(state, footprintCoordinates,
     return true;
   }
 
-  const mapIndex = createMapIndex(state.map.hexes);
-  const activeTravelCoordinates = new Set(networks.flatMap((network) => network.coordinates));
+  const activeTravelCoordinates = getReachableNetworkCoordinates(state, networks, context);
 
-  return footprintCoordinates.some((coordinate) =>
-    getNeighborCoordinates(coordinate, mapIndex).some((neighborCoordinate) =>
-      activeTravelCoordinates.has(neighborCoordinate)
-    )
-  );
+  return hasFootprintAdjacencyToCoordinates(state, footprintCoordinates, activeTravelCoordinates);
 }
 
 export function isPlacedTileConnectedToTravelNetwork(state, placedTile, context) {
@@ -214,11 +248,18 @@ export function isPlacedTileConnectedToTravelNetwork(state, placedTile, context)
     return true;
   }
 
-  return networks.some(
-    (network) =>
-      network.tileIds.includes(placedTile.id) ||
-      network.adjacentNonTravelTileIds.includes(placedTile.id)
-  );
+  if (getPlayerTravelAnchorTile(state, context)?.id === placedTile.id) {
+    return true;
+  }
+
+  const anchorTile = getPlayerTravelAnchorTile(state, context);
+
+  if (!anchorTile) {
+    return networks.some((network) => network.tileIds.includes(placedTile.id));
+  }
+
+  const anchorNetwork = getNetworkForPlacedTile(networks, anchorTile.id);
+  return Boolean(anchorNetwork?.tileIds.includes(placedTile.id));
 }
 
 export function calculatePlacementActionCost(state, footprintCoordinates, context) {

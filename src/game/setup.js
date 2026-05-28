@@ -35,6 +35,12 @@ export const STANDARD_RULES = Object.freeze({
     [ENCOUNTER_TYPES.ARRIVAL]: 5
   }),
   warehouseCapPerResource: 15,
+  startingWarehouseResourcesByPlayerCount: Object.freeze({
+    1: 15,
+    2: 10,
+    3: 5,
+    4: 0
+  }),
   resources: Object.freeze(["Food", "Wood", "Stone", "Goods", "Metal", "Herbs"])
 });
 
@@ -159,10 +165,16 @@ function createPlayers(playerCount, standardPool) {
   });
 }
 
-function createWarehouse() {
+function getStartingWarehouseResourceCount(playerCount) {
+  return STANDARD_RULES.startingWarehouseResourcesByPlayerCount[playerCount] ?? 0;
+}
+
+function createWarehouse(playerCount) {
+  const startingResourceCount = getStartingWarehouseResourceCount(playerCount);
+
   return {
     cap: STANDARD_RULES.warehouseCapPerResource,
-    resources: Object.fromEntries(STANDARD_RULES.resources.map((resource) => [resource, 0]))
+    resources: Object.fromEntries(STANDARD_RULES.resources.map((resource) => [resource, startingResourceCount]))
   };
 }
 
@@ -252,7 +264,7 @@ export function createInitialGameState({ playerCount, seed = "quiet-vale", encou
         standardDeckCardIds: standardDeckCards.map((card) => card.card_id)
       }
     },
-    warehouse: createWarehouse(),
+    warehouse: createWarehouse(playerCount),
     tileSupply: createTileSupply(tiles),
     score: {
       population: 0,
@@ -277,6 +289,10 @@ export function createInitialGameState({ playerCount, seed = "quiet-vale", encou
         hiddenCardsPerPlayer: STANDARD_RULES.hiddenCardsPerPlayer,
         standardDeckCards: standardDeckSize,
         goldenBoons: selectedGoldenBoonIds.length
+      }),
+      createLogEntry(4, "Stocked the starting Warehouse for the player count.", {
+        resourcesPerType: getStartingWarehouseResourceCount(playerCount),
+        cap: STANDARD_RULES.warehouseCapPerResource
       })
     ]
   };

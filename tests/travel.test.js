@@ -69,7 +69,7 @@ function unlockSpecial(state, tileId, stock = 1) {
   };
 }
 
-test("a multihex Travel tile forms one Travel Network across its full footprint", () => {
+test("a multihex Travel tile forms one connected settlement network across its full footprint", () => {
   const state = place(newState(), "core_gravel_track_basic", "C1", "rotation-0");
   const networks = buildTravelNetworks(state, { tiles });
 
@@ -78,7 +78,70 @@ test("a multihex Travel tile forms one Travel Network across its full footprint"
   assert.deepEqual(networks[0].coordinates, ["C1", "C2", "D3"]);
 });
 
-test("adjacent Travel tiles join the same Travel Network", () => {
+test("a multihex tile connects placements from any hex in its footprint", () => {
+  let state = fillWarehouse(newState());
+  state = place(state, "core_gravel_track_basic", "C1", "rotation-0");
+  const result = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_inn_basic",
+    coordinate: "D4"
+  });
+
+  assert.equal(result.result.ok, true);
+  assert.equal(result.result.actionCost.total, 1);
+  assert.equal(result.result.actionCost.disconnectedTravelActionCost, 0);
+});
+
+test("adjacent non-Travel tiles extend the connected settlement network", () => {
+  let state = fillWarehouse(newState());
+  state = place(state, "core_gravel_path_basic", "C1", "rotation-0");
+  state = place(state, "core_cottage_basic", "C3");
+  const networks = buildTravelNetworks(state, { tiles });
+  const result = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_cottage_basic",
+    coordinate: "C4"
+  });
+
+  assert.equal(networks.length, 1);
+  assert.deepEqual(networks[0].tileIds, ["tile-001", "tile-002"]);
+  assert.equal(result.result.ok, true);
+  assert.equal(result.result.actionCost.total, 1);
+  assert.equal(result.result.actionCost.disconnectedTravelActionCost, 0);
+});
+
+test("Overstrained non-Travel tiles break connected settlement reachability", () => {
+  let state = fillWarehouse(newState());
+  state = place(state, "core_gravel_path_basic", "C1", "rotation-0");
+  state = place(state, "core_cottage_basic", "C3");
+  state = place(state, "core_cottage_basic", "C4");
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.DEBUG_SET_PLAYER_MARKER,
+    playerId: "P1",
+    placedTileId: "tile-001"
+  }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.DEBUG_SET_TILE_STRAIN,
+    placedTileId: "tile-002",
+    strain: 3
+  }).state;
+  state = dispatch(state, { type: TILE_ACTION_TYPES.DEBUG_RESET_ACTIONS }).state;
+  const networks = buildTravelNetworks(state, { tiles });
+  const result = dispatch(state, {
+    type: TILE_ACTION_TYPES.UPGRADE_TILE,
+    placedTileId: "tile-003"
+  });
+
+  assert.deepEqual(
+    networks.map((network) => network.tileIds),
+    [["tile-001"], ["tile-003"]]
+  );
+  assert.equal(result.result.ok, true);
+  assert.equal(result.result.actionCost.total, 2);
+  assert.equal(result.result.actionCost.disconnectedTravelActionCost, 1);
+});
+
+test("adjacent Travel tiles join the same connected settlement network", () => {
   let state = place(newState(), "core_gravel_path_basic", "C1", "rotation-0");
   state = place(state, "core_gravel_path_basic", "C3", "rotation-0");
   const networks = buildTravelNetworks(state, { tiles });

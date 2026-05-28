@@ -25,19 +25,43 @@ function newState() {
     mapHexes
   });
 
-  return {
+  return withWarehouseResources({
     ...state,
     phase: GAME_PHASES.PLAYER_TURNS,
     activePlayerId: "P1"
-  };
+  }, {});
 }
 
 function dispatch(state, action) {
   return dispatchGameAction(state, action, { tiles });
 }
 
+function withWarehouseResources(state, resources) {
+  return {
+    ...state,
+    warehouse: {
+      ...state.warehouse,
+      resources: Object.fromEntries(state.rules.resources.map((resource) => [resource, resources[resource] ?? 0]))
+    }
+  };
+}
+
 function actionsRemaining(state) {
   return state.players.find((player) => player.id === state.activePlayerId).actionsRemaining;
+}
+
+function withStewardMarker(state, placedTileId) {
+  return {
+    ...state,
+    players: state.players.map((player) =>
+      player.id === state.activePlayerId
+        ? {
+            ...player,
+            lastInteraction: { type: "debug", placedTileId, coordinate: "C1", round: state.round, season: state.season }
+          }
+        : player
+    )
+  };
 }
 
 function goldenVialEffect({ uses = 0 } = {}) {
@@ -90,6 +114,27 @@ test("placement adjacent to an existing Travel Network spends only the Place act
   assert.equal(actionsRemaining(result.state), 2);
 });
 
+test("multihex placement spends 1 Action when any footprint hex touches the Travel Network", () => {
+  let state = dispatch(newState(), {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_gravel_track_basic",
+    coordinate: "C1",
+    orientation: "rotation-0"
+  }).state;
+  const result = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_gravel_track_basic",
+    coordinate: "A3",
+    orientation: "rotation-4"
+  });
+
+  assert.equal(result.result.ok, true);
+  assert.deepEqual(result.result.placedTile.coordinates, ["A3", "A2", "B1"]);
+  assert.equal(result.result.actionCost.total, 1);
+  assert.equal(result.result.actionCost.disconnectedTravelActionCost, 0);
+  assert.equal(actionsRemaining(result.state), 2);
+});
+
 test("disconnected placement spends one Travel action plus one Place action", () => {
   let state = dispatch(newState(), {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -112,7 +157,7 @@ test("disconnected placement spends one Travel action plus one Place action", ()
 
 test("The Golden Vial waives one disconnected placement Travel action each round", () => {
   const base = newState();
-  const state = {
+  const state = withStewardMarker({
     ...base,
     map: {
       ...base.map,
@@ -131,7 +176,7 @@ test("The Golden Vial waives one disconnected placement Travel action each round
       ...base.encounter,
       roundEffects: [goldenVialEffect()]
     }
-  };
+  }, "tile-001");
   const first = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
     tileId: "core_forest_basic",
@@ -160,7 +205,7 @@ test("The Golden Vial waives one disconnected placement Travel action each round
 
 test("activating a disconnected tile spends one Travel action plus one Activate action", () => {
   const base = newState();
-  const state = {
+  const state = withStewardMarker({
     ...base,
     map: {
       ...base.map,
@@ -183,7 +228,7 @@ test("activating a disconnected tile spends one Travel action plus one Activate 
         }
       ]
     }
-  };
+  }, "tile-001");
   const result = dispatch(state, {
     type: TILE_ACTION_TYPES.ACTIVATE_TILE,
     placedTileId: "tile-002"
@@ -197,9 +242,40 @@ test("activating a disconnected tile spends one Travel action plus one Activate 
   assert.equal(result.state.warehouse.resources.Wood, 1);
 });
 
+test("activating the tile under the steward marker does not spend disconnected Travel", () => {
+  let state = dispatch(newState(), {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_gravel_path_basic",
+    coordinate: "C1",
+    orientation: "rotation-0"
+  }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_forest_basic",
+    coordinate: "A13"
+  }).state;
+  const result = dispatch(state, {
+    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+    placedTileId: "tile-002"
+  });
+
+  assert.equal(result.result.ok, true);
+  assert.equal(result.result.actionCost.total, 1);
+  assert.equal(result.result.actionCost.activationActionCost, 1);
+  assert.equal(result.result.actionCost.disconnectedTravelActionCost, 0);
+  assert.equal(actionsRemaining(result.state), 0);
+  assert.deepEqual(result.state.players[0].lastInteraction, {
+    type: "activate",
+    placedTileId: "tile-002",
+    coordinate: "A13",
+    round: 1,
+    season: "I"
+  });
+});
+
 test("The Golden Vial waives disconnected activation Travel", () => {
   const base = newState();
-  const state = {
+  const state = withStewardMarker({
     ...base,
     map: {
       ...base.map,
@@ -226,7 +302,7 @@ test("The Golden Vial waives disconnected activation Travel", () => {
       ...base.encounter,
       roundEffects: [goldenVialEffect()]
     }
-  };
+  }, "tile-001");
   const result = dispatch(state, {
     type: TILE_ACTION_TYPES.ACTIVATE_TILE,
     placedTileId: "tile-002"
