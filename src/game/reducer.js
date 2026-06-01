@@ -5,7 +5,11 @@ import {
   gainWarehouseResources,
   canAffordCost,
   getTileSupplyEntry,
+  getPlacedTileCoordinates,
+  isOverstrainedPlacedTile,
+  markGoodsSubstitutionRound,
   markPlacementDiscountRound,
+  markUpgradeDiscountRound,
   spendWarehouseResources,
   validatePlaceTile,
   validateRelocatePlacedTiles,
@@ -40,6 +44,7 @@ import {
   getEffectiveSupportDetails,
   getProductionBonusDetails
 } from "./passives.js";
+import { createMapIndex, getNeighborCoordinates } from "./map.js";
 
 function nextLogId(state, offset = 0) {
   return `log-${String(state.log.length + 1 + offset).padStart(3, "0")}`;
@@ -1285,8 +1290,13 @@ function placeTile(state, action, context) {
       ? markPlacementDiscountRound(existingTile, actionState.round)
       : existingTile
   );
+  const placedTilesAfterGoodsSubstitution = placedTilesAfterDiscount.map((existingTile) =>
+    existingTile.id === validation.resourceCostSubstitution?.providerPlacedTileId
+      ? markGoodsSubstitutionRound(existingTile, actionState.round)
+      : existingTile
+  );
   const placedTilesAfterStewardPower = markStewardPowerProviderUsed(
-    placedTilesAfterDiscount,
+    placedTilesAfterGoodsSubstitution,
     stewardPower,
     actionState.season
   );
@@ -1329,6 +1339,7 @@ function placeTile(state, action, context) {
         baseCost: validation.baseCost,
         cost: validation.cost,
         placementCostReduction: validation.placementCostReduction,
+        resourceCostSubstitution: validation.resourceCostSubstitution,
         remainingStock: supplyEntry.available - 1
       })
     ]
@@ -1347,6 +1358,7 @@ function placeTile(state, action, context) {
       baseCost: validation.baseCost,
       cost: validation.cost,
       placementCostReduction: validation.placementCostReduction,
+      resourceCostSubstitution: validation.resourceCostSubstitution,
       placedTile
     }
   };
@@ -1905,14 +1917,25 @@ function upgradeTile(state, action, context) {
     encounterAfterActionDiscount,
     disconnectedTravelActionDiscount
   );
+  const placedTilesAfterUpgrade = actionState.map.placedTiles.map((placedTile) =>
+    placedTile.id === action.placedTileId ? upgradedPlacedTile : placedTile
+  );
+  const placedTilesAfterPassiveUpgradeDiscount = placedTilesAfterUpgrade.map((placedTile) =>
+    placedTile.id === validation.upgradeCostReduction?.providerPlacedTileId
+      ? markUpgradeDiscountRound(placedTile, actionState.round)
+      : placedTile
+  );
+  const placedTilesAfterGoodsSubstitution = placedTilesAfterPassiveUpgradeDiscount.map((placedTile) =>
+    placedTile.id === validation.resourceCostSubstitution?.providerPlacedTileId
+      ? markGoodsSubstitutionRound(placedTile, actionState.round)
+      : placedTile
+  );
   const nextState = {
     ...actionState,
     map: {
       ...actionState.map,
       placedTiles: markStewardPowerProviderUsed(
-        actionState.map.placedTiles.map((placedTile) =>
-          placedTile.id === action.placedTileId ? upgradedPlacedTile : placedTile
-        ),
+        placedTilesAfterGoodsSubstitution,
         stewardPower,
         actionState.season
       )
@@ -1936,6 +1959,7 @@ function upgradeTile(state, action, context) {
           stewardPower,
           baseCost: validation.baseCost,
           upgradeCostReduction: validation.upgradeCostReduction,
+          resourceCostSubstitution: validation.resourceCostSubstitution,
           cost: validation.cost
         }
       )
@@ -1951,6 +1975,7 @@ function upgradeTile(state, action, context) {
       placedTile: upgradedPlacedTile,
       baseCost: validation.baseCost,
       upgradeCostReduction: validation.upgradeCostReduction,
+      resourceCostSubstitution: validation.resourceCostSubstitution,
       cost: validation.cost,
       actionCost,
       actionCostDiscount,
@@ -3624,6 +3649,198 @@ function reapplySeasonStartBurdens(state, activeStates, nextRound, nextSeason, c
   };
 }
 
+function sortPlacedTilesById(placedTiles) {
+  return [...placedTiles].sort((left, right) => {
+    const leftNumber = Number(left.id.replace(/\D+/g, ""));
+    const rightNumber = Number(right.id.replace(/\D+/g, ""));
+    return leftNumber - rightNumber;
+  });
+}
+
+function applyEndOfSeasonResourceGain(state) {
+  if (state.round !== state.rules.roundsPerSeason) {
+    return {
+      state,
+      effect: null
+    };
+  }
+
+  let remaining = 10;
+  const resources = { ...state.warehouse.resources };
+  const applied = [];
+
+  while (remaining > 0) {
+    const candidates = state.rules.resources
+      .filter((resource) => resources[resource] < state.warehouse.cap)
+      .sort((left, right) => {
+        const amountDifference = resources[left] - resources[right];
+        return amountDifference !== 0 ? amountDifference : state.rules.resources.indexOf(left) - state.rules.resources.indexOf(right);
+      });
+
+    const resource = candidates[0];
+    if (!resource) {
+      break;
+    }
+
+    const before = resources[resource];
+    resources[resource] += 1;
+    remaining -= 1;
+    const existing = applied.find((entry) => entry.resource === resource);
+
+    if (existing) {
+      existing.amount += 1;
+      existing.after = resources[resource];
+    } else {
+      applied.push({
+        resource,
+        before,
+        after: resources[resource],
+        amount: 1
+      });
+    }
+  }
+
+  return {
+    state: {
+      ...state,
+      warehouse: {
+        ...state.warehouse,
+        resources
+      }
+    },
+    effect: {
+      type: "end_season_resource_gain",
+      season: "I",
+      round: state.round,
+      requestedResources: 10,
+      resourcesGained: applied.reduce((total, entry) => total + entry.amount, 0),
+      applied
+    }
+  };
+}
+
+function getAdjacentPlacedTileCandidates(state, placedTile) {
+  const mapIndex = createMapIndex(state.map.hexes);
+  const ownCoordinates = new Set(getPlacedTileCoordinates(placedTile));
+  const placedByCoordinate = new Map(
+    state.map.placedTiles.flatMap((tile) => getPlacedTileCoordinates(tile).map((coordinate) => [coordinate, tile]))
+  );
+  const adjacentIds = new Set();
+
+  for (const coordinate of ownCoordinates) {
+    for (const neighborCoordinate of getNeighborCoordinates(coordinate, mapIndex)) {
+      if (ownCoordinates.has(neighborCoordinate)) {
+        continue;
+      }
+
+      const candidate = placedByCoordinate.get(neighborCoordinate);
+      if (candidate && candidate.id !== placedTile.id) {
+        adjacentIds.add(candidate.id);
+      }
+    }
+  }
+
+  return sortPlacedTilesById(state.map.placedTiles.filter((tile) => adjacentIds.has(tile.id)));
+}
+
+function applyEndOfSeasonOverstrainedSpread(state, context) {
+  if (state.round !== state.rules.roundsPerSeason * 2) {
+    return {
+      state,
+      effect: null
+    };
+  }
+
+  let workingState = state;
+  const applications = [];
+
+  for (const sourceTile of sortPlacedTilesById(state.map.placedTiles.filter(isOverstrainedPlacedTile))) {
+    const currentSource = workingState.map.placedTiles.find((tile) => tile.id === sourceTile.id);
+    const target = getAdjacentPlacedTileCandidates(workingState, currentSource).find(
+      (candidate) => (candidate.strain ?? 0) < STRAIN_MAX_PER_TILE
+    );
+
+    if (!target) {
+      applications.push({
+        sourcePlacedTileId: sourceTile.id,
+        requestedStrain: 1,
+        strainAdded: 0,
+        strainPrevented: 0,
+        blockedByMax: 0,
+        noValidTarget: true
+      });
+      continue;
+    }
+
+    const support = getEffectiveSupportDetails(workingState, target.id, context);
+    const result = applyStrainToPlacedTile(target, 1, {
+      supported: support.supported
+    });
+
+    if (!result.valid) {
+      applications.push({
+        sourcePlacedTileId: sourceTile.id,
+        targetPlacedTileId: target.id,
+        requestedStrain: 1,
+        strainAdded: 0,
+        strainPrevented: 0,
+        blockedByMax: 1,
+        noValidTarget: false,
+        errors: result.errors
+      });
+      continue;
+    }
+
+    workingState = {
+      ...workingState,
+      map: {
+        ...workingState.map,
+        placedTiles: workingState.map.placedTiles.map((tile) =>
+          tile.id === target.id ? result.placedTile : tile
+        )
+      }
+    };
+    applications.push({
+      sourcePlacedTileId: sourceTile.id,
+      targetPlacedTileId: target.id,
+      targetTileId: target.tileId,
+      before: target.strain ?? 0,
+      after: result.placedTile.strain,
+      requestedStrain: 1,
+      strainAdded: result.strainAdded,
+      strainPrevented: result.strainPrevented,
+      blockedByMax: result.blockedByMax,
+      becameOverstrained: result.becameOverstrained,
+      supportProviders: support.providers,
+      noValidTarget: false
+    });
+  }
+
+  return {
+    state: workingState,
+    effect: {
+      type: "end_season_overstrained_spread",
+      season: "II",
+      round: state.round,
+      applications,
+      strainAdded: applications.reduce((total, application) => total + application.strainAdded, 0),
+      strainPrevented: applications.reduce((total, application) => total + application.strainPrevented, 0),
+      blockedByMax: applications.reduce((total, application) => total + application.blockedByMax, 0),
+      noValidTargetApplications: applications.filter((application) => application.noValidTarget).length
+    }
+  };
+}
+
+function applyEndOfSeasonEffects(state, context) {
+  const resources = applyEndOfSeasonResourceGain(state);
+  const spread = applyEndOfSeasonOverstrainedSpread(resources.state, context);
+
+  return {
+    state: spread.state,
+    effects: [resources.effect, spread.effect].filter(Boolean)
+  };
+}
+
 function endRound(state, context) {
   if (state.phase === GAME_PHASES.COMPLETE) {
     return {
@@ -3648,6 +3865,17 @@ function endRound(state, context) {
   }
 
   const encounterResolution = resolveEndRoundEncounters(state);
+  const seasonEffects = applyEndOfSeasonEffects(
+    {
+      ...state,
+      encounter: {
+        ...state.encounter,
+        active: encounterResolution.active,
+        discard: encounterResolution.discard
+      }
+    },
+    context
+  );
   const nextRound = state.round + 1;
   const isComplete = nextRound > state.rules.totalRounds;
   const nextSeason = isComplete ? state.season : getSeasonForRound(nextRound);
@@ -3655,13 +3883,13 @@ function endRound(state, context) {
     ? {
         active: encounterResolution.active,
         map: {
-          ...state.map,
-          placedTiles: state.map.placedTiles.map(resetRoundSupportUsage)
+          ...seasonEffects.state.map,
+          placedTiles: seasonEffects.state.map.placedTiles.map(resetRoundSupportUsage)
         },
-        warehouse: state.warehouse,
+        warehouse: seasonEffects.state.warehouse,
         reappliedBurdens: []
       }
-    : reapplySeasonStartBurdens(state, encounterResolution.active, nextRound, nextSeason, context);
+    : reapplySeasonStartBurdens(seasonEffects.state, encounterResolution.active, nextRound, nextSeason, context);
   const nextState = {
     ...state,
     phase: isComplete ? GAME_PHASES.COMPLETE : GAME_PHASES.SEED_ENCOUNTERS,
@@ -3697,8 +3925,20 @@ function endRound(state, context) {
           nextSeason: isComplete ? null : nextSeason,
           timersRemoved: encounterResolution.timersRemoved,
           expiredArrivalIds: encounterResolution.expiredArrivals.map((arrival) => arrival.cardId),
-          reappliedBurdenIds: burdenReapplication.reappliedBurdens.map((burden) => burden.cardId)
+          reappliedBurdenIds: burdenReapplication.reappliedBurdens.map((burden) => burden.cardId),
+          seasonEffects: seasonEffects.effects
         }
+      ),
+      ...seasonEffects.effects.map((effect, index) =>
+        createActionLogEntry(
+          state,
+          "season_effect",
+          effect.type === "end_season_resource_gain"
+            ? `End of Season ${effect.season}: added ${effect.resourcesGained} resources to the Warehouse.`
+            : `End of Season ${effect.season}: Overstrained tiles spread ${effect.strainAdded} Strain.`,
+          effect,
+          index + 1
+        )
       ),
       ...burdenReapplication.reappliedBurdens.map((burden, index) => ({
         ...createActionLogEntry(
@@ -3726,7 +3966,8 @@ function endRound(state, context) {
       complete: isComplete,
       timersRemoved: encounterResolution.timersRemoved,
       expiredArrivals: encounterResolution.expiredArrivals,
-      reappliedBurdens: burdenReapplication.reappliedBurdens
+      reappliedBurdens: burdenReapplication.reappliedBurdens,
+      seasonEffects: seasonEffects.effects
     }
   };
 }

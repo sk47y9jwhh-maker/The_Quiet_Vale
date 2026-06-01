@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { dispatchGameAction } from "../src/game/reducer.js";
+import { getNeighborCoordinates } from "../src/game/map.js";
 import { GAME_PHASES, createInitialGameState } from "../src/game/setup.js";
 import { TILE_ACTION_TYPES } from "../src/game/tiles.js";
 
@@ -97,6 +98,63 @@ test("ending the last player turn moves to end-of-round effects", () => {
     nextState.players.map((player) => player.actionsRemaining),
     [0, 0]
   );
+});
+
+test("end of Season I adds up to 10 assorted Warehouse resources", () => {
+  const base = newState(1);
+  const emptyResources = Object.fromEntries(base.rules.resources.map((resource) => [resource, 0]));
+  const state = {
+    ...base,
+    phase: GAME_PHASES.END_ROUND,
+    round: 5,
+    season: "I",
+    warehouse: {
+      ...base.warehouse,
+      resources: emptyResources
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.END_ROUND });
+  const totalResources = Object.values(nextState.warehouse.resources).reduce((sum, amount) => sum + amount, 0);
+
+  assert.equal(result.ok, true);
+  assert.equal(totalResources, 10);
+  assert.equal(result.seasonEffects[0].type, "end_season_resource_gain");
+});
+
+test("end of Season II spreads Strain from Overstrained tiles", () => {
+  const base = newState(1);
+  const sourceCoordinate = "A1";
+  const targetCoordinate = getNeighborCoordinates(sourceCoordinate, mapHexes)[0];
+  const state = {
+    ...base,
+    phase: GAME_PHASES.END_ROUND,
+    round: 10,
+    season: "II",
+    map: {
+      ...base.map,
+      placedTiles: [
+        {
+          id: "tile-001",
+          tileId: "core_gravel_path_basic",
+          coordinate: sourceCoordinate,
+          coordinates: [sourceCoordinate],
+          strain: 3
+        },
+        {
+          id: "tile-002",
+          tileId: "core_forest_basic",
+          coordinate: targetCoordinate,
+          coordinates: [targetCoordinate],
+          strain: 0
+        }
+      ]
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.END_ROUND });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.seasonEffects[0].type, "end_season_overstrained_spread");
+  assert.equal(nextState.map.placedTiles.find((tile) => tile.id === "tile-002").strain, 1);
 });
 
 test("The Golden Eyed Traveler opens one additional Player Turns phase before end of round", () => {

@@ -1,18 +1,21 @@
 # Prototype Rules Coverage Notes
 
-This note tracks the local prototype as of the Golden Signet Ring pass. It is a working robustness checklist, not final rules documentation.
+This note tracks the local prototype as of the v2.0 aligned production-set pass. It is a working robustness checklist, not final rules documentation.
 
 ## Supported Now
 
 - Loads the JSON map, tiles, encounter cards, and rules config from `src/data/`.
-- Stocks the starting Warehouse by player count: 15 of each resource at 1p, 10 at 2p, 5 at 3p, and 0 at 4p.
-- Renders the approved flat-top hex map with terrain, features, placed tiles, Strain, Support, and player last-interaction markers.
+- Uses `Redesigned Basic Map v0.1` as the default locked map; the previous map is no longer selectable in the app.
+- Provides a setup `Redeal Cards` control for generating a fresh playtest seed and rebuilding Encounter hands/deck without changing map or player count.
+- Stocks the starting Warehouse by player count: 15 of each resource at 1p, 10 at 2p, 5 at 3p, and 0 at 4p/5+ Council reference.
+- Renders the current flat-top hex map with terrain, features, placed tiles, Strain, Support, and player last-interaction markers.
 - Places, upgrades, activates, strains, supports, and overstrains local tiles through the prototype controls.
 - Applies disconnected Travel action costs to placement, activation, and upgrade actions on tiles away from the connected settlement network.
 - Builds connected settlement networks from all placed, non-Overstrained tiles while keeping printed Travel Tile identity for Travel-specific effects.
 - Counts every hex in a multihex tile footprint when checking connected settlement adjacency and disconnected placement costs.
 - Handles local Encounter setup, debug seeding, reveal, active Arrivals, active Burdens, active Boons, and end-of-round/end-of-season flow.
 - Shows source text for Encounter cards and tiles so testing can compare the rule text against the implemented behavior.
+- Implements v2.2 Core Resource production values, Workshop/Makers Conclave upgrade support, Market/Seldes Goods substitution, and The Apprentice Steward as a placement Action discount rather than a resource discount.
 - Shows Encounter flavour text prominently on active Encounter cards, recent reveals, and round effects so playtests can read the settlement story while checking mechanics.
 - Shows a debug Encounter coverage audit for each source Encounter card, including supported, partial, and unsupported implementation status.
 - Provides a sticky prototype testing bar for phase, player actions, steward marker context, latest action result, panel jumps, and common turn-flow actions.

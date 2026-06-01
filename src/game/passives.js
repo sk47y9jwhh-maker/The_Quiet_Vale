@@ -30,7 +30,9 @@ function supportsAdjacentResourceTiles(tile) {
 }
 
 function supportsTravelTilesInNetwork(tile) {
-  return /Travel Tiles in this tile's Travel Network have Supported/i.test(tile?.benefit ?? "");
+  return /Travel Tiles in this tile's (?:Travel Network|connected settlement network) have Supported/i.test(
+    tile?.benefit ?? ""
+  );
 }
 
 function relievesStrainWhenBurdenResolved(tile) {
@@ -336,7 +338,7 @@ export function getPassiveSupportDetails(state, placedTileId, context = {}) {
     if (supportsTravelTilesInNetwork(providerDefinition) && isTravelTileDefinition(targetDefinition)) {
       const providerNetwork = getAdjacentTravelNetwork(state, providerTile, tileIndex);
       if (providerNetwork?.tileIds.includes(targetTile.id)) {
-        providers.push(createProviderEntry(providerTile, providerDefinition, "travel_network"));
+        providers.push(createProviderEntry(providerTile, providerDefinition, "connected_settlement_network"));
       }
     }
   }

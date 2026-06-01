@@ -1761,7 +1761,7 @@ test("The Storehouses Disagree can lose a chosen non-Goods resource", () => {
   assert.equal(revealResult.revealed[0].burdenEffect.type, "resource_loss_or_strain_choice");
   assert.deepEqual(
     revealResult.revealed[0].burdenEffect.paymentOptions.map((option) => option.resource),
-    ["Food", "Wood", "Stone", "Metal", "Herbs"]
+    ["Wood", "Stone", "Metal", "Food", "Herbs"]
   );
 
   const { state: nextState, result } = dispatch(revealedState, {
@@ -2225,7 +2225,7 @@ test("When the roads filled once more creates a two-use Travel place-or-upgrade 
   assert.equal(nextState.encounter.roundEffects[0].maxUses, 2);
 });
 
-test("The Apprentice Steward creates a one-use free placement round effect", () => {
+test("The Apprentice Steward creates a one-use placement action discount round effect", () => {
   const base = newState(1);
   const boonId = "boon_the_apprentice_steward";
   const state = {
@@ -2247,8 +2247,9 @@ test("The Apprentice Steward creates a one-use free placement round effect", () 
   assert.equal(result.ok, true);
   assert.deepEqual(nextState.encounter.discard, [boonId]);
   assert.equal(nextState.encounter.roundEffects.length, 1);
-  assert.equal(nextState.encounter.roundEffects[0].type, "free_tile_placement_cost");
+  assert.equal(nextState.encounter.roundEffects[0].type, "tile_action_discount");
   assert.deepEqual(nextState.encounter.roundEffects[0].targetCategories, ["Resource", "Housing"]);
+  assert.deepEqual(nextState.encounter.roundEffects[0].appliesTo, ["placement"]);
   assert.equal(nextState.encounter.roundEffects[0].maxUses, 1);
   assert.equal(nextState.encounter.roundEffects[0].expiresAtEndOfRound, true);
 });

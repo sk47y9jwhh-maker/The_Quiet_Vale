@@ -7,6 +7,7 @@ import {
   createEncounterIndex,
   createInitialGameState,
   countEncounterTypes,
+  getStartingWarehouseResourceCount,
   hashSeed,
   resolveEncounterCards
 } from "../src/game/setup.js";
@@ -72,6 +73,14 @@ test("setup is deterministic for a given seed", () => {
   assert.deepEqual(first.encounter.deck, second.encounter.deck);
 });
 
+test("different setup seeds redeal Encounter hands and deck", () => {
+  const first = createInitialGameState({ playerCount: 2, seed: "playtest-deal-a", encounterCards, tiles, mapHexes });
+  const second = createInitialGameState({ playerCount: 2, seed: "playtest-deal-b", encounterCards, tiles, mapHexes });
+
+  assert.notDeepEqual(first.players.map((player) => player.hand), second.players.map((player) => player.hand));
+  assert.notDeepEqual(first.encounter.deck, second.encounter.deck);
+});
+
 test("renamed default seeds keep the prototype setup baseline", () => {
   assert.equal(hashSeed("quiet-vale"), 0x7fd0d1c9);
   assert.equal(hashSeed("quiet-vale-m2"), 0x6abed5f3);
@@ -81,5 +90,19 @@ test("standard setup rejects Council Variant player counts", () => {
   assert.throws(
     () => createInitialGameState({ playerCount: 5, seed: "council", encounterCards, tiles, mapHexes }),
     /supports 1-4 players/
+  );
+});
+
+test("starting Warehouse resources follow v2.0 player-count table including Council reference", () => {
+  assert.deepEqual(
+    [1, 2, 3, 4, 5, 6].map((playerCount) => [playerCount, getStartingWarehouseResourceCount(playerCount)]),
+    [
+      [1, 15],
+      [2, 10],
+      [3, 5],
+      [4, 0],
+      [5, 0],
+      [6, 0]
+    ]
   );
 });

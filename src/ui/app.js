@@ -3,21 +3,26 @@ import {
   compareCoordinates,
   getBridgeCandidateHexes,
   getFootprintCoordinates,
+  getMapAxes,
   getNeighborCoordinates,
   getRiverAdjacentLandSites,
   getRiverHexes,
+  normalizeMapSource,
   parseCoordinate,
   summarizeTerrain,
   validateApprovedMap,
+  validateMapOption,
   validateSourceCounts
 } from "../game/map.js";
 import { dispatchGameAction } from "../game/reducer.js";
 import {
   ENCOUNTER_TYPES,
   GAME_PHASES,
+  STANDARD_RULES,
   createEncounterIndex,
   createInitialGameState,
   countEncounterTypes,
+  getStartingWarehouseResourceCount,
   resolveEncounterCards
 } from "../game/setup.js";
 import {
@@ -28,7 +33,8 @@ import {
   getDirectlyPlaceableTiles,
   getPlacedTileAt,
   isOverstrainedPlacedTile,
-  parseResourceCost
+  parseResourceCost,
+  validatePlaceTile
 } from "../game/tiles.js";
 import { isSupportedPlacedTile } from "../game/strain.js";
 import {
@@ -50,27 +56,49 @@ import {
   getStewardPowerDetails,
   isStewardPowerUsedThisSeason
 } from "../game/stewards.js";
-import { DEBUG_SCENARIO_DEFINITIONS, createDebugScenario } from "../game/debugScenarios.js";
-import { calculatePlaytestMetrics, getPlaytestPacingSignals } from "../game/playtestMetrics.js";
-import {
-  PLAYTEST_RATING_FIELDS,
-  PLAYTEST_TEXT_FIELDS,
-  createDefaultPlaytestNotes,
-  createPlaytestReportMarkdown
-} from "../game/playtestReport.js";
 import {
   getEncounterFlavorText,
   getEncounterRuleLines
 } from "../game/encounterPresentation.js";
+import {
+  SIMULATION_BOT_PROFILES,
+  runSimulationBatch,
+  simulationRoundsToCsv,
+  simulationSummaryToCsv
+} from "../game/simulation.js";
 
 const DATA_PATHS = {
   encounterCards: "./src/data/encounter_cards.json",
   tiles: "./src/data/tiles.json",
-  mapHexes: "./src/data/codex_default_map_v0_1.json",
   riverRules: "./src/data/river_rules.json",
-  rulesConfig: "./src/data/rules_config.json",
-  mapApproval: "./src/data/map_approval.json"
+  rulesConfig: "./src/data/rules_config.json"
 };
+
+const MAP_OPTIONS = Object.freeze([
+  Object.freeze({
+    id: "redesigned-basic-map-v0-1",
+    name: "Redesigned Basic Map v0.1",
+    status: "Default locked map",
+    path: "./src/data/redesigned_basic_map_v0_1.json",
+    locked: true
+  })
+]);
+
+const TERRAIN_LEGEND_ITEMS = Object.freeze([
+  Object.freeze({ terrain: "Grasslands", label: "Grasslands" }),
+  Object.freeze({ terrain: "Water", label: "River" }),
+  Object.freeze({ terrain: "Woodland", label: "Woodland" }),
+  Object.freeze({ terrain: "Mountains", label: "Mountains" }),
+  Object.freeze({ terrain: "Heaths", label: "Heaths" }),
+  Object.freeze({ terrain: "Arable Land", label: "Arable" }),
+  Object.freeze({ terrain: "Ruins", label: "Ruins" })
+]);
+
+const BURDEN_REVEAL_CHOICE_TYPES = Object.freeze([
+  "pay_or_strain_choice",
+  "arrival_pay_or_timer_choice",
+  "resource_loss_or_strain_choice"
+]);
 
 const root = document.querySelector("#app");
 const state = {
@@ -78,11 +106,12 @@ const state = {
   error: null,
   game: null,
   selectedCoordinate: "C7",
+  selectedMapId: "redesigned-basic-map-v0-1",
   selectedTileId: null,
   selectedOrientation: HEX_DIRECTIONS[0].id,
   playerCount: 1,
   setupSeed: "quiet-vale-m2",
-  showDebugLabels: true,
+  showDebugLabels: false,
   revealHiddenSetup: false,
   debugSeedSelections: {},
   debugSeedPosition: SEED_PACKET_POSITIONS.TOP,
@@ -109,10 +138,14 @@ const state = {
   stewardExchangePayments: {},
   stewardExchangeGains: {},
   stewardExchangeAmounts: {},
-  debugScenarioId: "",
-  playtestNotes: createDefaultPlaytestNotes(),
-  playtestReportMessage: "",
+  simulation: {
+    botProfile: "balanced",
+    playerCount: "current",
+    result: null,
+    message: ""
+  },
   contextMenu: null,
+  seedContextMenu: null,
   lastActionResult: null
 };
 
@@ -131,7 +164,24 @@ async function loadData() {
     Object.entries(DATA_PATHS).map(async ([key, path]) => [key, await loadJson(path)])
   );
 
-  return Object.fromEntries(entries);
+  const mapOptions = await Promise.all(
+    MAP_OPTIONS.map(async (option) => {
+      const source = await loadJson(option.path);
+
+      return {
+        ...option,
+        source,
+        hexes: normalizeMapSource(source)
+      };
+    })
+  );
+  const selectedMap = mapOptions.find((option) => option.id === state.selectedMapId) ?? mapOptions[0];
+
+  return {
+    ...Object.fromEntries(entries),
+    mapOptions,
+    mapHexes: selectedMap.hexes
+  };
 }
 
 function escapeHtml(value) {
@@ -157,6 +207,22 @@ function formatPhase(phase) {
   };
 
   return labels[phase] ?? phase;
+}
+
+function createRedealSeed() {
+  const bytes = new Uint32Array(2);
+
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    bytes[0] = Math.floor(Math.random() * 0xffffffff);
+    bytes[1] = Math.floor(Math.random() * 0xffffffff);
+  }
+
+  const timePart = Date.now().toString(36);
+  const randomPart = [...bytes].map((value) => value.toString(36)).join("-");
+
+  return `playtest-${timePart}-${randomPart}`;
 }
 
 function resetLocalTestingControls() {
@@ -186,6 +252,34 @@ function resetLocalTestingControls() {
   state.stewardExchangeGains = {};
   state.stewardExchangeAmounts = {};
   state.contextMenu = null;
+  state.seedContextMenu = null;
+}
+
+function getSelectedMapOption() {
+  return state.data?.mapOptions.find((option) => option.id === state.selectedMapId) ?? state.data?.mapOptions[0] ?? null;
+}
+
+function getSelectedMapHexes() {
+  return getSelectedMapOption()?.hexes ?? state.data?.mapHexes ?? [];
+}
+
+function refreshActiveMapData() {
+  if (!state.data) {
+    return;
+  }
+
+  state.data = {
+    ...state.data,
+    mapHexes: getSelectedMapHexes()
+  };
+}
+
+function syncSelectedCoordinate() {
+  const mapHexes = getSelectedMapHexes();
+
+  if (!mapHexes.some((hex) => hex.Coordinate === state.selectedCoordinate)) {
+    state.selectedCoordinate = mapHexes[0]?.Coordinate ?? "";
+  }
 }
 
 function createGame() {
@@ -193,16 +287,17 @@ function createGame() {
     return;
   }
 
+  refreshActiveMapData();
+  syncSelectedCoordinate();
+
   state.game = createInitialGameState({
     playerCount: state.playerCount,
     seed: state.setupSeed,
     encounterCards: state.data.encounterCards,
     tiles: state.data.tiles,
-    mapHexes: state.data.mapHexes
+    mapHexes: getSelectedMapHexes()
   });
   state.lastActionResult = null;
-  state.debugScenarioId = "";
-  state.playtestReportMessage = "";
   resetLocalTestingControls();
   syncSelectedTile();
 }
@@ -237,8 +332,8 @@ function syncSelectedTile() {
   }
 }
 
-function hexCenter(hex, size) {
-  const { columnIndex, rowIndex } = parseCoordinate(hex.Coordinate);
+function hexCenter(hex, size, mapHexes) {
+  const { columnIndex, rowIndex } = parseCoordinate(hex.Coordinate, mapHexes);
   const hexHeight = Math.sqrt(3) * size;
   const margin = 40;
 
@@ -274,8 +369,12 @@ function featureLabel(hex) {
     return "";
   }
 
+  if (hex.Terrain === "Water") {
+    return "";
+  }
+
   if (hex.Feature === "Bridge Candidate") {
-    return "Bridge";
+    return "Bridge note";
   }
 
   if (hex.Feature === "River Fork") {
@@ -285,8 +384,73 @@ function featureLabel(hex) {
   return hex.Feature;
 }
 
-function shortTileName(tileName) {
-  return String(tileName).replace(/^The\s+/i, "").slice(0, 13);
+function normalizeMapTileName(tileName) {
+  return String(tileName ?? "").replace(/^The\s+/i, "").trim();
+}
+
+function wrapMapLabel(label, maxLineLength = 12, maxLines = 3) {
+  const words = normalizeMapTileName(label).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let currentLine = "";
+
+  for (const word of words) {
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+
+    if (candidate.length <= maxLineLength) {
+      currentLine = candidate;
+      continue;
+    }
+
+    if (currentLine) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      lines.push(word);
+    }
+
+    if (lines.length >= maxLines) {
+      break;
+    }
+  }
+
+  if (currentLine && lines.length < maxLines) {
+    lines.push(currentLine);
+  }
+
+  const consumedText = lines.join(" ");
+  const fullText = words.join(" ");
+
+  if (lines.length > 0 && consumedText.length < fullText.length) {
+    const lastLine = lines.at(-1) ?? "";
+    lines[lines.length - 1] =
+      lastLine.length > maxLineLength - 3
+        ? `${lastLine.slice(0, Math.max(1, maxLineLength - 3))}...`
+        : `${lastLine}...`;
+  }
+
+  return lines;
+}
+
+function renderWrappedMapLabel(label, className, x, y, maxLineLength = 12, maxLines = 3) {
+  const lines = wrapMapLabel(label, maxLineLength, maxLines);
+
+  if (lines.length === 0) {
+    return "";
+  }
+
+  const lineHeight = 8;
+  const startY = y - ((lines.length - 1) * lineHeight) / 2;
+
+  return `
+    <text class="${escapeHtml(className)}" x="${x}" y="${startY.toFixed(2)}">
+      ${lines
+        .map(
+          (line, index) =>
+            `<tspan x="${x}" dy="${index === 0 ? 0 : lineHeight}">${escapeHtml(line)}</tspan>`
+        )
+        .join("")}
+    </text>
+  `;
 }
 
 const PLAYER_MARKER_FILLS = ["#24362e", "#9d2f2f", "#5e72b7", "#7d3f12"];
@@ -344,6 +508,28 @@ function renderPlayerMapMarkers(players, center) {
   `;
 }
 
+function renderStrainMapMarker(placedTile, center) {
+  const strain = Number(placedTile?.strain ?? 0);
+
+  if (strain <= 0) {
+    return "";
+  }
+
+  const overstrained = isOverstrainedPlacedTile(placedTile);
+  const label = overstrained ? "!" : String(strain);
+
+  return `
+    <g
+      class="strain-map-marker ${overstrained ? "is-overstrained" : ""}"
+      transform="translate(${(center.x + 18).toFixed(2)} ${(center.y - 17).toFixed(2)})"
+      aria-label="${escapeHtml(overstrained ? "Overstrained tile" : `${strain} Strain`)}"
+    >
+      <circle r="8"></circle>
+      <text y="3">${escapeHtml(label)}</text>
+    </g>
+  `;
+}
+
 function getInteractionActionLabel(type) {
   return (
     {
@@ -372,8 +558,9 @@ function formatPlayerLastInteraction(game, tileIndex, player) {
 function renderHexMap(mapHexes, game, tileIndex) {
   const size = 30;
   const hexHeight = Math.sqrt(3) * size;
-  const width = 40 * 2 + size * 2 + (14 - 1) * size * 1.5;
-  const height = 40 * 2 + hexHeight * 9.5;
+  const axes = getMapAxes(mapHexes);
+  const width = 40 * 2 + size * 2 + (axes.columns.length - 1) * size * 1.5;
+  const height = 40 * 2 + hexHeight * (axes.rows.length + 0.5);
   const selectedCoordinate = state.selectedCoordinate;
   const placedByCoordinate = new Map(
     game.map.placedTiles.flatMap((placedTile) =>
@@ -388,16 +575,18 @@ function renderHexMap(mapHexes, game, tileIndex) {
   const previewSet = new Set(previewFootprint ?? []);
 
   const hexMarkup = [...mapHexes]
-    .sort((left, right) => compareCoordinates(left.Coordinate, right.Coordinate))
+    .sort((left, right) => compareCoordinates(left.Coordinate, right.Coordinate, mapHexes))
     .map((hex) => {
-      const center = hexCenter(hex, size);
+      const center = hexCenter(hex, size, mapHexes);
       const label = featureLabel(hex);
       const placedTile = placedByCoordinate.get(hex.Coordinate);
       const placedTileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
+      const isPlacedTileAnchor = placedTile && hex.Coordinate === getPlacedTileAnchorCoordinate(placedTile);
       const markerPlayers =
-        placedTile && hex.Coordinate === getPlacedTileAnchorCoordinate(placedTile)
+        isPlacedTileAnchor
           ? (playersByLastInteraction.get(placedTile.id) ?? [])
           : [];
+      const strain = Number(placedTile?.strain ?? 0);
       const classes = [
         "hex",
         `terrain-${slug(hex.Terrain)}`,
@@ -405,6 +594,7 @@ function renderHexMap(mapHexes, game, tileIndex) {
         hex.Bridge_Candidate ? "bridge-candidate" : "",
         previewSet.has(hex.Coordinate) ? "is-footprint-preview" : "",
         placedTile ? "has-placed-tile" : "",
+        strain > 0 ? "has-strain-tile" : "",
         markerPlayers.length ? "has-player-marker" : "",
         placedTile && isOverstrainedPlacedTile(placedTile) ? "is-overstrained-tile" : "",
         selectedCoordinate === hex.Coordinate ? "is-selected" : ""
@@ -415,19 +605,19 @@ function renderHexMap(mapHexes, game, tileIndex) {
       return `
         <g class="${classes}" data-coordinate="${escapeHtml(hex.Coordinate)}" tabindex="0" role="button" aria-label="${escapeHtml(`${hex.Coordinate} ${hex.Terrain} ${hex.Feature}`)}">
           <polygon points="${hexPoints(center, size)}"></polygon>
-          <text class="hex-coordinate" x="${center.x}" y="${center.y - 5}">${escapeHtml(hex.Coordinate)}</text>
           ${
             state.showDebugLabels
-              ? `<text class="hex-terrain" x="${center.x}" y="${center.y + 9}">${escapeHtml(terrainShortName(hex.Terrain))}</text>`
+              ? `<text class="hex-terrain" x="${center.x}" y="${center.y - 11}">${escapeHtml(terrainShortName(hex.Terrain))}</text>`
               : ""
           }
           ${
             placedTileDefinition
-              ? `<text class="hex-tile" x="${center.x}" y="${center.y + 22}">${escapeHtml(shortTileName(placedTileDefinition.tile_name))}</text>`
+              ? renderWrappedMapLabel(placedTileDefinition.tile_name, "hex-tile", center.x, center.y + 9)
               : label
-                ? `<text class="hex-feature" x="${center.x}" y="${center.y + 22}">${escapeHtml(label)}</text>`
+                ? renderWrappedMapLabel(label, "hex-feature", center.x, center.y + 10, 10, 2)
                 : ""
           }
+          ${isPlacedTileAnchor ? renderStrainMapMarker(placedTile, center) : ""}
           ${renderPlayerMapMarkers(markerPlayers, center)}
         </g>
       `;
@@ -438,6 +628,33 @@ function renderHexMap(mapHexes, game, tileIndex) {
     <svg class="map-svg" viewBox="0 0 ${width.toFixed(0)} ${height.toFixed(0)}" role="img" aria-label="Approved flat-top hex map">
       ${hexMarkup}
     </svg>
+  `;
+}
+
+function renderMapKey() {
+  return `
+    <div class="map-key" aria-label="Map colour key">
+      ${TERRAIN_LEGEND_ITEMS.map(
+        ({ terrain, label }) => `
+          <span class="map-key-item">
+            <span class="map-key-swatch terrain-${slug(terrain)}" aria-hidden="true"></span>
+            <span>${escapeHtml(label)}</span>
+          </span>
+        `
+      ).join("")}
+      <span class="map-key-item">
+        <span class="map-key-marker strain" aria-hidden="true">1</span>
+        <span>Strain</span>
+      </span>
+      <span class="map-key-item">
+        <span class="map-key-marker overstrained" aria-hidden="true">!</span>
+        <span>Overstrained</span>
+      </span>
+      <span class="map-key-item">
+        <span class="map-key-marker steward" aria-hidden="true">P</span>
+        <span>Steward</span>
+      </span>
+    </div>
   `;
 }
 
@@ -460,23 +677,190 @@ function selectedPlacementTileCanRotate(tileIndex) {
   return Boolean(selectedTile && Number(selectedTile.size_hexes ?? 1) > 1);
 }
 
+function getPlacementOrientations(tile) {
+  return Number(tile?.size_hexes ?? 1) > 1 ? HEX_DIRECTIONS.map((direction) => direction.id) : [HEX_DIRECTIONS[0].id];
+}
+
+function getAutomaticPlacementCostDiscountResources(game, tile, cost) {
+  const discountEffect = getPendingPlacementResourceDiscount(game, tile);
+
+  if (!discountEffect || discountEffect.freeResourceCost) {
+    return [];
+  }
+
+  const eligibleCost = getPlacementDiscountEligibleCost(cost, discountEffect);
+  const choiceCount = getCostReductionChoiceCount(eligibleCost, discountEffect);
+  const choices = [];
+
+  for (const entry of eligibleCost) {
+    for (let index = 0; index < entry.amount && choices.length < choiceCount; index += 1) {
+      choices.push(entry.resource);
+    }
+  }
+
+  return choices;
+}
+
+function getPlacementActionCostForMenu(game, tile, footprintCoordinates, tileIndex) {
+  const baseActionCost = calculatePlacementActionCost(game, footprintCoordinates, { tileIndex });
+  const tileActionDiscount = getDiscountedTileActionCost(game, tile, "placement", baseActionCost);
+  const travelActionDiscount = getDiscountedDisconnectedTravelActionCost(
+    game,
+    "placement",
+    tileActionDiscount.actionCost
+  );
+
+  return travelActionDiscount.actionCost;
+}
+
+function getLegalPlacementOptionsForCoordinate(game, tileIndex, coordinate) {
+  const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
+
+  if (!activePlayer || game.phase !== GAME_PHASES.PLAYER_TURNS) {
+    return [];
+  }
+
+  return getPlacementOptions()
+    .flatMap(({ tile, supply }) => {
+      const baseCost = parseResourceCost(tile.place_cost);
+      const placementCostReductionResources = getAutomaticPlacementCostDiscountResources(game, tile, baseCost);
+
+      return getPlacementOrientations(tile).map((orientation) => {
+        const action = {
+          type: TILE_ACTION_TYPES.PLACE_TILE,
+          tileId: tile.tile_id,
+          coordinate,
+          orientation,
+          placementCostReductionResources
+        };
+        const validation = validatePlaceTile(game, action, { tiles: state.data.tiles });
+
+        if (!validation.valid || !validation.footprintCoordinates) {
+          return null;
+        }
+
+        const actionCost = getPlacementActionCostForMenu(game, tile, validation.footprintCoordinates, tileIndex);
+
+        if (activePlayer.actionsRemaining < actionCost.total) {
+          return null;
+        }
+
+        return {
+          tile,
+          supply,
+          coordinate,
+          orientation,
+          actionCost,
+          cost: validation.cost,
+          footprintCoordinates: validation.footprintCoordinates,
+          placementCostReductionResources
+        };
+      });
+    })
+    .filter(Boolean);
+}
+
+function groupPlacementOptionsByCategory(options) {
+  const groups = new Map();
+
+  for (const option of options) {
+    const category = option.tile.tile_category ?? "Tiles";
+
+    if (!groups.has(category)) {
+      groups.set(category, []);
+    }
+
+    groups.get(category).push(option);
+  }
+
+  return [...groups.entries()];
+}
+
+function renderLegalPlacementMenu(game, tileIndex, coordinate) {
+  const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
+
+  if (game.phase !== GAME_PHASES.PLAYER_TURNS) {
+    return `<p class="context-empty-note">Tile placement opens during Player Turns.</p>`;
+  }
+
+  if (!activePlayer) {
+    return `<p class="context-empty-note">No active Steward is ready to place tiles.</p>`;
+  }
+
+  const options = getLegalPlacementOptionsForCoordinate(game, tileIndex, coordinate);
+
+  if (options.length === 0) {
+    return `<p class="context-empty-note">No legal tile placements on this hex with the current warehouse, stock, and Actions.</p>`;
+  }
+
+  return `
+    <div class="context-placement-groups" aria-label="Legal tile placements">
+      ${groupPlacementOptionsByCategory(options)
+        .map(
+          ([category, categoryOptions]) => `
+            <details class="context-placement-group" open>
+              <summary>${escapeHtml(category)} <span>${categoryOptions.length}</span></summary>
+              <div class="context-placement-options">
+                ${categoryOptions
+                  .map((option) => {
+                    const isMultihex = Number(option.tile.size_hexes ?? 1) > 1;
+                    const orientationText = isMultihex ? ` · ${getOrientationLabel(option.orientation)}` : "";
+                    const footprintText = isMultihex ? ` · ${renderFootprint(option.footprintCoordinates)}` : "";
+                    const discountText = option.placementCostReductionResources.length > 0 ? " · discount applied" : "";
+
+                    return `
+                      <button
+                        class="context-placement-option type-${slug(option.tile.tile_category)}"
+                        data-context-place-tile-id="${escapeHtml(option.tile.tile_id)}"
+                        data-context-place-coordinate="${escapeHtml(option.coordinate)}"
+                        data-context-place-orientation="${escapeHtml(option.orientation)}"
+                        data-context-place-discounts="${escapeHtml(option.placementCostReductionResources.join("|"))}"
+                        type="button"
+                        role="menuitem"
+                      >
+                        <strong>${escapeHtml(option.tile.tile_name)}</strong>
+                        <small>${escapeHtml(
+                          `${option.supply?.available ?? 0}/${option.supply?.stock ?? 0} left · ${renderActionCost(option.actionCost)} Action · ${renderCost(option.cost)}${orientationText}${footprintText}${discountText}`
+                        )}</small>
+                      </button>
+                    `;
+                  })
+                  .join("")}
+              </div>
+            </details>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 function renderMapContextLayer(game, tileIndex) {
   if (!state.contextMenu) {
     return "";
   }
 
-  const placedTile = game.map.placedTiles.find((tile) => tile.id === state.contextMenu.placedTileId);
-
-  if (!placedTile) {
-    return "";
-  }
-
-  const tileDefinition = tileIndex.get(placedTile.tileId);
+  const placedTile = state.contextMenu.placedTileId
+    ? game.map.placedTiles.find((tile) => tile.id === state.contextMenu.placedTileId)
+    : null;
+  const tileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
   const upgradeTile = tileDefinition ? findUpgradeTile(tileDefinition, tileIndex) : null;
   const activation = tileDefinition ? getActivationForDisplay(tileDefinition) : null;
+  const selectedPlacementTile = getSelectedPlacementTile(tileIndex);
   const coordinate = state.contextMenu.coordinate ?? getPlacedTileAnchorCoordinate(placedTile);
   const left = Math.max(8, Math.round(Number(state.contextMenu.x ?? 8)));
   const top = Math.max(8, Math.round(Number(state.contextMenu.y ?? 8)));
+  const placementCost = selectedPlacementTile ? parseResourceCost(selectedPlacementTile.place_cost) : [];
+  const placementResourceDiscount = getPendingPlacementResourceDiscount(game, selectedPlacementTile);
+  const placementCostDiscountChoices = selectedPlacementTile
+    ? getPlacementCostDiscountChoices(selectedPlacementTile.tile_id, placementCost, placementResourceDiscount)
+    : [];
+  const placementCostDiscountReady = placementCostDiscountChoices.every((resource) => Boolean(resource));
+  const canAttemptPlacement =
+    Boolean(!placedTile && selectedPlacementTile && game.activePlayerId) &&
+    game.phase === GAME_PHASES.PLAYER_TURNS &&
+    placementCostDiscountReady;
+  const canRotatePreview = !placedTile && selectedPlacementTileCanRotate(tileIndex);
   const canAttemptUpgrade =
     Boolean(upgradeTile && game.activePlayerId) &&
     game.phase === GAME_PHASES.PLAYER_TURNS &&
@@ -490,15 +874,72 @@ function renderMapContextLayer(game, tileIndex) {
     <button class="map-context-backdrop" type="button" aria-label="Close map actions"></button>
     <aside class="map-context-menu" style="left: ${left}px; top: ${top}px;" role="menu" aria-label="Map actions">
       <header>
-        <strong>${escapeHtml(tileDefinition?.tile_name ?? placedTile.tileId)}</strong>
+        <strong>${escapeHtml(tileDefinition?.tile_name ?? selectedPlacementTile?.tile_name ?? "Empty hex")}</strong>
         <small>${escapeHtml(coordinate)}</small>
       </header>
-      <button class="map-context-action" data-context-action="activate" type="button" role="menuitem" ${canAttemptActivation ? "" : "disabled"}>
-        Produce / Interact
-      </button>
-      <button class="map-context-action" data-context-action="upgrade" type="button" role="menuitem" ${canAttemptUpgrade ? "" : "disabled"}>
-        Upgrade
-      </button>
+      ${
+        placedTile
+          ? `
+            <button class="map-context-action" data-context-action="activate" type="button" role="menuitem" ${canAttemptActivation ? "" : "disabled"}>
+              Produce / Interact
+            </button>
+            <button class="map-context-action" data-context-action="upgrade" type="button" role="menuitem" ${canAttemptUpgrade ? "" : "disabled"}>
+              Upgrade
+            </button>
+          `
+          : `
+            ${renderLegalPlacementMenu(game, tileIndex, coordinate)}
+            <button class="map-context-action" data-context-action="place" type="button" role="menuitem" ${canAttemptPlacement ? "" : "disabled"}>
+              Place Selected Tile
+            </button>
+            <button class="map-context-action" data-context-action="rotate" type="button" role="menuitem" ${canRotatePreview ? "" : "disabled"}>
+              Rotate Multihex Preview
+            </button>
+          `
+      }
+    </aside>
+  `;
+}
+
+function renderSeedCardContextLayer(encounterIndex) {
+  if (!state.seedContextMenu) {
+    return "";
+  }
+
+  const { playerId, cardId } = state.seedContextMenu;
+  const player = state.game?.players.find((candidate) => candidate.id === playerId);
+  const card = encounterIndex.get(cardId);
+
+  if (!player || !card || !player.hand.includes(cardId)) {
+    return "";
+  }
+
+  const left = Math.max(8, Math.round(Number(state.seedContextMenu.x ?? 8)));
+  const top = Math.max(8, Math.round(Number(state.seedContextMenu.y ?? 8)));
+
+  return `
+    <button class="seed-context-backdrop" type="button" aria-label="Close seed menu"></button>
+    <aside class="seed-context-menu" style="left: ${left}px; top: ${top}px;" role="menu" aria-label="Seed card position">
+      <header>
+        <strong>${escapeHtml(card.card_name ?? cardId)}</strong>
+        <small>${escapeHtml(player.name)}</small>
+      </header>
+      ${Object.entries(SEED_PACKET_POSITION_LABELS)
+        .map(
+          ([position, label]) => `
+            <button
+              class="seed-context-action"
+              data-seed-player-id="${escapeHtml(playerId)}"
+              data-seed-card-id="${escapeHtml(cardId)}"
+              data-seed-position="${escapeHtml(position)}"
+              type="button"
+              role="menuitem"
+            >
+              ${escapeHtml(label)}
+            </button>
+          `
+        )
+        .join("")}
     </aside>
   `;
 }
@@ -530,7 +971,7 @@ function renderTerrainSummary(mapHexes) {
 
 function renderCoordinateTable(mapHexes, selectedHex) {
   return [...mapHexes]
-    .sort((left, right) => compareCoordinates(left.Coordinate, right.Coordinate))
+    .sort((left, right) => compareCoordinates(left.Coordinate, right.Coordinate, mapHexes))
     .map((hex) => {
       const selected = selectedHex?.Coordinate === hex.Coordinate ? "is-active" : "";
       return `
@@ -688,6 +1129,249 @@ function renderEncounterFlavorText(card, { compact = false } = {}) {
   return `<p class="encounter-flavor${compact ? " compact" : ""}">${escapeHtml(flavorText)}</p>`;
 }
 
+const ENCOUNTER_SEASON_ROWS = Object.freeze([
+  Object.freeze({ season: "I", field: "season_i" }),
+  Object.freeze({ season: "II", field: "season_ii" }),
+  Object.freeze({ season: "III", field: "season_iii" })
+]);
+
+const ENCOUNTER_TYPE_MARKS = Object.freeze({
+  [ENCOUNTER_TYPES.BOON]: "B",
+  [ENCOUNTER_TYPES.BURDEN]: "!",
+  [ENCOUNTER_TYPES.ARRIVAL]: "A",
+  [ENCOUNTER_TYPES.GOLDEN_BOON]: "G"
+});
+
+function normalizeDisplayText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function renderCardTextBlock(value) {
+  const text = normalizeDisplayText(value);
+
+  if (!text) {
+    return "";
+  }
+
+  return text
+    .split(/\n+/)
+    .map((line) => `<span>${escapeHtml(line)}</span>`)
+    .join("");
+}
+
+function getEncounterTypeMark(encounterType) {
+  return ENCOUNTER_TYPE_MARKS[encounterType] ?? "?";
+}
+
+function isPendingBurdenRevealChoice(effect) {
+  return BURDEN_REVEAL_CHOICE_TYPES.includes(effect?.type);
+}
+
+function getPendingBurdenRevealChoices(game) {
+  return game.encounter.active.filter(
+    (activeState) =>
+      activeState.encounterType === ENCOUNTER_TYPES.BURDEN &&
+      !activeState.resolved &&
+      isPendingBurdenRevealChoice(activeState.pendingChoice)
+  );
+}
+
+function getActiveEncounterStatusText(activeState, burdenResolution) {
+  if (!activeState) {
+    return "";
+  }
+
+  if (Number.isInteger(activeState.timerTokens)) {
+    return `${activeState.timerTokens} timers`;
+  }
+
+  if (activeState.pendingChoice) {
+    return "Choice pending";
+  }
+
+  if (activeState.encounterType === ENCOUNTER_TYPES.BURDEN) {
+    const applications = activeState.applications?.length ?? 0;
+    return burdenResolution?.supported
+      ? `${applications} applications - ${formatBurdenResolutionLabel(burdenResolution)}`
+      : `${applications} applications`;
+  }
+
+  if (activeState.effect) {
+    return activeState.encounterType === ENCOUNTER_TYPES.GOLDEN_BOON ? "Golden choice pending" : "Boon choice pending";
+  }
+
+  return activeState.encounterType ?? "";
+}
+
+function isDefaultBoonLifecycle(lifecycleText) {
+  return /^Resolve the current Season effect, then discard this card\.?$/i.test(normalizeDisplayText(lifecycleText));
+}
+
+function renderEncounterSeasonRows(card, game, { burden = false } = {}) {
+  const resolveRows = burden ? getBurdenSeasonResolveRows(card) : {};
+
+  return `
+    <div class="encounter-season-rows ${burden ? "burden-season-rows" : "boon-season-rows"}">
+      ${ENCOUNTER_SEASON_ROWS.map(({ season, field }) => {
+        const effectText = normalizeDisplayText(card?.[field]);
+        const resolveText = resolveRows[season] ?? "";
+
+        if (!effectText && !resolveText) {
+          return "";
+        }
+
+        return `
+          <section class="encounter-season-row ${game.season === season ? "is-current" : ""}">
+            <span class="season-marker">${season}</span>
+            <div class="season-copy">
+              ${effectText ? `<p>${escapeHtml(effectText)}</p>` : ""}
+              ${resolveText ? `<p class="season-resolve-text"><b>To resolve:</b> ${escapeHtml(resolveText)}</p>` : ""}
+            </div>
+          </section>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function extractBurdenResolveText(card) {
+  const lifecycle = normalizeDisplayText(card?.lifecycle_or_resolution);
+  const match = lifecycle.match(/To resolve:\s*([\s\S]*)/i);
+
+  return normalizeDisplayText(match?.[1]);
+}
+
+function applyChoiceLanguageToSeasonCost(basePaymentText, seasonCostText) {
+  if (/resources of your choice/i.test(basePaymentText) && /resources/i.test(seasonCostText)) {
+    return seasonCostText.replace(/resources/i, "resources of your choice");
+  }
+
+  return seasonCostText;
+}
+
+function getBurdenSeasonResolveRows(card) {
+  const resolveText = extractBurdenResolveText(card);
+
+  if (!resolveText) {
+    return {};
+  }
+
+  const seasonalMatch = resolveText.match(
+    /^Spend 1 Action and pay (.*?) based on the current Season:\s*Season I\s+([^;]+);\s*Season II\s+([^;]+);\s*Season III\s+([^.;]+)\.?\s*(.*)$/i
+  );
+
+  if (!seasonalMatch) {
+    return Object.fromEntries(ENCOUNTER_SEASON_ROWS.map(({ season }) => [season, resolveText]));
+  }
+
+  const [, basePaymentText, seasonOneCost, seasonTwoCost, seasonThreeCost, trailingText] = seasonalMatch;
+  const trailing = normalizeDisplayText(trailingText);
+  const format = (seasonCostText) => {
+    const cost = applyChoiceLanguageToSeasonCost(basePaymentText, normalizeDisplayText(seasonCostText));
+    return normalizeDisplayText(`Spend 1 Action and pay ${cost}. ${trailing}`);
+  };
+
+  return {
+    I: format(seasonOneCost),
+    II: format(seasonTwoCost),
+    III: format(seasonThreeCost)
+  };
+}
+
+function renderBoonMechanics(card, game) {
+  const footer = isDefaultBoonLifecycle(card?.lifecycle_or_resolution)
+    ? ""
+    : normalizeDisplayText(card?.lifecycle_or_resolution);
+
+  return `
+    <div class="encounter-mechanics-panel">
+      ${renderEncounterSeasonRows(card, game)}
+      ${footer ? `<p class="encounter-exception-footer">${escapeHtml(footer)}</p>` : ""}
+    </div>
+  `;
+}
+
+function renderBurdenMechanics(card, game) {
+  const resolveText = extractBurdenResolveText(card);
+
+  return `
+    <div class="encounter-mechanics-panel">
+      ${renderEncounterSeasonRows(card, game, { burden: true })}
+      ${resolveText ? "" : `<p class="encounter-manageable-note">No listed resolution.</p>`}
+    </div>
+  `;
+}
+
+function renderArrivalMechanics(card) {
+  return `
+    <div class="encounter-mechanics-panel arrival-mechanics-panel">
+      <section class="arrival-requirement-block">
+        <span>Requirement</span>
+        <p>${renderCardTextBlock(card?.requirement)}</p>
+      </section>
+      ${
+        normalizeDisplayText(card?.reward)
+          ? `<section class="arrival-reward-strip">
+              <span>Reward</span>
+              <strong>${escapeHtml(card.reward)}</strong>
+            </section>`
+          : ""
+      }
+    </div>
+  `;
+}
+
+function renderGoldenBoonMechanics(card) {
+  return `
+    <div class="encounter-mechanics-panel golden-mechanics-panel">
+      <section class="golden-effect-block">
+        <span>Effect</span>
+        <p>${renderCardTextBlock(card?.effect)}</p>
+      </section>
+    </div>
+  `;
+}
+
+function renderEncounterMechanics(card, activeState, game) {
+  const encounterType = activeState?.encounterType ?? card?.encounter_type;
+
+  if (encounterType === ENCOUNTER_TYPES.BOON) {
+    return renderBoonMechanics(card, game);
+  }
+
+  if (encounterType === ENCOUNTER_TYPES.BURDEN) {
+    return renderBurdenMechanics(card, game);
+  }
+
+  if (encounterType === ENCOUNTER_TYPES.ARRIVAL) {
+    return renderArrivalMechanics(card);
+  }
+
+  if (encounterType === ENCOUNTER_TYPES.GOLDEN_BOON) {
+    return renderGoldenBoonMechanics(card);
+  }
+
+  return renderEncounterSourceText(card, game.season, getActiveEncounterPrototypeText(activeState));
+}
+
+function renderEncounterFace(card, activeState, game, burdenResolution, { extraClass = "" } = {}) {
+  const encounterType = activeState?.encounterType ?? card?.encounter_type ?? "Encounter";
+  const statusText = getActiveEncounterStatusText(activeState, burdenResolution);
+
+  return `
+    <article class="encounter-face ${escapeHtml(extraClass)} type-${slug(encounterType)}">
+      <div class="encounter-type-bar">
+        <span class="encounter-type-mark" aria-hidden="true">${escapeHtml(getEncounterTypeMark(encounterType))}</span>
+        <span>${escapeHtml(encounterType)}</span>
+        ${statusText ? `<strong>${escapeHtml(statusText)}</strong>` : ""}
+      </div>
+      <h4 class="encounter-title-band">${escapeHtml(card?.card_name ?? activeState?.cardId ?? "Unknown Encounter")}</h4>
+      ${renderEncounterFlavorText(card)}
+      ${renderEncounterMechanics(card, activeState, game)}
+    </article>
+  `;
+}
+
 function getActiveEncounterPrototypeText(activeState) {
   if (activeState.effect?.type === "optional_resource_strain_relief") {
     return "Pending optional Boon choice.";
@@ -701,11 +1385,7 @@ function getActiveEncounterPrototypeText(activeState) {
     return "Pending Steward-marker Boon choice.";
   }
 
-  if (
-    ["pay_or_strain_choice", "arrival_pay_or_timer_choice", "resource_loss_or_strain_choice"].includes(
-      activeState.pendingChoice?.type
-    )
-  ) {
+  if (isPendingBurdenRevealChoice(activeState.pendingChoice)) {
     return "Pending Burden reveal choice.";
   }
 
@@ -753,11 +1433,7 @@ function getRevealPrototypeText(data) {
   }
 
   if (data.burdenEffect) {
-    if (
-      ["pay_or_strain_choice", "arrival_pay_or_timer_choice", "resource_loss_or_strain_choice"].includes(
-        data.burdenEffect.type
-      )
-    ) {
+    if (isPendingBurdenRevealChoice(data.burdenEffect)) {
       return "Created pending Burden reveal choice.";
     }
 
@@ -789,18 +1465,36 @@ function renderTileSourceText(tile, title = "Tile Says") {
     return "";
   }
 
-  return renderSourceLines(title, [
-    { label: "Category", value: `${tile.tile_category}${tile.subtype ? ` / ${tile.subtype}` : ""}` },
-    { label: "Side", value: tile.side },
-    { label: "Size", value: `${tile.size_hexes} hex${tile.size_hexes === 1 ? "" : "es"}` },
-    { label: "Place cost", value: renderSourceResourceCost(tile.place_cost) },
-    { label: "Upgrade cost", value: renderSourceResourceCost(tile.upgrade_cost) },
-    { label: "Placement", value: tile.placement_rules ?? "No special placement rule" },
-    { label: "Benefit", value: tile.benefit },
-    { label: "Population", value: tile.population ? String(tile.population) : "" },
-    { label: "Renown", value: tile.renown ? String(tile.renown) : "" },
-    { label: "Upgrades to", value: tile.upgrade_to }
-  ]);
+  const meta = [
+    tile.tile_category,
+    tile.subtype,
+    tile.side,
+    `${tile.size_hexes} hex${tile.size_hexes === 1 ? "" : "es"}`
+  ].filter(Boolean);
+  const scoring = [
+    tile.population ? `Population ${tile.population}` : "",
+    tile.renown ? `Renown ${tile.renown}` : ""
+  ].filter(Boolean);
+
+  return `
+    <article class="tile-reference-card type-${slug(tile.tile_category)}">
+      <header>
+        <span>${escapeHtml(title)}</span>
+        <strong>${escapeHtml(tile.tile_name)}</strong>
+        <small>${escapeHtml(meta.join(" · "))}</small>
+      </header>
+      <dl class="tile-reference-costs">
+        <div><dt>Place</dt><dd>${escapeHtml(renderSourceResourceCost(tile.place_cost) || "0")}</dd></div>
+        <div><dt>Upgrade</dt><dd>${escapeHtml(renderSourceResourceCost(tile.upgrade_cost) || "0")}</dd></div>
+      </dl>
+      <p class="tile-reference-benefit">${escapeHtml(tile.benefit || "No printed benefit")}</p>
+      <dl class="tile-reference-notes">
+        <div><dt>Placement</dt><dd>${escapeHtml(tile.placement_rules ?? "No special placement rule")}</dd></div>
+        ${scoring.length ? `<div><dt>Score</dt><dd>${escapeHtml(scoring.join(" · "))}</dd></div>` : ""}
+        ${tile.upgrade_to ? `<div><dt>Upgrades to</dt><dd>${escapeHtml(tile.upgrade_to)}</dd></div>` : ""}
+      </dl>
+    </article>
+  `;
 }
 
 function renderCardList(cardIds, encounterIndex, options = {}) {
@@ -927,11 +1621,21 @@ function getBurdenChoiceValueForEffect(activeEncounterId, key, effect) {
   return getBurdenChoiceFallbackMode(effect);
 }
 
+function getBurdenChoiceInstruction(effect) {
+  if (effect?.type === "arrival_pay_or_timer_choice") {
+    return "Choose whether to pay resources or remove timer tokens from the listed Arrival.";
+  }
+
+  if (effect?.type === "resource_loss_or_strain_choice") {
+    return "Choose whether to lose the listed resource or place Strain on the listed tile.";
+  }
+
+  return "Choose whether to pay resources or place Strain on the listed tile.";
+}
+
 function getBurdenChoicePaymentCost(activeState) {
   const effect = activeState?.pendingChoice;
-  if (
-    !["pay_or_strain_choice", "arrival_pay_or_timer_choice", "resource_loss_or_strain_choice"].includes(effect?.type)
-  ) {
+  if (!isPendingBurdenRevealChoice(effect)) {
     return [];
   }
 
@@ -960,9 +1664,7 @@ function getBurdenChoicePaymentCost(activeState) {
 
 function getBurdenChoiceAction(activeState) {
   const effect = activeState?.pendingChoice;
-  if (
-    !["pay_or_strain_choice", "arrival_pay_or_timer_choice", "resource_loss_or_strain_choice"].includes(effect?.type)
-  ) {
+  if (!isPendingBurdenRevealChoice(effect)) {
     return {};
   }
 
@@ -1002,8 +1704,9 @@ function renderBurdenChoiceSelect(activeEncounterId, key, effect, label) {
     .join("");
 
   return `
-    <label>
-      <span>${escapeHtml(label)}</span>
+    <label class="burden-choice-row">
+      <span>Target</span>
+      <strong>${escapeHtml(label)}</strong>
       <select class="burden-choice-decision" data-active-encounter-id="${escapeHtml(activeEncounterId)}" data-choice-key="${escapeHtml(key)}" aria-label="${escapeHtml(label)} Burden choice">
         ${showFallback ? `<option value="${escapeHtml(fallbackMode)}" ${selectedValue === fallbackMode ? "selected" : ""}>${fallbackLabel}</option>` : ""}
         ${payOptions}
@@ -1014,15 +1717,34 @@ function renderBurdenChoiceSelect(activeEncounterId, key, effect, label) {
 
 function renderBurdenChoiceControls(activeState) {
   const effect = activeState.pendingChoice;
-  if (
-    !["pay_or_strain_choice", "arrival_pay_or_timer_choice", "resource_loss_or_strain_choice"].includes(effect?.type)
-  ) {
+  if (!isPendingBurdenRevealChoice(effect)) {
     return "";
   }
 
   if (effect.targets.length === 0 && effect.paymentOptions.length === 0) {
-    return `<small>No valid targets.</small>`;
+    return `
+      <div class="burden-choice-panel is-required" aria-label="Required Burden reveal choice">
+        <header>
+          <span>Required Burden Choice</span>
+          <strong>No valid targets</strong>
+        </header>
+        <p>No Strain, timer, or payment target is currently valid for this reveal choice.</p>
+      </div>
+    `;
   }
+
+  const renderChoiceShell = (body) => `
+    <div class="burden-choice-panel is-required" aria-label="Required Burden reveal choice">
+      <header>
+        <span>Required Burden Choice</span>
+        <strong>Apply before continuing</strong>
+      </header>
+      <p>${escapeHtml(getBurdenChoiceInstruction(effect))}</p>
+      <div class="burden-choice-target-list">
+        ${body}
+      </div>
+    </div>
+  `;
 
   if (
     effect.decisionMode === "all_or_strain_all" ||
@@ -1032,22 +1754,16 @@ function renderBurdenChoiceControls(activeState) {
     const targetNames = effect.targets.length
       ? effect.targets.map(getBurdenChoiceTargetLabel).join(", ")
       : "No valid Strain targets";
-    return `
-      <div class="burden-payment-grid" aria-label="Burden reveal choice">
-        ${renderBurdenChoiceSelect(activeState.id, "__all", effect, targetNames)}
-      </div>
-    `;
+    return renderChoiceShell(renderBurdenChoiceSelect(activeState.id, "__all", effect, targetNames));
   }
 
-  return `
-    <div class="burden-payment-grid" aria-label="Burden reveal choice">
-      ${effect.targets
-        .map((target) =>
-          renderBurdenChoiceSelect(activeState.id, getBurdenChoiceTargetId(target), effect, getBurdenChoiceTargetLabel(target))
-        )
-        .join("")}
-    </div>
-  `;
+  return renderChoiceShell(
+    effect.targets
+      .map((target) =>
+        renderBurdenChoiceSelect(activeState.id, getBurdenChoiceTargetId(target), effect, getBurdenChoiceTargetLabel(target))
+      )
+      .join("")
+  );
 }
 
 function getBurdenPaymentAction(activeEncounterId) {
@@ -1859,6 +2575,45 @@ function renderCoordinateOptions(mapHexes, selectedCoordinate) {
     .join("");
 }
 
+function validateSelectedMapOption(mapOption) {
+  if (!mapOption) {
+    return validateApprovedMap(state.data.mapHexes);
+  }
+
+  if (mapOption.locked && !mapOption.source) {
+    return validateApprovedMap(mapOption.hexes);
+  }
+
+  return validateMapOption(mapOption.hexes, {
+    label: mapOption.name,
+    expectedRows: mapOption.source?.rows,
+    expectedColumns: mapOption.source?.columns,
+    expectedCoordinateConvention: mapOption.source?.coordinate_convention,
+    expectedHexes: 126,
+    expectedTerrain: mapOption.source?.expected_terrain_counts,
+    expectedRiverCoordinates: mapOption.source?.river_coordinates,
+    requireWaterFeatureRiver: true
+  });
+}
+
+function renderStartingWarehouseReference() {
+  const values = [
+    ["1p", getStartingWarehouseResourceCount(1)],
+    ["2p", getStartingWarehouseResourceCount(2)],
+    ["3p", getStartingWarehouseResourceCount(3)],
+    ["4p", getStartingWarehouseResourceCount(4)],
+    ["5+ Council", STANDARD_RULES.councilVariantStartingWarehouseResources]
+  ];
+
+  return `
+    <div class="setup-resource-reference" aria-label="Starting Warehouse reference">
+      <span>Starting Warehouse</span>
+      <strong>${getStartingWarehouseResourceCount(state.playerCount)} each</strong>
+      <small>${values.map(([label, amount]) => `${label} ${amount}`).join(" · ")}</small>
+    </div>
+  `;
+}
+
 function renderGoldenSignetControls(game, tileIndex, activeState) {
   const choices = getGoldenSignetMoveChoices(activeState.id);
 
@@ -1962,9 +2717,7 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
               : null;
           const burdenRevealChoice =
             activeState.encounterType === ENCOUNTER_TYPES.BURDEN &&
-            ["pay_or_strain_choice", "arrival_pay_or_timer_choice", "resource_loss_or_strain_choice"].includes(
-              activeState.pendingChoice?.type
-            )
+            isPendingBurdenRevealChoice(activeState.pendingChoice)
               ? activeState.pendingChoice
               : null;
           const boonStrainReliefCandidates = boonStrainRelief
@@ -1984,13 +2737,6 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
             state.stewardBurdenPowerIds[activeState.id] ?? "",
             burdenStewardPowerProviders
           );
-          const timer = Number.isInteger(activeState.timerTokens)
-            ? `<span class="card-type">${activeState.timerTokens} timers</span>`
-              : activeState.encounterType === ENCOUNTER_TYPES.BURDEN
-                ? `<span class="card-type">${burdenRevealChoice ? "Pending Burden choice" : `${activeState.applications?.length ?? 0} applications${burdenResolution?.supported ? ` · ${escapeHtml(formatBurdenResolutionLabel(burdenResolution))}` : ""}`}</span>`
-                : boonStrainRelief || boonExchange || boonStewardHelp || goldenScroll || goldenSignet
-                  ? `<span class="card-type">${goldenScroll || goldenSignet ? "Pending Golden Boon" : "Pending Boon"}</span>`
-                  : `<span class="card-type">${escapeHtml(activeState.encounterType)}</span>`;
           const burdenChoices = burdenResolution?.requiresPaymentChoice
             ? getBurdenPaymentChoices(activeState.id, burdenResolution)
             : [];
@@ -2052,15 +2798,9 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
                   getResourcePaymentAction(getBoonExchangePaymentChoices(activeState.id, boonExchange))
                 ));
           return `
-            <li class="card-row encounter-story-card type-${slug(activeState.encounterType)}">
+            <li class="card-row encounter-story-card type-${slug(activeState.encounterType)} ${burdenRevealChoice ? "has-required-choice" : ""}">
               <div class="encounter-card-main">
-                <header class="encounter-card-header">
-                  <span class="card-type">${escapeHtml(activeState.encounterType)}</span>
-                  <span class="card-name">${escapeHtml(card?.card_name ?? activeState.cardId)}</span>
-                  ${timer}
-                </header>
-                ${renderEncounterFlavorText(card)}
-                ${renderEncounterSourceText(card, game.season, getActiveEncounterPrototypeText(activeState))}
+                ${renderEncounterFace(card, activeState, game, burdenResolution)}
               </div>
               <div class="card-actions encounter-card-actions">
                 ${renderBurdenPaymentChoices(activeState, burdenResolution, game)}
@@ -2105,7 +2845,7 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
                 }
                 ${
                   burdenRevealChoice
-                    ? `<button class="mini-action-button resolve-burden-choice" data-active-encounter-id="${escapeHtml(activeState.id)}" type="button" ${canResolveBurdenChoice ? "" : "disabled"}>Apply</button>`
+                    ? `<button class="mini-action-button resolve-burden-choice required-choice-button" data-active-encounter-id="${escapeHtml(activeState.id)}" type="button" ${canResolveBurdenChoice ? "" : "disabled"}>Apply Required Choice</button>`
                     : ""
                 }
                 ${
@@ -2124,10 +2864,30 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
 }
 
 function renderSetupControls() {
+  const mapOptions = state.data?.mapOptions ?? [];
+
   return `
-    <div class="panel-section">
+    <section id="setup-panel" class="state-panel setup-panel">
       <h2>Setup</h2>
-      <label class="field-row">
+      ${
+        mapOptions.length > 1
+          ? `<label class="stacked-field">
+              <span>Map</span>
+              <select id="map-option" aria-label="Map option">
+                ${mapOptions
+                  .map(
+                    (option) =>
+                      `<option value="${escapeHtml(option.id)}" ${option.id === state.selectedMapId ? "selected" : ""}>${escapeHtml(option.name)}</option>`
+                  )
+                  .join("")}
+              </select>
+            </label>`
+          : `<div class="setup-static-row">
+              <span>Map</span>
+              <strong>${escapeHtml(mapOptions[0]?.name ?? "Redesigned Basic Map v0.1")}</strong>
+            </div>`
+      }
+      <label class="stacked-field">
         <span>Players</span>
         <select id="player-count" aria-label="Players">
           ${[1, 2, 3, 4]
@@ -2135,57 +2895,27 @@ function renderSetupControls() {
             .join("")}
         </select>
       </label>
-      <label class="field-row">
+      ${renderStartingWarehouseReference()}
+      <label class="stacked-field">
         <span>Seed</span>
         <input id="setup-seed" value="${escapeHtml(state.setupSeed)}" aria-label="Seed" />
       </label>
-      <button id="new-game" class="primary-button" type="button">New Game</button>
-      <label class="toggle-row">
-        <input id="reveal-hidden-setup" type="checkbox" ${state.revealHiddenSetup ? "checked" : ""} />
-        <span>Reveal hidden setup data</span>
-      </label>
-      <label class="toggle-row">
-        <input id="show-debug-labels" type="checkbox" ${state.showDebugLabels ? "checked" : ""} />
-        <span>Hex labels</span>
-      </label>
-    </div>
-  `;
-}
-
-function renderDebugScenarioControls() {
-  const activeScenario = DEBUG_SCENARIO_DEFINITIONS.find((scenario) => scenario.id === state.debugScenarioId);
-
-  return `
-    <div class="panel-section debug-scenarios">
-      <h2>Scenario Presets</h2>
-      <p class="scenario-note">These reset to a focused 1-player testing state.</p>
-      ${
-        activeScenario
-          ? `
-            <div class="scenario-current">
-              <strong>Loaded: ${escapeHtml(activeScenario.title)}</strong>
-              <ul>
-                ${activeScenario.expected.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
-              </ul>
-            </div>
-          `
-          : ""
-      }
-      <div class="scenario-list">
-        ${DEBUG_SCENARIO_DEFINITIONS.map(
-          (scenario) => `
-            <article class="scenario-row ${scenario.id === state.debugScenarioId ? "is-active" : ""}">
-              <div>
-                <strong>${escapeHtml(scenario.title)}</strong>
-                <small>${escapeHtml(scenario.focus)}</small>
-                <p>${escapeHtml(scenario.summary)}</p>
-              </div>
-              <button class="mini-action-button debug-scenario-button" data-scenario-id="${escapeHtml(scenario.id)}" type="button">Load</button>
-            </article>
-          `
-        ).join("")}
+      <div class="button-row">
+        <button id="new-game" class="primary-button" type="button">New Game</button>
+        <button id="redeal-cards" class="secondary-button" type="button">Redeal Cards</button>
       </div>
-    </div>
+      <details class="table-options">
+        <summary>Table options</summary>
+        <label class="toggle-row">
+          <input id="reveal-hidden-setup" type="checkbox" ${state.revealHiddenSetup ? "checked" : ""} />
+          <span>Reveal hidden Encounter cards</span>
+        </label>
+        <label class="toggle-row">
+          <input id="show-debug-labels" type="checkbox" ${state.showDebugLabels ? "checked" : ""} />
+          <span>Show terrain abbreviations</span>
+        </label>
+      </details>
+    </section>
   `;
 }
 
@@ -2257,7 +2987,6 @@ function renderMapDebugPanel(data, countValidation, mapValidation, game, tileInd
 
   return `
     <aside id="debug-panel" class="debug-panel">
-      ${renderDebugScenarioControls()}
       ${renderSetupControls()}
       ${renderStewardMarkerDebugControls(game, tileIndex)}
 
@@ -2272,7 +3001,8 @@ function renderMapDebugPanel(data, countValidation, mapValidation, game, tileInd
           <div><dt>Terrain</dt><dd>${escapeHtml(selectedHex.Terrain)}</dd></div>
           <div><dt>Feature</dt><dd>${escapeHtml(selectedHex.Feature)}</dd></div>
           <div><dt>River Adjacent</dt><dd>${selectedHex.River_Adjacent_Land ? "Yes" : "No"}</dd></div>
-          <div><dt>Bridge Candidate</dt><dd>${selectedHex.Bridge_Candidate ? "Yes" : "No"}</dd></div>
+          <div><dt>Bridge Review Note</dt><dd>${selectedHex.Bridge_Candidate ? "Yes" : "No"}</dd></div>
+          <div><dt>Potential Bridge Site</dt><dd>${selectedHex.Potential_Bridge_Site || selectedHex.Terrain === "Water" ? "Yes" : "No"}</dd></div>
           <div><dt>Placed Tile</dt><dd>${escapeHtml(placedTileDefinition?.tile_name ?? "None")}</dd></div>
           <div><dt>Last Interaction</dt><dd>${escapeHtml(selectedLastInteractionPlayers.map((player) => player.name).join(", ") || "None")}</dd></div>
           <div><dt>Strain</dt><dd>${placedTile?.strain ?? 0}</dd></div>
@@ -2291,7 +3021,9 @@ function renderMapDebugPanel(data, countValidation, mapValidation, game, tileInd
           <li><span>Hexes</span><strong>${mapValidation.rowCount}</strong></li>
           <li><span>River Hexes</span><strong>${mapValidation.waterHexes.length}</strong></li>
           <li><span>River Components</span><strong class="${mapValidation.riverComponents.length === 1 ? "ok" : "bad"}">${mapValidation.riverComponents.length}</strong></li>
-          <li><span>Bridge Sites Are Water</span><strong class="${mapValidation.bridgeCandidatesAreWater ? "ok" : "bad"}">${mapValidation.bridgeCandidatesAreWater ? "Yes" : "No"}</strong></li>
+          <li><span>Bridge Notes Are Water</span><strong class="${mapValidation.bridgeCandidatesAreWater ? "ok" : "bad"}">${mapValidation.bridgeCandidatesAreWater ? "Yes" : "No"}</strong></li>
+          <li><span>All Water Is River</span><strong class="${mapValidation.allWaterHexesAreRiver ? "ok" : "bad"}">${mapValidation.allWaterHexesAreRiver ? "Yes" : "No"}</strong></li>
+          <li><span>River Bridge Sites</span><strong>${mapValidation.waterHexes.length}</strong></li>
           <li><span>River Adjacent Flags</span><strong class="${mapValidation.riverAdjacentLandMatchesSource ? "ok" : "bad"}">${mapValidation.riverAdjacentLandMatchesSource ? "Match" : "Mismatch"}</strong></li>
         </ul>
         ${
@@ -2307,7 +3039,9 @@ function renderMapDebugPanel(data, countValidation, mapValidation, game, tileInd
 
       ${renderDebugDetails("River Hexes", renderBadgeList(riverHexes, "river-list"))}
 
-      ${renderDebugDetails("Bridge Candidates", renderBadgeList(bridgeCandidates, "bridge-list"))}
+      ${renderDebugDetails("Bridge Review Notes", renderBadgeList(bridgeCandidates, "bridge-list"))}
+
+      ${renderDebugDetails("Potential Bridge Sites", renderBadgeList(riverHexes, "bridge-list"))}
 
       ${renderDebugDetails("River Adjacent Land", renderBadgeList(riverAdjacentLand))}
 
@@ -2392,7 +3126,7 @@ function renderTestingBar(game, tileIndex) {
   const stewardText = activePlayer ? formatPlayerLastInteraction(game, tileIndex, activePlayer) : "No active steward";
 
   return `
-    <section class="testing-bar" aria-label="Prototype testing controls">
+    <section class="testing-bar" aria-label="Play controls">
       <div class="testing-status">
         <span><b>${escapeHtml(formatPhase(game.phase))}</b></span>
         <span>Round <b>${game.round}/${game.rules.totalRounds}</b></span>
@@ -2402,11 +3136,11 @@ function renderTestingBar(game, tileIndex) {
       </div>
       <nav class="testing-jumps" aria-label="Prototype panel shortcuts">
         <a href="#map-panel">Map</a>
-        <a href="#placement-panel">Place</a>
-        <a href="#selected-tile-panel">Selected Tile</a>
         <a href="#encounter-panel">Encounters</a>
-        <a href="#playtest-notes-panel">Notes</a>
-        <a href="#debug-panel">Debug</a>
+        <a href="#placement-panel">Tiles</a>
+        <a href="#selected-tile-panel">Map Tile</a>
+        <a href="#warehouse-panel">Warehouse</a>
+        <a href="#setup-panel">Setup</a>
       </nav>
       <div class="testing-actions">
         ${renderTestingBarAction("seed", "Seed", canSeed)}
@@ -2485,79 +3219,54 @@ function getDebugSeedSelectionsForAction(game) {
   );
 }
 
-function renderDebugSeedControls(game, encounterIndex) {
-  const seeded = game.encounter.seededRounds.includes(game.round);
-  const canConfigure = state.revealHiddenSetup && game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded;
-
-  if (!canConfigure) {
-    return "";
-  }
+function renderSeedHandCard(card, player, game) {
+  const selected = getDebugSeedSelection(player) === card.card_id;
 
   return `
-    <div class="debug-seed-controls">
-      <label class="stacked-field">
-        <span>Debug Seed Position</span>
-        <select id="debug-seed-position" aria-label="Debug seed position">
-          ${Object.entries(SEED_PACKET_POSITION_LABELS)
-            .map(
-              ([value, label]) =>
-                `<option value="${escapeHtml(value)}" ${value === state.debugSeedPosition ? "selected" : ""}>${escapeHtml(label)}</option>`
-            )
-            .join("")}
-        </select>
-      </label>
-      ${game.players
-        .map((player) => {
-          const selectedCardId = getDebugSeedSelection(player);
-          const selectedCard = selectedCardId ? encounterIndex.get(selectedCardId) : null;
-
-          return `
-            <label class="stacked-field debug-seed-player">
-              <span>${escapeHtml(player.name)} Seed Card</span>
-              <select class="debug-seed-card" data-player-id="${escapeHtml(player.id)}" aria-label="${escapeHtml(player.name)} seed card">
-                <option value="">Auto: first hidden card</option>
-                ${player.hand
-                  .map((cardId) => {
-                    const card = encounterIndex.get(cardId);
-                    return `
-                      <option value="${escapeHtml(cardId)}" ${cardId === selectedCardId ? "selected" : ""}>
-                        ${escapeHtml(card?.card_name ?? cardId)}
-                      </option>
-                    `;
-                  })
-                  .join("")}
-              </select>
-            </label>
-            ${renderEncounterSourceText(selectedCard, game.season, selectedCard ? "Debug-selected seed card." : "")}
-          `;
-        })
-        .join("")}
+    <div
+      class="seed-hand-card type-${slug(card.encounter_type)} ${selected ? "is-selected" : ""}"
+      data-seed-hand-card="true"
+      data-player-id="${escapeHtml(player.id)}"
+      data-card-id="${escapeHtml(card.card_id)}"
+      tabindex="0"
+      role="button"
+      aria-label="${escapeHtml(`${player.name} ${card.card_name}`)}"
+    >
+      ${selected ? `<span class="seed-selected-badge">${escapeHtml(SEED_PACKET_POSITION_LABELS[state.debugSeedPosition] ?? "Selected")}</span>` : ""}
+      ${renderEncounterFace(card, null, game, null, { extraClass: "seed-encounter-face" })}
     </div>
   `;
 }
 
-function renderPlayerHands(game, encounterIndex, tileIndex) {
+function renderSeedHandStrips(game, encounterIndex) {
+  const seeded = game.encounter.seededRounds.includes(game.round);
+  const canChoose = game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded;
+
+  if (!canChoose) {
+    return "";
+  }
+
   return `
-    <section id="player-hands-panel" class="state-panel wide-panel">
-      <h2>Player Hands</h2>
-      ${renderDebugSeedControls(game, encounterIndex)}
-      <div class="player-hand-grid">
+    <section class="stewards-seed-area" aria-label="Encounter card seeding">
+      <header class="stewards-subheader">
+        <h3>Seed Encounter Cards</h3>
+        <strong>${escapeHtml(SEED_PACKET_POSITION_LABELS[state.debugSeedPosition])}</strong>
+      </header>
+      <div class="seed-player-grid">
         ${game.players
           .map((player) => {
             const cards = getCards(player.hand, encounterIndex);
+            const selectedCard = encounterIndex.get(getDebugSeedSelection(player));
+
             return `
-              <article class="mini-card player-card ${player.id === game.activePlayerId ? "is-active" : ""}">
+              <article class="seed-player-strip">
                 <header>
-                  <h3>${escapeHtml(player.name)}</h3>
-                  <strong>${player.hand.length}</strong>
+                  <span>${escapeHtml(player.name)}</span>
+                  <strong>${escapeHtml(selectedCard?.card_name ?? "Auto")}</strong>
                 </header>
-                <p class="player-last-interaction">${escapeHtml(formatPlayerLastInteraction(game, tileIndex, player))}</p>
-                ${state.revealHiddenSetup ? renderTypeChips(countEncounterTypes(cards)) : ""}
-                ${renderCardList(player.hand, encounterIndex, {
-                  hidden: !state.revealHiddenSetup,
-                  showSource: state.revealHiddenSetup,
-                  season: game.season
-                })}
+                <div class="seed-card-scroll">
+                  ${cards.map((card) => renderSeedHandCard(card, player, game)).join("")}
+                </div>
               </article>
             `;
           })
@@ -2572,6 +3281,94 @@ function getRecentEncounterRevealEntries(game, limit = 4) {
     .filter((entry) => entry.type === "encounter" && entry.data?.cardId && entry.message.startsWith("Revealed "))
     .slice(-limit)
     .reverse();
+}
+
+function getCurrentRoundRevealEntries(game) {
+  return game.log.filter(
+    (entry) =>
+      entry.type === "encounter" &&
+      entry.round === game.round &&
+      entry.data?.cardId &&
+      entry.message.startsWith("Revealed ")
+  );
+}
+
+function getCurrentRoundResolvedRevealEntries(game) {
+  const activeCardIds = new Set(game.encounter.active.map((activeState) => activeState.cardId));
+
+  return getCurrentRoundRevealEntries(game).filter((entry) => !activeCardIds.has(entry.data.cardId));
+}
+
+function getCurrentRoundRevealStatusText(entry) {
+  return getRevealPrototypeText(entry.data) || "Resolved on reveal.";
+}
+
+function renderCurrentRoundResolvedReveals(game, encounterIndex) {
+  const revealedEntries = getCurrentRoundResolvedRevealEntries(game);
+
+  if (revealedEntries.length === 0) {
+    return "";
+  }
+
+  return `
+    <section class="stewards-revealed-area" aria-label="Resolved Encounter cards revealed this round">
+      <header class="stewards-subheader">
+        <h3>Resolved This Round</h3>
+        <strong>${revealedEntries.length}</strong>
+      </header>
+      <ol class="current-reveal-list">
+        ${revealedEntries
+          .map((entry) => {
+            const card = encounterIndex.get(entry.data.cardId);
+            const encounterType = card?.encounter_type ?? entry.data.encounterType;
+
+            return `
+              <li class="current-reveal-card type-${slug(encounterType)}">
+                ${renderEncounterFace(card, null, game, null, { extraClass: "revealed-encounter-face" })}
+                <p class="current-reveal-result">
+                  <span>Resolved this round</span>
+                  <strong>${escapeHtml(getCurrentRoundRevealStatusText(entry))}</strong>
+                </p>
+              </li>
+            `;
+          })
+          .join("")}
+      </ol>
+    </section>
+  `;
+}
+
+function renderPendingBurdenChoiceAlert(game, encounterIndex) {
+  const pendingChoices = getPendingBurdenRevealChoices(game);
+
+  if (pendingChoices.length === 0) {
+    return "";
+  }
+
+  return `
+    <section class="burden-choice-alert" aria-label="Required Burden choices">
+      <header>
+        <span>Required Burden Choice</span>
+        <strong>${pendingChoices.length}</strong>
+      </header>
+      <p>Choose the listed payment, timer, or Strain option on each highlighted Burden card, then press Apply Required Choice.</p>
+      <ol>
+        ${pendingChoices
+          .map((activeState) => {
+            const card = encounterIndex.get(activeState.cardId);
+            const targetCount = activeState.pendingChoice?.targets?.length ?? 0;
+
+            return `
+              <li>
+                <strong>${escapeHtml(card?.card_name ?? activeState.cardId)}</strong>
+                <span>${targetCount ? `${targetCount} target${targetCount === 1 ? "" : "s"}` : "No valid Strain targets"}</span>
+              </li>
+            `;
+          })
+          .join("")}
+      </ol>
+    </section>
+  `;
 }
 
 function renderRecentEncounterStories(game, encounterIndex) {
@@ -2639,74 +3436,98 @@ function renderEncounterPanel(game, encounterIndex) {
   const canReveal = game.phase === GAME_PHASES.REVEAL_ENCOUNTERS && !revealed;
   const completedArrivals = game.encounter.completed ?? [];
   const roundEffects = game.encounter.roundEffects ?? [];
+  const activeCount = game.encounter.active.length;
+  const currentRevealCount = getCurrentRoundRevealEntries(game).length;
+  const pendingBurdenChoices = getPendingBurdenRevealChoices(game);
 
   return `
-    <section id="encounter-panel" class="state-panel encounter-panel">
-      <h2>Encounter Board</h2>
-      <div class="encounter-actions">
+    <section id="encounter-panel" class="state-panel encounter-panel stewards-board-panel">
+      <div class="stewards-board-header">
+        <div>
+          <p class="eyebrow">Stewards Board</p>
+          <h2>Encounter Cards</h2>
+        </div>
+        <ul class="stewards-board-status">
+          <li><span>Step</span><strong>${escapeHtml(formatPhase(game.phase))}</strong></li>
+          <li><span>Active</span><strong>${activeCount}</strong></li>
+          <li><span>Revealed</span><strong>${currentRevealCount}</strong></li>
+          <li><span>Choices</span><strong>${pendingBurdenChoices.length}</strong></li>
+          <li><span>Round Effects</span><strong>${roundEffects.length}</strong></li>
+        </ul>
+      </div>
+
+      <div class="encounter-actions stewards-actions">
         <button id="seed-encounters" class="secondary-button" type="button" ${canSeed ? "" : "disabled"}>Seed Round</button>
         <button id="reveal-encounters" class="primary-button" type="button" ${canReveal ? "" : "disabled"}>Reveal Encounters</button>
       </div>
-      <ul class="metric-list compact-metrics">
-        <li><span>Current Step</span><strong>${escapeHtml(formatPhase(game.phase))}</strong></li>
-        <li><span>Seeded This Round</span><strong>${seeded ? "Yes" : "No"}</strong></li>
-        <li><span>Revealed This Round</span><strong>${revealed ? "Yes" : "No"}</strong></li>
-        <li><span>Round Effects</span><strong>${roundEffects.length}</strong></li>
-      </ul>
-      <div class="encounter-focus-grid">
-        <article class="mini-card encounter-active-card">
-          <header>
-            <h3>Active Encounters</h3>
-            <strong>${game.encounter.active.length}</strong>
-          </header>
-          ${renderActiveEncounterList(game.encounter.active, encounterIndex, game)}
-        </article>
-        <article class="mini-card encounter-chronicle-card">
-          <header>
-            <h3>Recent Reveals</h3>
-            <strong>${getRecentEncounterRevealEntries(game).length}</strong>
-          </header>
-          ${renderRecentEncounterStories(game, encounterIndex)}
-        </article>
-      </div>
-      <div class="encounter-grid encounter-support-grid">
-        <article class="mini-card">
-          <header>
-            <h3>Deck</h3>
-            <strong>${game.encounter.deck.length}</strong>
-          </header>
-          ${renderCardList(game.encounter.deck, encounterIndex, {
-            hidden: !state.revealHiddenSetup,
-            ordered: true
-          })}
-        </article>
-        <article class="mini-card">
-          <header>
-            <h3>Round Effects</h3>
-            <strong>${roundEffects.length}</strong>
-          </header>
-          ${renderRoundEffectsList(roundEffects, encounterIndex, game)}
-        </article>
-        <article class="mini-card">
-          <header>
-            <h3>Completed</h3>
-            <strong>${completedArrivals.length}</strong>
-          </header>
-          ${renderCardList(
-            completedArrivals
-              .filter((activeState) => activeState.encounterType === ENCOUNTER_TYPES.ARRIVAL)
-              .map((activeState) => activeState.cardId),
-            encounterIndex
-          )}
-        </article>
-        <article class="mini-card">
-          <header>
-            <h3>Discard</h3>
-            <strong>${game.encounter.discard.length}</strong>
-          </header>
-          ${renderCardList(game.encounter.discard, encounterIndex)}
-        </article>
-      </div>
+
+      ${renderPendingBurdenChoiceAlert(game, encounterIndex)}
+
+      ${renderSeedHandStrips(game, encounterIndex)}
+
+      ${renderCurrentRoundResolvedReveals(game, encounterIndex)}
+
+      <section class="stewards-active-area" aria-label="Active Encounter cards">
+        <header class="stewards-subheader">
+          <h3>In Play</h3>
+          <strong>${activeCount}</strong>
+        </header>
+        ${renderActiveEncounterList(game.encounter.active, encounterIndex, game)}
+      </section>
+
+      ${
+        roundEffects.length
+          ? `<section class="stewards-round-effects" aria-label="Round effects">
+              <header class="stewards-subheader">
+                <h3>Round Effects</h3>
+                <strong>${roundEffects.length}</strong>
+              </header>
+              ${renderRoundEffectsList(roundEffects, encounterIndex, game)}
+            </section>`
+          : ""
+      }
+
+      <details class="encounter-piles-details">
+        <summary>Encounter piles and reveal history</summary>
+        <div class="encounter-grid encounter-support-grid">
+          <article class="mini-card encounter-chronicle-card">
+            <header>
+              <h3>Recent Reveals</h3>
+              <strong>${getRecentEncounterRevealEntries(game).length}</strong>
+            </header>
+            ${renderRecentEncounterStories(game, encounterIndex)}
+          </article>
+          <article class="mini-card">
+            <header>
+              <h3>Deck</h3>
+              <strong>${game.encounter.deck.length}</strong>
+            </header>
+            ${renderCardList(game.encounter.deck, encounterIndex, {
+              hidden: !state.revealHiddenSetup,
+              ordered: true
+            })}
+          </article>
+          <article class="mini-card">
+            <header>
+              <h3>Completed</h3>
+              <strong>${completedArrivals.length}</strong>
+            </header>
+            ${renderCardList(
+              completedArrivals
+                .filter((activeState) => activeState.encounterType === ENCOUNTER_TYPES.ARRIVAL)
+                .map((activeState) => activeState.cardId),
+              encounterIndex
+            )}
+          </article>
+          <article class="mini-card">
+            <header>
+              <h3>Discard</h3>
+              <strong>${game.encounter.discard.length}</strong>
+            </header>
+            ${renderCardList(game.encounter.discard, encounterIndex)}
+          </article>
+        </div>
+      </details>
     </section>
   `;
 }
@@ -3076,7 +3897,7 @@ function renderResourceExchangePaymentControl(game, placedTileId, activationDeta
   `;
 }
 
-function renderTravelNetworksPanel(game, tileIndex, encounterIndex) {
+function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded = false } = {}) {
   const networks = buildTravelNetworks(game, { tileIndex });
   const selectedPlacedTile = getPlacedTileAt(game, state.selectedCoordinate);
   const selectedNetwork = selectedPlacedTile ? getNetworkForPlacedTile(networks, selectedPlacedTile.id) : null;
@@ -3222,13 +4043,27 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex) {
     game.phase === GAME_PHASES.PLAYER_TURNS &&
     !isOverstrainedPlacedTile(selectedPlacedTile) &&
     upgradeCostDiscountReady;
+  const selectedTileName = selectedPlacedTile
+    ? getTileNameByPlacedId(game, tileIndex, selectedPlacedTile.id)
+    : "No map tile selected";
+  const selectedTileSummary = selectedPlacedTile
+    ? `${selectedTileName} at ${getPlacedTileAnchorCoordinate(selectedPlacedTile) ?? state.selectedCoordinate}`
+    : "Selected map tile";
 
   return `
-    <section id="selected-tile-panel" class="state-panel wide-panel travel-panel">
-      <h2>Selected Tile</h2>
+    ${
+      embedded
+        ? `<details id="selected-tile-panel" class="tile-selected-details" ${selectedPlacedTile ? "open" : ""}>
+            <summary>
+              <span>Selected Map Tile</span>
+              <strong>${escapeHtml(selectedTileSummary)}</strong>
+            </summary>`
+        : `<section id="selected-tile-panel" class="state-panel wide-panel travel-panel">
+            <h2>Selected Map Tile</h2>`
+    }
       <ul class="metric-list">
         <li><span>Networks</span><strong>${networks.length}</strong></li>
-        <li><span>Selected Tile</span><strong>${escapeHtml(selectedPlacedTile ? getTileNameByPlacedId(game, tileIndex, selectedPlacedTile.id) : "None")}</strong></li>
+        <li><span>Selected Tile</span><strong>${escapeHtml(selectedPlacedTile ? selectedTileName : "None")}</strong></li>
         <li><span>Supported</span><strong>${escapeHtml(formatSupportDetails(selectedSupportDetails))}</strong></li>
         <li><span>Activation</span><strong>${escapeHtml(activationLabel)}</strong></li>
         <li><span>Activation Action</span><strong>${escapeHtml(renderActionCost(displayedActivationActionCost))}</strong></li>
@@ -3289,31 +4124,36 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex) {
           : ""
       }
       ${
-        networks.length === 0
-          ? `<p class="empty-note">No active Travel tiles are connected yet.</p>`
-          : `<ol class="network-list">
-              ${networks
-                .map(
-                  (network) => `
-                    <li>
-                      <header>
-                        <strong>${escapeHtml(network.id)}</strong>
-                        <span>${network.tileIds.length} tile${network.tileIds.length === 1 ? "" : "s"}</span>
-                      </header>
-                      <p>${network.tileIds.map((tileId) => escapeHtml(getTileNameByPlacedId(game, tileIndex, tileId))).join(", ")}</p>
-                      <small>Hexes: ${escapeHtml(network.coordinates.join(", "))}</small>
-                      <small>Network hexes: ${network.coordinates.length}</small>
-                    </li>
-                  `
-                )
-                .join("")}
-            </ol>`
+        `<details class="tile-network-details">
+          <summary>Connected Networks <span>${networks.length}</span></summary>
+          ${
+            networks.length === 0
+              ? `<p class="empty-note">No connected settlement network yet.</p>`
+              : `<ol class="network-list">
+                  ${networks
+                    .map(
+                      (network) => `
+                        <li>
+                          <header>
+                            <strong>${escapeHtml(network.id)}</strong>
+                            <span>${network.tileIds.length} tile${network.tileIds.length === 1 ? "" : "s"}</span>
+                          </header>
+                          <p>${network.tileIds.map((tileId) => escapeHtml(getTileNameByPlacedId(game, tileIndex, tileId))).join(", ")}</p>
+                          <small>Hexes: ${escapeHtml(network.coordinates.join(", "))}</small>
+                          <small>Network hexes: ${network.coordinates.length}</small>
+                        </li>
+                      `
+                    )
+                    .join("")}
+                </ol>`
+          }
+        </details>`
       }
-    </section>
+    ${embedded ? "</details>" : "</section>"}
   `;
 }
 
-function renderTilePlacementPanel(game, tileIndex) {
+function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
   const options = getPlacementOptions();
   const selectedTile = tileIndex.get(state.selectedTileId);
   const selectedSupply = [...game.tileSupply.core, ...game.tileSupply.special].find(
@@ -3354,45 +4194,45 @@ function renderTilePlacementPanel(game, tileIndex) {
   const placementCostDiscountReady = placementCostDiscountChoices.every((resource) => Boolean(resource));
   const canPlace =
     Boolean(selectedTile && activePlayer && game.phase === GAME_PHASES.PLAYER_TURNS) && placementCostDiscountReady;
+  const selectedTileSize = Number(selectedTile?.size_hexes ?? 1);
+  const selectedTileCost = selectedTile ? renderCost(cost) : "0";
 
   return `
-    <section id="placement-panel" class="state-panel placement-panel">
-      <h2>Place Tile</h2>
-      <label class="stacked-field">
-        <span>Tile</span>
-        <select id="tile-to-place" aria-label="Tile to place">
-          ${options
-            .map(({ tile, supply }) => {
-              const disabled = !supply || supply.available <= 0;
-              return `
-                <option value="${escapeHtml(tile.tile_id)}" ${tile.tile_id === state.selectedTileId ? "selected" : ""} ${disabled ? "disabled" : ""}>
-                  ${escapeHtml(tile.tile_name)} (${supply?.available ?? 0}/${supply?.stock ?? 0})
-                </option>
-              `;
-            })
-            .join("")}
-        </select>
-      </label>
-      <label class="stacked-field">
-        <span>Rotation</span>
-        <select id="tile-orientation" aria-label="Tile rotation" ${selectedTile?.size_hexes > 1 ? "" : "disabled"}>
-          ${HEX_DIRECTIONS.map(
-            (direction) =>
-              `<option value="${escapeHtml(direction.id)}" ${direction.id === state.selectedOrientation ? "selected" : ""}>${escapeHtml(direction.label)}</option>`
-          ).join("")}
-        </select>
-      </label>
-      <dl class="detail-list compact-details">
-        <div><dt>Target</dt><dd>${escapeHtml(state.selectedCoordinate)}</dd></div>
-        <div><dt>Footprint</dt><dd>${escapeHtml(renderFootprint(footprint))}</dd></div>
-        <div><dt>Connection</dt><dd>${actionCost ? (actionCost.connected ? "Connected" : "Disconnected") : "N/A"}</dd></div>
-        <div><dt>Action Cost</dt><dd>${escapeHtml(renderActionCost(displayedActionCost))}</dd></div>
-        <div><dt>Phase</dt><dd>${game.phase === GAME_PHASES.PLAYER_TURNS ? "Open" : "Locked"}</dd></div>
-        <div><dt>Actions Left</dt><dd>${activePlayer ? `${activePlayer.actionsRemaining}/${game.rules.actionsPerPlayer}` : "0/0"}</dd></div>
-        <div><dt>Cost</dt><dd>${escapeHtml(renderCost(cost))}</dd></div>
-        <div><dt>Stock</dt><dd>${selectedSupply?.available ?? 0}/${selectedSupply?.stock ?? 0}</dd></div>
-      </dl>
-      ${renderTileSourceText(selectedTile)}
+    <section id="placement-panel" class="state-panel placement-panel tile-console-panel">
+      <header class="tile-console-header">
+        <h2>Tiles</h2>
+        <span>${escapeHtml(activePlayer ? `${activePlayer.actionsRemaining}/${game.rules.actionsPerPlayer} Actions` : "No active Steward")}</span>
+      </header>
+      <div class="tile-console-grid">
+        ${renderTileChoiceButtons(options)}
+        <article class="tile-place-card type-${slug(selectedTile?.tile_category ?? "none")}">
+          <header>
+            <span>Tile to Place</span>
+            <strong>${escapeHtml(selectedTile?.tile_name ?? "None")}</strong>
+            <small>${escapeHtml(`${selectedSupply?.available ?? 0}/${selectedSupply?.stock ?? 0} left · ${selectedTileSize} hex${selectedTileSize === 1 ? "" : "es"} · ${selectedTileCost}`)}</small>
+          </header>
+          ${
+            selectedTileSize > 1
+              ? `<label class="stacked-field compact-field">
+                  <span>Rotation</span>
+                  <select id="tile-orientation" aria-label="Tile rotation">
+                    ${HEX_DIRECTIONS.map(
+                      (direction) =>
+                        `<option value="${escapeHtml(direction.id)}" ${direction.id === state.selectedOrientation ? "selected" : ""}>${escapeHtml(direction.label)}</option>`
+                    ).join("")}
+                  </select>
+                </label>`
+              : ""
+          }
+          <dl class="detail-list compact-details">
+            <div><dt>Target</dt><dd>${escapeHtml(state.selectedCoordinate)}</dd></div>
+            <div><dt>Footprint</dt><dd>${escapeHtml(renderFootprint(footprint))}</dd></div>
+            <div><dt>Connection</dt><dd>${actionCost ? (actionCost.connected ? "Connected" : "Disconnected") : "N/A"}</dd></div>
+            <div><dt>Action Cost</dt><dd>${escapeHtml(renderActionCost(displayedActionCost))}</dd></div>
+          </dl>
+          ${renderTileSourceText(selectedTile)}
+        </article>
+      </div>
       ${renderStewardPowerSelect({
         id: "steward-placement-power",
         label: "Placement Steward Power",
@@ -3406,7 +4246,40 @@ function renderTilePlacementPanel(game, tileIndex) {
         <button id="reset-actions" class="secondary-button" type="button">Reset Actions</button>
       </div>
       ${renderPlacementResult(state.lastActionResult)}
+      ${renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded: true })}
     </section>
+  `;
+}
+
+function renderTileChoiceButtons(options) {
+  if (options.length === 0) {
+    return `<p class="empty-note">No tiles available to place.</p>`;
+  }
+
+  return `
+    <div class="tile-choice-list" aria-label="Tile choices">
+      ${options
+        .map(({ tile, supply }) => {
+          const disabled = !supply || supply.available <= 0;
+          const selected = tile.tile_id === state.selectedTileId;
+          const cost = renderSourceResourceCost(tile.place_cost) || "0";
+          const size = Number(tile.size_hexes ?? 1);
+
+          return `
+            <button
+              class="tile-choice-button type-${slug(tile.tile_category)} ${selected ? "is-selected" : ""}"
+              data-tile-choice-id="${escapeHtml(tile.tile_id)}"
+              type="button"
+              ${disabled ? "disabled" : ""}
+            >
+              <span>${escapeHtml(tile.tile_category)}</span>
+              <strong>${escapeHtml(tile.tile_name)}</strong>
+              <small>${escapeHtml(`${supply?.available ?? 0}/${supply?.stock ?? 0} left · ${size} hex${size === 1 ? "" : "es"} · ${cost}`)}</small>
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
   `;
 }
 
@@ -3516,126 +4389,192 @@ function renderCategoryChips(categories) {
   `;
 }
 
-function renderPlaytestPulsePanel(game, tileIndex) {
-  const metrics = calculatePlaytestMetrics(game, { tileIndex });
-  const signals = getPlaytestPacingSignals(metrics);
-
-  return `
-    <section id="playtest-pulse-panel" class="state-panel wide-panel playtest-panel">
-      <h2>Playtest Pulse</h2>
-      <ul class="metric-list">
-        <li><span>Logged Actions</span><strong>${metrics.totalLoggedActionsSpent}</strong></li>
-        <li><span>This Round</span><strong>${metrics.currentRoundActionsSpent}/${game.playerCount * game.rules.actionsPerPlayer}</strong></li>
-        <li><span>Placed</span><strong>${metrics.actionMix.placements}</strong></li>
-        <li><span>Upgraded</span><strong>${metrics.actionMix.upgrades}</strong></li>
-        <li><span>Activated</span><strong>${metrics.actionMix.activations}</strong></li>
-        <li><span>Saved Actions</span><strong>${metrics.actionsSavedByDiscounts}</strong></li>
-        <li><span>Travel Paid</span><strong>${metrics.disconnectedTravel.paid}</strong></li>
-        <li><span>Travel Waived</span><strong>${metrics.disconnectedTravel.waived}</strong></li>
-        <li><span>Active Arrivals</span><strong>${metrics.encounters.active.arrivals}</strong></li>
-        <li><span>Active Burdens</span><strong>${metrics.encounters.active.burdens}</strong></li>
-        <li><span>Strain</span><strong>${metrics.board.strainTokens}</strong></li>
-        <li><span>Total Score</span><strong>${metrics.score.total}</strong></li>
-      </ul>
-      <h3>Board Shape</h3>
-      ${renderCategoryChips(metrics.board.categories)}
-      <h3>Pacing Signals</h3>
-      <ul class="playtest-signals">
-        ${signals.map((signal) => `<li>${escapeHtml(signal)}</li>`).join("")}
-      </ul>
-    </section>
-  `;
+function getSimulationBotProfiles() {
+  return state.simulation.botProfile === "all"
+    ? Object.keys(SIMULATION_BOT_PROFILES)
+    : [state.simulation.botProfile];
 }
 
-function getCurrentPlaytestReport() {
-  const tileIndex = createTileIndex(state.data.tiles);
-  const metrics = calculatePlaytestMetrics(state.game, { tileIndex });
-  const pacingSignals = getPlaytestPacingSignals(metrics);
-
-  return createPlaytestReportMarkdown({
-    state: state.game,
-    metrics,
-    pacingSignals,
-    notes: state.playtestNotes
-  });
-}
-
-function updatePlaytestReportText() {
-  const reportField = root.querySelector("#playtest-report");
-
-  if (reportField) {
-    reportField.value = getCurrentPlaytestReport();
+function getSimulationPlayerCounts() {
+  if (state.simulation.playerCount === "all") {
+    return [1, 2, 3, 4];
   }
+
+  if (state.simulation.playerCount === "current") {
+    return [state.playerCount];
+  }
+
+  return [Number(state.simulation.playerCount)];
 }
 
-function renderPlaytestRatingField(field) {
-  const selectedValue = state.playtestNotes[field.key] ?? "";
-
-  return `
-    <label class="stacked-field">
-      <span>${escapeHtml(field.label)}</span>
-      <select class="playtest-note-field" data-note-key="${escapeHtml(field.key)}" aria-label="${escapeHtml(field.label)} rating">
-        <option value="">Unrated</option>
-        ${field.options
-          .map((option) => `<option value="${escapeHtml(option)}" ${option === selectedValue ? "selected" : ""}>${escapeHtml(option)}</option>`)
-          .join("")}
-      </select>
-    </label>
-  `;
+function getSimulationRunSize() {
+  return getSimulationBotProfiles().length * getSimulationPlayerCounts().length * 100;
 }
 
-function renderPlaytestTextField(field) {
-  return `
-    <label class="stacked-field">
-      <span>${escapeHtml(field.label)}</span>
-      <textarea
-        class="playtest-note-field"
-        data-note-key="${escapeHtml(field.key)}"
-        rows="3"
-        placeholder="${escapeHtml(field.placeholder)}"
-      >${escapeHtml(state.playtestNotes[field.key] ?? "")}</textarea>
-    </label>
-  `;
+function getSimulationAverages(result) {
+  const rows = result?.game_rows ?? [];
+
+  if (rows.length === 0) {
+    return {
+      finalScore: 0,
+      strainPlaced: 0,
+      strainRemoved: 0,
+      overstrainedRounds: 0
+    };
+  }
+
+  const average = (key) => rows.reduce((sum, row) => sum + Number(row[key] ?? 0), 0) / rows.length;
+
+  return {
+    finalScore: average("final_score"),
+    strainPlaced: average("total_strain_placed"),
+    strainRemoved: average("total_strain_removed"),
+    overstrainedRounds: average("rounds_with_at_least_one_overstrained_tile")
+  };
 }
 
-function renderPlaytestNotesPanel(game, tileIndex) {
-  const metrics = calculatePlaytestMetrics(game, { tileIndex });
-  const pacingSignals = getPlaytestPacingSignals(metrics);
-  const report = createPlaytestReportMarkdown({
-    state: game,
-    metrics,
-    pacingSignals,
-    notes: state.playtestNotes
-  });
+function renderSimulationPanel() {
+  const result = state.simulation.result;
+  const averages = getSimulationAverages(result);
+  const errorCount = result?.errors?.length ?? 0;
 
   return `
-    <section id="playtest-notes-panel" class="state-panel wide-panel playtest-notes-panel">
-      <h2>Playtest Notes</h2>
-      <div class="playtest-rating-grid">
+    <section id="simulation-panel" class="state-panel wide-panel simulation-panel">
+      <h2>Automated Playtest Simulation</h2>
+      <div class="simulation-controls">
         <label class="stacked-field">
-          <span>Session label</span>
-          <input class="playtest-note-field" data-note-key="sessionLabel" value="${escapeHtml(state.playtestNotes.sessionLabel)}" placeholder="Solo test, first winter, 2-player table..." />
+          <span>Bot profile</span>
+          <select id="simulation-bot-profile">
+            <option value="balanced" ${state.simulation.botProfile === "balanced" ? "selected" : ""}>Balanced Bot</option>
+            <option value="builder" ${state.simulation.botProfile === "builder" ? "selected" : ""}>Builder Bot</option>
+            <option value="careful" ${state.simulation.botProfile === "careful" ? "selected" : ""}>Careful Bot</option>
+            <option value="all" ${state.simulation.botProfile === "all" ? "selected" : ""}>All profiles</option>
+          </select>
         </label>
-        ${PLAYTEST_RATING_FIELDS.map(renderPlaytestRatingField).join("")}
+        <label class="stacked-field">
+          <span>Player count</span>
+          <select id="simulation-player-count">
+            <option value="current" ${state.simulation.playerCount === "current" ? "selected" : ""}>Current setup (${state.playerCount}p)</option>
+            <option value="1" ${state.simulation.playerCount === "1" ? "selected" : ""}>1 player</option>
+            <option value="2" ${state.simulation.playerCount === "2" ? "selected" : ""}>2 players</option>
+            <option value="3" ${state.simulation.playerCount === "3" ? "selected" : ""}>3 players</option>
+            <option value="4" ${state.simulation.playerCount === "4" ? "selected" : ""}>4 players</option>
+            <option value="all" ${state.simulation.playerCount === "all" ? "selected" : ""}>All player counts</option>
+          </select>
+        </label>
       </div>
-      <div class="playtest-text-grid">
-        ${PLAYTEST_TEXT_FIELDS.map(renderPlaytestTextField).join("")}
+      <div class="button-row simulation-actions">
+        <button id="run-simulations" class="primary-button" type="button">Run 100 simulations</button>
+        <button id="export-simulation-csv" class="secondary-button" type="button" ${result ? "" : "disabled"}>Export CSV</button>
+        <button id="export-simulation-json" class="secondary-button" type="button" ${result ? "" : "disabled"}>Export JSON</button>
       </div>
-      <div class="button-row playtest-note-actions">
-        <button id="copy-playtest-report" class="primary-button" type="button">Copy Report</button>
-        <button id="clear-playtest-notes" class="secondary-button" type="button">Clear Notes</button>
-      </div>
+      <p class="mini-copy">Current settings will run ${getSimulationRunSize()} complete game${getSimulationRunSize() === 1 ? "" : "s"}.</p>
       ${
-        state.playtestReportMessage
-          ? `<p class="result-message ok">${escapeHtml(state.playtestReportMessage)}</p>`
+        state.simulation.message
+          ? `<p class="result-message ${errorCount ? "warning" : "ok"}">${escapeHtml(state.simulation.message)}</p>`
           : ""
       }
-      <label class="stacked-field">
-        <span>Generated report</span>
-        <textarea id="playtest-report" class="playtest-report" rows="12" readonly>${escapeHtml(report)}</textarea>
-      </label>
+      ${
+        result
+          ? `<ul class="metric-list simulation-summary">
+              <li><span>Games</span><strong>${result.game_rows.length}</strong></li>
+              <li><span>Avg Score</span><strong>${averages.finalScore.toFixed(1)}</strong></li>
+              <li><span>Avg Strain Placed</span><strong>${averages.strainPlaced.toFixed(1)}</strong></li>
+              <li><span>Avg Strain Removed</span><strong>${averages.strainRemoved.toFixed(1)}</strong></li>
+              <li><span>Avg Overstrained Rounds</span><strong>${averages.overstrainedRounds.toFixed(1)}</strong></li>
+              <li><span>Errors</span><strong>${errorCount}</strong></li>
+            </ul>`
+          : ""
+      }
     </section>
   `;
+}
+
+function downloadTextFile(filename, contents, mimeType) {
+  const blob = new Blob([contents], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function runAutomatedSimulationsFromUi() {
+  if (!state.data) {
+    return;
+  }
+
+  state.simulation = {
+    ...state.simulation,
+    result: null,
+    message: "Running simulations..."
+  };
+  renderApp();
+
+  setTimeout(() => {
+    try {
+      const result = runSimulationBatch({
+        gamesPerCombination: 100,
+        playerCounts: getSimulationPlayerCounts(),
+        botProfiles: getSimulationBotProfiles(),
+        encounterCards: state.data.encounterCards,
+        tiles: state.data.tiles,
+        mapHexes: getSelectedMapHexes()
+      });
+      const errorText = result.errors.length ? ` ${result.errors.length} run${result.errors.length === 1 ? "" : "s"} reported errors.` : "";
+
+      state.simulation = {
+        ...state.simulation,
+        result,
+        message: `Completed ${result.game_rows.length} simulated game${result.game_rows.length === 1 ? "" : "s"}.${errorText}`
+      };
+    } catch (error) {
+      state.simulation = {
+        ...state.simulation,
+        result: null,
+        message: `Simulation failed: ${error.message}`
+      };
+    }
+
+    renderApp();
+  }, 0);
+}
+
+function exportSimulationCsv() {
+  const result = state.simulation.result;
+
+  if (!result) {
+    return;
+  }
+
+  downloadTextFile(
+    "the-quiet-vale-simulation-games.csv",
+    simulationSummaryToCsv(result.game_rows),
+    "text/csv;charset=utf-8"
+  );
+  downloadTextFile(
+    "the-quiet-vale-simulation-rounds.csv",
+    simulationRoundsToCsv(result.round_rows),
+    "text/csv;charset=utf-8"
+  );
+}
+
+function exportSimulationJson() {
+  const result = state.simulation.result;
+
+  if (!result) {
+    return;
+  }
+
+  downloadTextFile(
+    "the-quiet-vale-simulation-results.json",
+    JSON.stringify(result, null, 2),
+    "application/json;charset=utf-8"
+  );
 }
 
 function renderActionLog(game, encounterIndex, tileIndex) {
@@ -3674,7 +4613,6 @@ function renderGameDashboard(game, encounterIndex) {
       ${renderGameStatus(game, encounterIndex)}
       ${renderTurnPanel(game, tileIndex)}
       ${renderScorePanel(game)}
-      ${renderPlayerHands(game, encounterIndex, tileIndex)}
       ${renderTileSupplyPanel(game)}
       ${renderActionLog(game, encounterIndex, tileIndex)}
     </section>
@@ -3692,11 +4630,10 @@ function renderApp() {
     return;
   }
 
-  const countValidation = validateSourceCounts(state.data);
-  const mapValidation = validateApprovedMap(state.data.mapHexes);
+  refreshActiveMapData();
+  const selectedMapOption = getSelectedMapOption();
   const encounterIndex = createEncounterIndex(state.data.encounterCards);
   const tileIndex = createTileIndex(state.data.tiles);
-  const approval = state.data.mapApproval.find((row) => row.Field === "Approved Map");
 
   root.innerHTML = `
     <main class="app-shell">
@@ -3706,8 +4643,8 @@ function renderApp() {
           <h1>The Quiet Vale</h1>
         </div>
         <div class="approval-pill">
-          <span>${escapeHtml(approval?.Status ?? "Approved")}</span>
-          <strong>${escapeHtml(approval?.Value ?? "Codex Default Map v0.1")}</strong>
+          <span>${escapeHtml(selectedMapOption?.status ?? "Default prototype map")}</span>
+          <strong>${escapeHtml(selectedMapOption?.name ?? "Redesigned Basic Map v0.1")}</strong>
         </div>
       </header>
       ${renderTestingBar(state.game, tileIndex)}
@@ -3715,24 +4652,27 @@ function renderApp() {
         <section class="play-top-grid">
           <section class="play-main-column" aria-label="Map and Encounter area">
             <section id="map-panel" class="map-panel" aria-label="Map panel">
+              <header class="map-panel-header">
+                <h2>Map</h2>
+                ${renderMapKey()}
+              </header>
               ${renderHexMap(state.data.mapHexes, state.game, tileIndex)}
             </section>
             ${renderEncounterPanel(state.game, encounterIndex)}
           </section>
           <aside class="play-side-rail" aria-label="Primary play controls">
             ${renderWarehousePanel(state.game)}
-            ${renderTilePlacementPanel(state.game, tileIndex)}
-            ${renderTravelNetworksPanel(state.game, tileIndex, encounterIndex)}
+            ${renderTilePlacementPanel(state.game, tileIndex, encounterIndex)}
+            ${renderSetupControls()}
           </aside>
         </section>
         ${renderGameDashboard(state.game, encounterIndex)}
-        <section class="play-bottom-tools" aria-label="Prototype testing and playtest notes">
-          ${renderPlaytestPulsePanel(state.game, tileIndex)}
-          ${renderMapDebugPanel(state.data, countValidation, mapValidation, state.game, tileIndex)}
-          ${renderPlaytestNotesPanel(state.game, tileIndex)}
+        <section class="play-bottom-tools" aria-label="Automated analysis tools">
+          ${renderSimulationPanel()}
         </section>
       </section>
       ${renderMapContextLayer(state.game, tileIndex)}
+      ${renderSeedCardContextLayer(encounterIndex)}
     </main>
   `;
 
@@ -3742,6 +4682,7 @@ function renderApp() {
 function selectCoordinate(coordinate) {
   state.selectedCoordinate = coordinate;
   state.contextMenu = null;
+  state.seedContextMenu = null;
   renderApp();
 }
 
@@ -3751,6 +4692,7 @@ function rotateSelectedPlacementTileAt(coordinate) {
 
   state.selectedCoordinate = coordinate;
   state.contextMenu = null;
+  state.seedContextMenu = null;
 
   if (!selectedTile || Number(selectedTile.size_hexes ?? 1) <= 1) {
     renderApp();
@@ -3768,10 +4710,10 @@ function rotateSelectedPlacementTileAt(coordinate) {
 
 function openMapContextMenu(event, coordinate) {
   const placedTile = getPlacedTileAt(state.game, coordinate);
-  const tileIndex = createTileIndex(state.data.tiles);
 
   event.preventDefault();
   state.selectedCoordinate = coordinate;
+  state.seedContextMenu = null;
 
   if (placedTile) {
     state.contextMenu = {
@@ -3784,18 +4726,59 @@ function openMapContextMenu(event, coordinate) {
     return;
   }
 
-  if (selectedPlacementTileCanRotate(tileIndex)) {
-    rotateSelectedPlacementTileAt(coordinate);
-    return;
-  }
-
-  state.contextMenu = null;
+  state.contextMenu = {
+    x: event.clientX,
+    y: event.clientY,
+    coordinate,
+    placedTileId: null
+  };
   renderApp();
 }
 
 function closeMapContextMenu() {
   state.contextMenu = null;
+  state.seedContextMenu = null;
   renderApp();
+}
+
+function openSeedCardContextMenu(event, playerId, cardId) {
+  event.preventDefault();
+  state.contextMenu = null;
+  state.seedContextMenu = {
+    x: event.clientX,
+    y: event.clientY,
+    playerId,
+    cardId
+  };
+  renderApp();
+}
+
+function closeSeedContextMenu() {
+  state.seedContextMenu = null;
+  renderApp();
+}
+
+function selectSeedCardPosition(playerId, cardId, seedPosition) {
+  state.debugSeedSelections = {
+    ...state.debugSeedSelections,
+    [playerId]: cardId
+  };
+  state.debugSeedPosition = seedPosition;
+  state.seedContextMenu = null;
+  state.lastActionResult = {
+    ok: true,
+    action: "SELECT_SEED_CARD",
+    message: `Selected ${getEncounterCardName(cardId)} for ${getPlayerName(playerId)}; seed packet position ${SEED_PACKET_POSITION_LABELS[seedPosition] ?? seedPosition}.`
+  };
+  renderApp();
+}
+
+function getPlayerName(playerId) {
+  return state.game?.players.find((player) => player.id === playerId)?.name ?? playerId;
+}
+
+function getEncounterCardName(cardId) {
+  return state.data?.encounterCards.find((card) => card.card_id === cardId)?.card_name ?? cardId;
 }
 
 function upgradePlacedTile(placedTileId) {
@@ -3949,8 +4932,93 @@ function activatePlacedTile(placedTileId) {
   renderApp();
 }
 
+function placeSelectedTile() {
+  const tile = state.data.tiles.find((candidate) => candidate.tile_id === state.selectedTileId);
+  const cost = tile ? parseResourceCost(tile.place_cost) : [];
+  const placementResourceDiscount = getPendingPlacementResourceDiscount(state.game, tile);
+  const tileIndex = createTileIndex(state.data.tiles);
+  const footprint = tile
+    ? getFootprintCoordinates(state.selectedCoordinate, tile.size_hexes, state.selectedOrientation, state.game.map.hexes)
+    : null;
+  const baseActionCost = footprint ? calculatePlacementActionCost(state.game, footprint, { tileIndex }) : null;
+  const actionCost =
+    baseActionCost && tile
+      ? getDiscountedDisconnectedTravelActionCost(
+          state.game,
+          "placement",
+          getDiscountedTileActionCost(state.game, tile, "placement", baseActionCost).actionCost
+        ).actionCost
+      : null;
+  const placementStewardPowerProviders = getPlacementStewardPowerProviders(
+    state.game,
+    tile,
+    actionCost,
+    tileIndex
+  );
+  const stewardPowerPlacedTileId = getSelectedStewardPowerId(
+    state.stewardPlacementPowerId,
+    placementStewardPowerProviders
+  );
+  const { state: nextGame, result } = dispatchGameAction(
+    state.game,
+    {
+      type: TILE_ACTION_TYPES.PLACE_TILE,
+      tileId: state.selectedTileId,
+      coordinate: state.selectedCoordinate,
+      orientation: state.selectedOrientation,
+      stewardPowerPlacedTileId,
+      placementCostReductionResources: getPlacementCostDiscountAction(
+        state.selectedTileId,
+        cost,
+        placementResourceDiscount
+      )
+    },
+    { tiles: state.data.tiles }
+  );
+
+  state.game = nextGame;
+  state.lastActionResult = result;
+  state.contextMenu = null;
+
+  if (result.ok) {
+    delete state.placementCostDiscounts[state.selectedTileId];
+    state.stewardPlacementPowerId = "";
+  }
+
+  syncSelectedTile();
+  renderApp();
+}
+
+function placeTileFromContext(tileId, coordinate, orientation, placementCostReductionResources = []) {
+  const placementCostDiscounts = { ...state.placementCostDiscounts };
+
+  state.selectedTileId = tileId;
+  state.selectedCoordinate = coordinate;
+  state.selectedOrientation = orientation || HEX_DIRECTIONS[0].id;
+  state.stewardPlacementPowerId = "";
+
+  if (placementCostReductionResources.length > 0) {
+    placementCostDiscounts[tileId] = placementCostReductionResources;
+  } else {
+    delete placementCostDiscounts[tileId];
+  }
+
+  state.placementCostDiscounts = placementCostDiscounts;
+  placeSelectedTile();
+}
+
 function runMapContextAction(actionName) {
   const placedTileId = state.contextMenu?.placedTileId;
+
+  if (actionName === "place") {
+    placeSelectedTile();
+    return;
+  }
+
+  if (actionName === "rotate") {
+    rotateSelectedPlacementTileAt(state.contextMenu?.coordinate ?? state.selectedCoordinate);
+    return;
+  }
 
   if (!placedTileId) {
     closeMapContextMenu();
@@ -3970,37 +5038,6 @@ function runMapContextAction(actionName) {
   closeMapContextMenu();
 }
 
-function applyDebugScenario(scenarioId) {
-  try {
-    const scenario = createDebugScenario(scenarioId, {
-      encounterCards: state.data.encounterCards,
-      tiles: state.data.tiles,
-      mapHexes: state.data.mapHexes
-    });
-
-    state.game = scenario.game;
-    state.playerCount = scenario.game.playerCount;
-    state.selectedCoordinate = scenario.selectedCoordinate;
-    state.selectedTileId = scenario.selectedTileId;
-    state.selectedOrientation = scenario.selectedOrientation;
-    state.debugScenarioId = scenario.id;
-    resetLocalTestingControls();
-    state.lastActionResult = {
-      ok: true,
-      action: "DEBUG_SCENARIO",
-      message: `Loaded ${scenario.title}.`
-    };
-    renderApp();
-  } catch (error) {
-    state.lastActionResult = {
-      ok: false,
-      action: "DEBUG_SCENARIO",
-      errors: [error.message]
-    };
-    renderApp();
-  }
-}
-
 function runQuickAction(actionName) {
   let outcome = null;
 
@@ -4017,6 +5054,7 @@ function runQuickAction(actionName) {
 
     if (outcome.result.ok) {
       state.debugSeedSelections = {};
+      state.seedContextMenu = null;
     }
   }
 
@@ -4075,55 +5113,79 @@ function bindEvents() {
   });
 
   root.querySelector(".map-context-backdrop")?.addEventListener("click", closeMapContextMenu);
+  root.querySelector(".seed-context-backdrop")?.addEventListener("click", closeSeedContextMenu);
 
   root.querySelectorAll("[data-context-action]").forEach((button) => {
     button.addEventListener("click", () => runMapContextAction(button.dataset.contextAction));
+  });
+
+  root.querySelectorAll("[data-context-place-tile-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const discountResources = (button.dataset.contextPlaceDiscounts ?? "").split("|").filter(Boolean);
+
+      placeTileFromContext(
+        button.dataset.contextPlaceTileId,
+        button.dataset.contextPlaceCoordinate,
+        button.dataset.contextPlaceOrientation,
+        discountResources
+      );
+    });
+  });
+
+  root.querySelectorAll("[data-seed-hand-card]").forEach((cardElement) => {
+    cardElement.addEventListener("contextmenu", (event) =>
+      openSeedCardContextMenu(event, cardElement.dataset.playerId, cardElement.dataset.cardId)
+    );
+    cardElement.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openSeedCardContextMenu(event, cardElement.dataset.playerId, cardElement.dataset.cardId);
+      }
+    });
+  });
+
+  root.querySelectorAll("[data-seed-position]").forEach((button) => {
+    button.addEventListener("click", () =>
+      selectSeedCardPosition(button.dataset.seedPlayerId, button.dataset.seedCardId, button.dataset.seedPosition)
+    );
   });
 
   root.querySelectorAll("[data-quick-action]").forEach((button) => {
     button.addEventListener("click", () => runQuickAction(button.dataset.quickAction));
   });
 
-  root.querySelectorAll(".debug-scenario-button").forEach((button) => {
-    button.addEventListener("click", () => applyDebugScenario(button.dataset.scenarioId));
-  });
-
-  root.querySelectorAll(".playtest-note-field").forEach((field) => {
-    field.addEventListener("input", () => {
-      state.playtestNotes = {
-        ...state.playtestNotes,
-        [field.dataset.noteKey]: field.value
-      };
-      state.playtestReportMessage = "";
-      updatePlaytestReportText();
-    });
-  });
-
-  root.querySelector("#clear-playtest-notes")?.addEventListener("click", () => {
-    state.playtestNotes = createDefaultPlaytestNotes();
-    state.playtestReportMessage = "Playtest notes cleared.";
+  root.querySelector("#simulation-bot-profile")?.addEventListener("change", (event) => {
+    state.simulation = {
+      ...state.simulation,
+      botProfile: event.target.value,
+      message: ""
+    };
     renderApp();
   });
 
-  root.querySelector("#copy-playtest-report")?.addEventListener("click", async () => {
-    const report = getCurrentPlaytestReport();
-
-    try {
-      if (!navigator.clipboard?.writeText) {
-        throw new Error("Clipboard is not available in this browser.");
-      }
-
-      await navigator.clipboard.writeText(report);
-      state.playtestReportMessage = "Playtest report copied.";
-    } catch {
-      state.playtestReportMessage = "Copy was not available; the report text is ready below.";
-    }
-
+  root.querySelector("#simulation-player-count")?.addEventListener("change", (event) => {
+    state.simulation = {
+      ...state.simulation,
+      playerCount: event.target.value,
+      message: ""
+    };
     renderApp();
   });
+
+  root.querySelector("#run-simulations")?.addEventListener("click", runAutomatedSimulationsFromUi);
+  root.querySelector("#export-simulation-csv")?.addEventListener("click", exportSimulationCsv);
+  root.querySelector("#export-simulation-json")?.addEventListener("click", exportSimulationJson);
 
   root.querySelector("#player-count")?.addEventListener("change", (event) => {
     state.playerCount = Number(event.target.value);
+    createGame();
+    renderApp();
+  });
+
+  root.querySelector("#map-option")?.addEventListener("change", (event) => {
+    state.selectedMapId = event.target.value;
+    refreshActiveMapData();
+    syncSelectedCoordinate();
     createGame();
     renderApp();
   });
@@ -4137,9 +5199,14 @@ function bindEvents() {
     renderApp();
   });
 
-  root.querySelector("#tile-to-place")?.addEventListener("change", (event) => {
-    state.selectedTileId = event.target.value;
-    state.lastActionResult = null;
+  root.querySelector("#redeal-cards")?.addEventListener("click", () => {
+    state.setupSeed = createRedealSeed();
+    createGame();
+    state.lastActionResult = {
+      ok: true,
+      action: "REDEAL_CARDS",
+      message: "Redealt Encounter hands and deck for a fresh playtest."
+    };
     renderApp();
   });
 
@@ -4149,57 +5216,14 @@ function bindEvents() {
     renderApp();
   });
 
-  root.querySelector("#place-tile")?.addEventListener("click", () => {
-    const tile = state.data.tiles.find((candidate) => candidate.tile_id === state.selectedTileId);
-    const cost = tile ? parseResourceCost(tile.place_cost) : [];
-    const placementResourceDiscount = getPendingPlacementResourceDiscount(state.game, tile);
-    const tileIndex = createTileIndex(state.data.tiles);
-    const footprint = tile
-      ? getFootprintCoordinates(state.selectedCoordinate, tile.size_hexes, state.selectedOrientation, state.game.map.hexes)
-      : null;
-    const baseActionCost = footprint ? calculatePlacementActionCost(state.game, footprint, { tileIndex }) : null;
-    const actionCost =
-      baseActionCost && tile
-        ? getDiscountedDisconnectedTravelActionCost(
-            state.game,
-            "placement",
-            getDiscountedTileActionCost(state.game, tile, "placement", baseActionCost).actionCost
-          ).actionCost
-        : null;
-    const placementStewardPowerProviders = getPlacementStewardPowerProviders(
-      state.game,
-      tile,
-      actionCost,
-      tileIndex
-    );
-    const stewardPowerPlacedTileId = getSelectedStewardPowerId(
-      state.stewardPlacementPowerId,
-      placementStewardPowerProviders
-    );
-    const { state: nextGame, result } = dispatchGameAction(
-      state.game,
-      {
-        type: TILE_ACTION_TYPES.PLACE_TILE,
-        tileId: state.selectedTileId,
-        coordinate: state.selectedCoordinate,
-        orientation: state.selectedOrientation,
-        stewardPowerPlacedTileId,
-        placementCostReductionResources: getPlacementCostDiscountAction(
-          state.selectedTileId,
-          cost,
-          placementResourceDiscount
-        )
-      },
-      { tiles: state.data.tiles }
-    );
-    state.game = nextGame;
-    state.lastActionResult = result;
-    if (result.ok) {
-      delete state.placementCostDiscounts[state.selectedTileId];
-      state.stewardPlacementPowerId = "";
-    }
-    syncSelectedTile();
-    renderApp();
+  root.querySelector("#place-tile")?.addEventListener("click", placeSelectedTile);
+
+  root.querySelectorAll(".tile-choice-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedTileId = button.dataset.tileChoiceId;
+      state.lastActionResult = null;
+      renderApp();
+    });
   });
 
   root.querySelector("#steward-placement-power")?.addEventListener("change", (event) => {
@@ -4273,23 +5297,9 @@ function bindEvents() {
     state.lastActionResult = result;
     if (result.ok) {
       state.debugSeedSelections = {};
+      state.seedContextMenu = null;
     }
     renderApp();
-  });
-
-  root.querySelector("#debug-seed-position")?.addEventListener("change", (event) => {
-    state.debugSeedPosition = event.target.value;
-    renderApp();
-  });
-
-  root.querySelectorAll(".debug-seed-card").forEach((select) => {
-    select.addEventListener("change", () => {
-      state.debugSeedSelections = {
-        ...state.debugSeedSelections,
-        [select.dataset.playerId]: select.value
-      };
-      renderApp();
-    });
   });
 
   root.querySelector("#reveal-encounters")?.addEventListener("click", () => {

@@ -105,17 +105,18 @@ function createLabourersYardPlacementState() {
   return state;
 }
 
-function apprenticeStewardFreePlacementEffect({ targetCategories = ["Resource", "Housing"], uses = 0 } = {}) {
+function apprenticeStewardPlacementActionEffect({ targetCategories = ["Resource", "Housing"], uses = 0 } = {}) {
   return {
     id: "round-effect-boon-the-apprentice-steward",
     source: "boon",
-    type: "free_tile_placement_cost",
+    type: "tile_action_discount",
     cardId: "boon_the_apprentice_steward",
     cardName: "The Apprentice Steward",
     round: 6,
     season: "II",
-    effectText: "The next Resource or Housing Tile placed this round costs 0 Resources",
+    effectText: "The next Resource or Housing Tile placed this round costs 0 Actions.",
     targetCategories,
+    appliesTo: ["placement"],
     maxUses: 1,
     uses,
     expiresAtEndOfRound: true,
@@ -230,8 +231,43 @@ test("places a free terrain-matched core tile and decrements stock", () => {
   assert.equal(nextState.log.at(-1).type, "place_tile");
 });
 
-test("The Apprentice Steward makes the next eligible placement cost 0 resources", () => {
-  const base = newState();
+test("Market Stalls can spend 1 Goods as 1 missing resource in a tile cost", () => {
+  let state = dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_gravel_path_basic",
+    coordinate: "C1",
+    orientation: "rotation-0"
+  }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_market_stalls_basic",
+    coordinate: "C3"
+  }).state;
+  state = withWarehouseResources(state, {
+    Wood: 2,
+    Food: 4,
+    Goods: 1
+  });
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_cottage_basic",
+    coordinate: "A1"
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.resourceCostSubstitution.providerTileName, "Market Stalls");
+  assert.deepEqual(result.cost, [
+    { amount: 2, resource: "Wood" },
+    { amount: 4, resource: "Food" },
+    { amount: 1, resource: "Goods" }
+  ]);
+  assert.equal(nextState.warehouse.resources.Food, 0);
+  assert.equal(nextState.warehouse.resources.Goods, 0);
+});
+
+test("The Apprentice Steward makes the next eligible placement cost 0 Actions", () => {
+  const base = withWarehouseResources(newState(), { Wood: 2, Food: 5 });
   const state = {
     ...base,
     round: 6,
@@ -239,7 +275,7 @@ test("The Apprentice Steward makes the next eligible placement cost 0 resources"
     encounter: {
       ...base.encounter,
       discard: ["boon_the_apprentice_steward"],
-      roundEffects: [apprenticeStewardFreePlacementEffect()]
+      roundEffects: [apprenticeStewardPlacementActionEffect()]
     }
   };
   const { state: nextState, result } = dispatch(state, {
@@ -253,16 +289,20 @@ test("The Apprentice Steward makes the next eligible placement cost 0 resources"
     { amount: 2, resource: "Wood" },
     { amount: 5, resource: "Food" }
   ]);
-  assert.deepEqual(result.cost, []);
-  assert.equal(result.placementCostReduction.cardId, "boon_the_apprentice_steward");
-  assert.equal(result.placementCostReduction.amountReduced, 7);
+  assert.deepEqual(result.cost, [
+    { amount: 2, resource: "Wood" },
+    { amount: 5, resource: "Food" }
+  ]);
+  assert.equal(result.actionCost.total, 0);
+  assert.equal(result.actionCostDiscount.cardId, "boon_the_apprentice_steward");
+  assert.equal(result.actionCostDiscount.amountReduced, 1);
   assert.equal(nextState.warehouse.resources.Wood, 0);
   assert.equal(nextState.warehouse.resources.Food, 0);
   assert.equal(nextState.encounter.roundEffects[0].uses, 1);
   assert.deepEqual(nextState.encounter.discard, ["boon_the_apprentice_steward"]);
 });
 
-test("The Apprentice Steward is consumed by the next eligible zero-cost placement", () => {
+test("The Apprentice Steward is consumed by the next eligible free-action placement", () => {
   const base = newState();
   const state = {
     ...base,
@@ -272,7 +312,7 @@ test("The Apprentice Steward is consumed by the next eligible zero-cost placemen
       ...base.encounter,
       discard: ["boon_the_apprentice_steward"],
       roundEffects: [
-        apprenticeStewardFreePlacementEffect({
+        apprenticeStewardPlacementActionEffect({
           targetCategories: ["Resource"]
         })
       ]
@@ -287,8 +327,9 @@ test("The Apprentice Steward is consumed by the next eligible zero-cost placemen
   assert.equal(result.ok, true);
   assert.deepEqual(result.baseCost, []);
   assert.deepEqual(result.cost, []);
-  assert.equal(result.placementCostReduction.cardId, "boon_the_apprentice_steward");
-  assert.equal(result.placementCostReduction.amountReduced, 0);
+  assert.equal(result.actionCost.total, 0);
+  assert.equal(result.actionCostDiscount.cardId, "boon_the_apprentice_steward");
+  assert.equal(result.actionCostDiscount.amountReduced, 1);
   assert.equal(nextState.encounter.roundEffects[0].uses, 1);
 });
 
@@ -505,7 +546,7 @@ test("river placement rules distinguish Bridge from normal tiles", () => {
   assert.equal(farmValidation.valid, false);
   assert.match(farmValidation.errors.join(" "), /cannot cover a River hex/);
   assert.equal(bridgeValidation.valid, false);
-  assert.match(bridgeValidation.errors.join(" "), /must be placed on a River hex/);
+  assert.match(bridgeValidation.errors.join(" "), /must be placed on Water terrain/);
 });
 
 test("Bridge spends Wood and can be placed on a river hex after warehouse debug fill", () => {
@@ -555,7 +596,7 @@ test("validates river-adjacent land placement", () => {
 
   assert.equal(valid.valid, true);
   assert.equal(invalid.valid, false);
-  assert.match(invalid.errors.join(" "), /adjacent to a River hex/);
+  assert.match(invalid.errors.join(" "), /adjacent to Water terrain/);
 });
 
 test("upgraded and special tiles are locked from direct placement", () => {
@@ -596,14 +637,14 @@ test("places an unlocked Special tile and decrements Special stock", () => {
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
     tileId: "special_docks",
-    coordinate: "C8"
+    coordinate: "C7"
   });
   const docks = nextState.tileSupply.special.find((entry) => entry.tileId === "special_docks");
 
   assert.equal(result.ok, true);
   assert.equal(nextState.map.placedTiles.length, 1);
   assert.equal(nextState.map.placedTiles[0].tileId, "special_docks");
-  assert.equal(nextState.map.placedTiles[0].coordinate, "C8");
+  assert.equal(nextState.map.placedTiles[0].coordinate, "C7");
   assert.equal(docks.available, 0);
 });
 

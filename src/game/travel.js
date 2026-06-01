@@ -7,7 +7,11 @@ import {
 } from "./tiles.js";
 
 export function isTravelTileDefinition(tile) {
-  return tile?.tile_category === "Travel" || /contributes to the Travel Network/i.test(tile?.benefit ?? "");
+  return (
+    tile?.tile_category === "Travel" ||
+    tile?.internal_role_tag === "Travel" ||
+    /contributes to the Travel Network/i.test(tile?.benefit ?? "")
+  );
 }
 
 export function isBridgeTileDefinition(tile) {
@@ -15,7 +19,13 @@ export function isBridgeTileDefinition(tile) {
 }
 
 function isDocksTileDefinition(tile) {
-  return /connects its Travel Network to every other placed Docks/i.test(tile?.benefit ?? "");
+  return (
+    tile?.tile_name === "Docks" ||
+    /connects its Travel Network to every other placed Docks/i.test(tile?.benefit ?? "") ||
+    /connects its connected settlement network to every other placed tile adjacent to Water terrain/i.test(
+      tile?.benefit ?? ""
+    )
+  );
 }
 
 export function isActiveTravelTile(placedTile, tileIndex) {
@@ -49,16 +59,25 @@ function buildSettlementAdjacency(state, tileIndex) {
   const activeNetworkTiles = state.map.placedTiles.filter(isActiveNetworkTile);
   const activeNetworkIds = new Set(activeNetworkTiles.map((placedTile) => placedTile.id));
   const adjacency = new Map(activeNetworkTiles.map((placedTile) => [placedTile.id, new Set()]));
-  const riverAdjacentDocks = [];
+  const waterLinkedDocks = [];
+  const waterLinkedTiles = [];
 
   for (const placedTile of activeNetworkTiles) {
     const definition = tileIndex.get(placedTile.tileId);
-    const riverAdjacent = getPlacedTileCoordinates(placedTile).some((coordinate) =>
-      getNeighborCoordinates(coordinate, mapIndex).some((neighborCoordinate) => isWaterHex(mapIndex.get(neighborCoordinate)))
+    const waterLinked = getPlacedTileCoordinates(placedTile).some(
+      (coordinate) =>
+        isWaterHex(mapIndex.get(coordinate)) ||
+        getNeighborCoordinates(coordinate, mapIndex).some((neighborCoordinate) =>
+          isWaterHex(mapIndex.get(neighborCoordinate))
+        )
     );
 
-    if (isDocksTileDefinition(definition) && riverAdjacent) {
-      riverAdjacentDocks.push(placedTile);
+    if (waterLinked) {
+      waterLinkedTiles.push(placedTile);
+    }
+
+    if (isDocksTileDefinition(definition) && waterLinked) {
+      waterLinkedDocks.push(placedTile);
     }
 
     for (const coordinate of getPlacedTileCoordinates(placedTile)) {
@@ -74,10 +93,11 @@ function buildSettlementAdjacency(state, tileIndex) {
     }
   }
 
-  for (const docks of riverAdjacentDocks) {
-    for (const otherDocks of riverAdjacentDocks) {
-      if (docks.id !== otherDocks.id) {
-        adjacency.get(docks.id).add(otherDocks.id);
+  for (const docks of waterLinkedDocks) {
+    for (const waterLinkedTile of waterLinkedTiles) {
+      if (docks.id !== waterLinkedTile.id) {
+        adjacency.get(docks.id).add(waterLinkedTile.id);
+        adjacency.get(waterLinkedTile.id)?.add(docks.id);
       }
     }
   }
@@ -359,7 +379,11 @@ function effectMatchesTileActionDiscount(effect, tile, operation) {
     return false;
   }
 
-  return !effect.targetCategories || effect.targetCategories.includes(tile.tile_category);
+  return (
+    !effect.targetCategories ||
+    effect.targetCategories.includes(tile.tile_category) ||
+    effect.targetCategories.includes(tile.internal_role_tag)
+  );
 }
 
 function getPendingTileActionDiscountEffect(state, tile, operation) {

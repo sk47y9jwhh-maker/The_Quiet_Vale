@@ -1,79 +1,79 @@
 [
   {
     "Metric": "Grasslands count",
-    "Value": 81,
+    "Value": 74,
     "Result": "Reference",
     "Notes": null,
-    "Coordinates / Detail": "A3, A4, A8, A9, A10, A11, A12, B2, B3, B4, B5, B8, B9, B10, B11, B12, B13, C1, C2, C3, C4, C5, C6, C8, C9, C10, C11, C12, C13, C14, D2, D3, D4, D5, D6, D8, D9, D10, D11, D12, D13, E2, E3, E4, E9, E10, E11, E12, E13, F2, F3, F4, F10, F11, F12, F13, G1, G2, G3, G4, G6, G7, G10, G11, G12, G13, G14, H2, H3, H6, H8, H10, H11, H12, H14, I3, I5, I8, I10, I11, I12"
+    "Coordinates / Detail": "See src/data/redesigned_basic_map_v0_1.json terrain_by_coordinate."
   },
   {
     "Metric": "Water count",
-    "Value": 15,
+    "Value": 21,
     "Result": "Reference",
     "Notes": null,
-    "Coordinates / Detail": "A7, B7, C7, D7, E7, F6, F7, F8, G5, G8, H4, H5, H9, I4, I9"
+    "Coordinates / Detail": "D1, D2, E3, F3, E4, G4, H4, E5, I5, J5, E6, K6, E7, K7, L7, E8, F8, M8, N8, G9, H9"
   },
   {
     "Metric": "Mountains count",
     "Value": 6,
     "Result": "Reference",
     "Notes": null,
-    "Coordinates / Detail": "A1, A2, B1, D14, E14, F14"
+    "Coordinates / Detail": "A1, B1, C1, N6, M7, N7"
   },
   {
     "Metric": "Woodland count",
     "Value": 6,
     "Result": "Reference",
     "Notes": null,
-    "Coordinates / Detail": "A13, A14, B14, H1, I1, I2"
+    "Coordinates / Detail": "G1, H1, I1, B8, A9, B9"
   },
   {
     "Metric": "Heaths count",
     "Value": 6,
     "Result": "Reference",
     "Notes": null,
-    "Coordinates / Detail": "D1, E1, F1, H13, I13, I14"
+    "Coordinates / Detail": "A3, B3, N3, A4, M4, N4"
   },
   {
     "Metric": "Ruins count",
-    "Value": 6,
+    "Value": 7,
     "Result": "Reference",
     "Notes": null,
-    "Coordinates / Detail": "E5, E6, E8, F5, F9, G9"
+    "Coordinates / Detail": "F4, F5, G5, I9, J9, M9, N9"
   },
   {
     "Metric": "Arable Land count",
     "Value": 6,
     "Result": "Reference",
     "Notes": null,
-    "Coordinates / Detail": "A5, A6, B6, H7, I6, I7"
+    "Coordinates / Detail": "L1, M1, N1, A6, B6, A7"
   },
   {
     "Metric": "Water components",
     "Value": 1,
     "Result": "Pass",
     "Notes": "Flat-top even-q adjacency",
-    "Coordinates / Detail": "A7, B7, C7, D7, E7, F6, F7, F8, G5, G8, H4, H5, H9, I4, I9"
+    "Coordinates / Detail": "D1, D2, E3, F3, E4, G4, H4, E5, I5, J5, E6, K6, E7, K7, L7, E8, F8, M8, N8, G9, H9"
   },
   {
-    "Metric": "Bridge candidates on Water",
-    "Value": 3,
+    "Metric": "Potential Bridge sites",
+    "Value": 21,
     "Result": "Pass",
-    "Notes": "C7, H5, H9 are Water hexes",
-    "Coordinates / Detail": "C7, H5, H9"
+    "Notes": "Every Water/River hex is a legal Bridge placement site; Bridge Candidate markers are optional review notes only.",
+    "Coordinates / Detail": "Same as Water/River hex list"
   },
   {
     "Metric": "River fork",
-    "Value": "F7",
+    "Value": "N/A",
     "Result": "Pass",
-    "Notes": "Single fork feature",
-    "Coordinates / Detail": "F7"
+    "Notes": "No fixed River Fork marker is required by v2.0 map data.",
+    "Coordinates / Detail": null
   },
   {
     "Metric": "River-adjacent land sites",
-    "Value": 27,
+    "Value": 39,
     "Result": "Reference",
-    "Notes": "Used by Docks/Washhouse/Bathhouse",
-    "Coordinates / Detail": "A6, A8, B6, B8, C6, C8, D6, D8, E6, E8, F4, F5, F9, G4, G6, G7, G9, G10, H3, H6, H7, H8, H10, I3, I5, I8, I10"
+    "Notes": "Computed from v2.0 Water/River coordinates.",
+    "Coordinates / Detail": "C1, E1, C2, E2, F2, C3, D3, G3, H3, D4, F4, I4, J4, D5, F5, G5, H5, K5, L5, D6, F6, I6, J6, L6, D7, F7, J7, M7, N7, D8, G8, H8, K8, L8, E9, F9, I9, M9, N9"
   }
 ]

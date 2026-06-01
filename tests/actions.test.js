@@ -94,7 +94,7 @@ test("connected tile placement spends 1 player Action", () => {
   assert.equal(actionsRemaining(state), 3);
 });
 
-test("placement adjacent to an existing Travel Network spends only the Place action", () => {
+test("placement adjacent to an existing settlement network spends only the Place action", () => {
   let state = dispatch(newState(), {
     type: TILE_ACTION_TYPES.PLACE_TILE,
     tileId: "core_gravel_path_basic",
@@ -114,7 +114,7 @@ test("placement adjacent to an existing Travel Network spends only the Place act
   assert.equal(actionsRemaining(result.state), 2);
 });
 
-test("multihex placement spends 1 Action when any footprint hex touches the Travel Network", () => {
+test("multihex placement spends 1 Action when any footprint hex touches the settlement network", () => {
   let state = dispatch(newState(), {
     type: TILE_ACTION_TYPES.PLACE_TILE,
     tileId: "core_gravel_track_basic",
@@ -239,7 +239,7 @@ test("activating a disconnected tile spends one Travel action plus one Activate 
   assert.equal(result.result.actionCost.activationActionCost, 1);
   assert.equal(result.result.actionCost.disconnectedTravelActionCost, 1);
   assert.equal(actionsRemaining(result.state), 2);
-  assert.equal(result.state.warehouse.resources.Wood, 1);
+  assert.equal(result.state.warehouse.resources.Wood, 2);
 });
 
 test("activating the tile under the steward marker does not spend disconnected Travel", () => {

@@ -112,6 +112,42 @@ function unlockSpecial(state, tileId) {
   };
 }
 
+test("Core Resource production text matches v2.0 output values", () => {
+  const productionByTileId = Object.fromEntries(
+    tiles
+      .filter((tile) => tile.tile_category === "Resource" && tile.tile_source_type === "Core")
+      .map((tile) => [tile.tile_id, tile.benefit])
+  );
+
+  assert.deepEqual(productionByTileId, {
+    core_forest_basic: "Production: Gain 2 Wood.",
+    core_managed_woodlands_upgraded: "Production: Gain 3 Wood and 2 Food.",
+    core_mine_basic: "Production: Gain 2 Stone.",
+    core_deep_mines_upgraded: "Production: Gain 3 Stone and 2 Metal.",
+    core_wildlands_basic: "Production: Gain 2 Herbs.",
+    core_nurtured_wildlands_upgraded: "Production: Gain 3 Herbs and 2 Food.",
+    core_farm_basic: "Production: Gain 2 Food.",
+    core_artisanal_farm_upgraded: "Production: Gain 3 Food and 2 Goods.",
+    core_dig_site_basic: "Production: Gain 2 Metal.",
+    core_the_excavation_upgraded: "Production: Gain 3 Metal and 2 Goods."
+  });
+});
+
+test("Workshop upgrade support text matches v2.2 output values", () => {
+  const workshops = Object.fromEntries(
+    tiles
+      .filter((tile) => ["core_workshops_basic", "core_the_makers_conclave_upgraded"].includes(tile.tile_id))
+      .map((tile) => [tile.tile_id, tile.benefit])
+  );
+
+  assert.deepEqual(workshops, {
+    core_workshops_basic:
+      "Passive: Once per round, when upgrading an adjacent Core Tile, reduce that upgrade cost by 1 resource of your choice.",
+    core_the_makers_conclave_upgraded:
+      "Passive: Once per round, when upgrading a reachable Core Tile, reduce that upgrade cost by up to 2 resources of your choice."
+  });
+});
+
 test("activates a basic Resource tile for its Production benefit", () => {
   const afterPlacement = dispatch(newState(), {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -125,7 +161,7 @@ test("activates a basic Resource tile for its Production benefit", () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.action, TILE_ACTION_TYPES.ACTIVATE_TILE);
-  assert.equal(nextState.warehouse.resources.Wood, 1);
+  assert.equal(nextState.warehouse.resources.Wood, 2);
   assert.equal(nextState.players[0].actionsRemaining, 2);
   assert.deepEqual(nextState.players[0].lastInteraction, {
     type: "activate",
@@ -134,7 +170,7 @@ test("activates a basic Resource tile for its Production benefit", () => {
     round: 1,
     season: "I"
   });
-  assert.deepEqual(result.gains, [{ amount: 1, resource: "Wood" }]);
+  assert.deepEqual(result.gains, [{ amount: 2, resource: "Wood" }]);
   assert.equal(nextState.log.at(-1).type, "activate_tile");
 });
 
@@ -155,8 +191,8 @@ test("activates an upgraded Resource tile for its upgraded Production benefit", 
 
   assert.equal(result.ok, true);
   assert.equal(nextState.map.placedTiles[0].tileId, "core_artisanal_farm_upgraded");
-  assert.equal(nextState.warehouse.resources.Food, 2);
-  assert.equal(nextState.warehouse.resources.Goods, 1);
+  assert.equal(nextState.warehouse.resources.Food, 3);
+  assert.equal(nextState.warehouse.resources.Goods, 2);
   assert.equal(nextState.players[0].actionsRemaining, 1);
 });
 
@@ -176,7 +212,7 @@ test("Production activation respects the Warehouse cap", () => {
   assert.equal(nextState.warehouse.resources.Wood, 15);
   assert.deepEqual(result.applied, [
     {
-      amount: 1,
+      amount: 2,
       resource: "Wood",
       gained: 0,
       capped: true
@@ -202,11 +238,11 @@ test("adjacent Shrine of Bounty adds its passive Food production bonus", () => {
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.gains, [{ amount: 1, resource: "Food" }]);
+  assert.deepEqual(result.gains, [{ amount: 2, resource: "Food" }]);
   assert.deepEqual(result.bonusGains, [{ resource: "Food", amount: 2 }]);
-  assert.deepEqual(result.totalGains, [{ resource: "Food", amount: 3 }]);
+  assert.deepEqual(result.totalGains, [{ resource: "Food", amount: 4 }]);
   assert.equal(result.productionBonuses[0].providerTileName, "Shrine of Bounty");
-  assert.equal(nextState.warehouse.resources.Food, 3);
+  assert.equal(nextState.warehouse.resources.Food, 4);
 });
 
 test("Boon round production effects add bonuses on matching Resource activation", () => {
@@ -235,13 +271,13 @@ test("Boon round production effects add bonuses on matching Resource activation"
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.gains, [{ amount: 1, resource: "Food" }]);
+  assert.deepEqual(result.gains, [{ amount: 2, resource: "Food" }]);
   assert.deepEqual(result.bonusGains, [{ resource: "Food", amount: 1 }]);
-  assert.deepEqual(result.totalGains, [{ resource: "Food", amount: 2 }]);
+  assert.deepEqual(result.totalGains, [{ resource: "Food", amount: 3 }]);
   assert.equal(result.productionBonuses[0].source, "boon");
   assert.equal(result.productionBonuses[0].cardName, "Bounty of the first harvest");
   assert.equal(nextState.encounter.roundEffects[0].uses, 1);
-  assert.equal(nextState.warehouse.resources.Food, 2);
+  assert.equal(nextState.warehouse.resources.Food, 3);
 });
 
 test("limited Boon production effects stop after their source-defined use count", () => {
@@ -282,7 +318,7 @@ test("limited Boon production effects stop after their source-defined use count"
   assert.equal(result.ok, true);
   assert.deepEqual(result.bonusGains, []);
   assert.equal(nextState.encounter.roundEffects[0].uses, 2);
-  assert.equal(nextState.warehouse.resources.Food, 5);
+  assert.equal(nextState.warehouse.resources.Food, 8);
   assert.equal(nextState.warehouse.resources.Goods, 2);
 });
 
@@ -310,8 +346,8 @@ test("overstrained shrine providers do not add passive production bonuses", () =
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.bonusGains, []);
-  assert.deepEqual(result.totalGains, [{ resource: "Food", amount: 1 }]);
-  assert.equal(nextState.warehouse.resources.Food, 1);
+  assert.deepEqual(result.totalGains, [{ resource: "Food", amount: 2 }]);
+  assert.equal(nextState.warehouse.resources.Food, 2);
 });
 
 test("matching-type shrine bonuses use the activated tile's first production resource", () => {
@@ -333,9 +369,9 @@ test("matching-type shrine bonuses use the activated tile's first production res
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.bonusGains, [{ resource: "Wood", amount: 2 }]);
-  assert.deepEqual(result.totalGains, [{ resource: "Wood", amount: 3 }]);
+  assert.deepEqual(result.totalGains, [{ resource: "Wood", amount: 4 }]);
   assert.equal(result.productionBonuses[0].reason, "matching_first_production_resource");
-  assert.equal(nextState.warehouse.resources.Wood, 3);
+  assert.equal(nextState.warehouse.resources.Wood, 4);
 });
 
 test("matching-type shrine bonuses apply to upgraded resource tiles through base tile names", () => {
@@ -362,17 +398,17 @@ test("matching-type shrine bonuses apply to upgraded resource tiles through base
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.gains, [
-    { amount: 2, resource: "Wood" },
-    { amount: 1, resource: "Food" }
+    { amount: 3, resource: "Wood" },
+    { amount: 2, resource: "Food" }
   ]);
   assert.deepEqual(result.bonusGains, [{ resource: "Wood", amount: 2 }]);
   assert.deepEqual(result.totalGains, [
-    { resource: "Wood", amount: 4 },
-    { resource: "Food", amount: 1 }
+    { resource: "Wood", amount: 5 },
+    { resource: "Food", amount: 2 }
   ]);
   assert.equal(nextState.map.placedTiles.find((tile) => tile.id === "tile-001").tileId, "core_managed_woodlands_upgraded");
-  assert.equal(nextState.warehouse.resources.Wood, 4);
-  assert.equal(nextState.warehouse.resources.Food, 1);
+  assert.equal(nextState.warehouse.resources.Wood, 5);
+  assert.equal(nextState.warehouse.resources.Food, 2);
 });
 
 test("Overstrained placed tiles cannot be activated", () => {
@@ -807,9 +843,10 @@ test("upgraded Arrival timer activation adds up to the timer cap", () => {
   }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_market_stalls_basic",
+    tileId: "core_inn_basic",
     coordinate: "C3"
   }).state;
+  state = dispatch(state, { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.UPGRADE_TILE,
     placedTileId: "tile-002"
@@ -823,7 +860,7 @@ test("upgraded Arrival timer activation adds up to the timer cap", () => {
   assert.equal(result.ok, true);
   assert.equal(result.timerTokensAdded, 1);
   assert.equal(nextState.encounter.active[0].timerTokens, 3);
-  assert.equal(nextState.map.placedTiles.find((tile) => tile.id === "tile-002").tileId, "core_the_seldes_upgraded");
+  assert.equal(nextState.map.placedTiles.find((tile) => tile.id === "tile-002").tileId, "core_dawn_break_lodge_upgraded");
   assert.equal(nextState.players[0].actionsRemaining, 0);
 });
 
@@ -853,7 +890,7 @@ test("Arrival timer activation rejects Arrivals already at the timer cap", () =>
   assert.match(result.errors.join(" "), /maximum timer tokens/);
 });
 
-test("activates a basic fixed resource exchange into Goods", () => {
+test("Workshops reduces an adjacent Core Tile upgrade cost once per round", () => {
   let state = dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -866,33 +903,23 @@ test("activates a basic fixed resource exchange into Goods", () => {
     tileId: "core_workshops_basic",
     coordinate: "C3"
   }).state;
-  state = withWarehouseResources(state, {
-    Food: 2,
-    Wood: 2,
-    Goods: 0
-  });
   const { state: nextState, result } = dispatch(state, {
-    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
-    placedTileId: "tile-002",
-    payment: [
-      { resource: "Food", amount: 2 },
-      { resource: "Wood", amount: 2 }
-    ]
+    type: TILE_ACTION_TYPES.UPGRADE_TILE,
+    placedTileId: "tile-001"
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.exchangeCost, [
-    { resource: "Food", amount: 2 },
-    { resource: "Wood", amount: 2 }
-  ]);
-  assert.deepEqual(result.exchangeGain, { amount: 1, resource: "Goods" });
-  assert.equal(nextState.warehouse.resources.Food, 0);
-  assert.equal(nextState.warehouse.resources.Wood, 0);
-  assert.equal(nextState.warehouse.resources.Goods, 1);
+  assert.deepEqual(result.baseCost, [{ amount: 4, resource: "Stone" }]);
+  assert.deepEqual(result.cost, [{ amount: 3, resource: "Stone" }]);
+  assert.equal(result.upgradeCostReduction.providerTileName, "Workshops");
+  assert.deepEqual(
+    nextState.map.placedTiles.find((tile) => tile.id === "tile-002").upgradeDiscountRounds,
+    [1]
+  );
   assert.equal(nextState.players[0].actionsRemaining, 1);
 });
 
-test("upgraded fixed resource exchange needs only three resources", () => {
+test("The Makers Conclave reduces a reachable Core Tile upgrade cost by up to two resources", () => {
   let state = dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -909,83 +936,21 @@ test("upgraded fixed resource exchange needs only three resources", () => {
     type: TILE_ACTION_TYPES.UPGRADE_TILE,
     placedTileId: "tile-002"
   }).state;
-  state = withWarehouseResources(state, {
-    Food: 1,
-    Wood: 1,
-    Stone: 1,
-    Goods: 0
-  });
   const { state: nextState, result } = dispatch(state, {
-    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
-    placedTileId: "tile-002",
-    payment: [
-      { resource: "Food", amount: 1 },
-      { resource: "Wood", amount: 1 },
-      { resource: "Stone", amount: 1 }
-    ]
+    type: TILE_ACTION_TYPES.UPGRADE_TILE,
+    placedTileId: "tile-001"
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.exchangeGain, { amount: 1, resource: "Goods" });
-  assert.equal(nextState.warehouse.resources.Goods, 1);
+  assert.deepEqual(result.baseCost, [{ amount: 4, resource: "Stone" }]);
+  assert.deepEqual(result.cost, [{ amount: 2, resource: "Stone" }]);
+  assert.equal(result.upgradeCostReduction.providerTileName, "The Makers Conclave");
   assert.equal(nextState.map.placedTiles.find((tile) => tile.id === "tile-002").tileId, "core_the_makers_conclave_upgraded");
+  assert.deepEqual(
+    nextState.map.placedTiles.find((tile) => tile.id === "tile-002").upgradeDiscountRounds,
+    [1]
+  );
   assert.equal(nextState.players[0].actionsRemaining, 0);
-});
-
-test("fixed resource exchange requires the exact listed payment amount", () => {
-  let state = dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state;
-  state = dispatch(state, {
-    type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_gravel_path_basic",
-    coordinate: "C1",
-    orientation: "rotation-0"
-  }).state;
-  state = dispatch(state, {
-    type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_workshops_basic",
-    coordinate: "C3"
-  }).state;
-  state = withWarehouseResources(state, {
-    Food: 3,
-    Goods: 0
-  });
-  const { state: nextState, result } = dispatch(state, {
-    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
-    placedTileId: "tile-002",
-    payment: [{ resource: "Food", amount: 3 }]
-  });
-
-  assert.equal(result.ok, false);
-  assert.equal(nextState, state);
-  assert.match(result.errors.join(" "), /exactly 4 resources/);
-});
-
-test("fixed resource exchange rejects a full target resource after payment", () => {
-  let state = dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state;
-  state = dispatch(state, {
-    type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_gravel_path_basic",
-    coordinate: "C1",
-    orientation: "rotation-0"
-  }).state;
-  state = dispatch(state, {
-    type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_workshops_basic",
-    coordinate: "C3"
-  }).state;
-  state = withWarehouseResources(state, {
-    Food: 4,
-    Goods: 15
-  });
-  const { state: nextState, result } = dispatch(state, {
-    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
-    placedTileId: "tile-002",
-    payment: [{ resource: "Food", amount: 4 }]
-  });
-
-  assert.equal(result.ok, false);
-  assert.equal(nextState, state);
-  assert.match(result.errors.join(" "), /Goods is at the Warehouse cap/);
 });
 
 test("activates a flexible resource exchange into non-Goods resources", () => {

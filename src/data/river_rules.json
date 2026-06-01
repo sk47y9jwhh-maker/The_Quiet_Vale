@@ -1,35 +1,35 @@
 [
   {
-    "River Rules for Codex v0.2": "rule_key"
+    "River Rules v2.0": "rule_key"
   },
   {
-    "River Rules for Codex v0.2": "river_hex_is_rules_relevant"
+    "River Rules v2.0": "river_hex_is_rules_relevant"
   },
   {
-    "River Rules for Codex v0.2": "default_tile_on_river_hex"
+    "River Rules v2.0": "default_tile_on_river_hex"
   },
   {
-    "River Rules for Codex v0.2": "bridge_on_river_hex"
+    "River Rules v2.0": "bridge_on_river_hex"
   },
   {
-    "River Rules for Codex v0.2": "bridge_tile_category"
+    "River Rules v2.0": "bridge_tile_category"
   },
   {
-    "River Rules for Codex v0.2": "bridge_connectivity"
+    "River Rules v2.0": "bridge_connectivity"
   },
   {
-    "River Rules for Codex v0.2": "river_crossing_without_bridge"
+    "River Rules v2.0": "river_crossing_without_bridge"
   },
   {
-    "River Rules for Codex v0.2": "river_adjacency_definition"
+    "River Rules v2.0": "river_adjacency_definition"
   },
   {
-    "River Rules for Codex v0.2": "docks_placement"
+    "River Rules v2.0": "docks_placement"
   },
   {
-    "River Rules for Codex v0.2": "washhouse_bathhouse_placement"
+    "River Rules v2.0": "washhouse_bathhouse_placement"
   },
   {
-    "River Rules for Codex v0.2": "codex_map_gate"
+    "River Rules v2.0": "codex_map_gate"
   }
 ]

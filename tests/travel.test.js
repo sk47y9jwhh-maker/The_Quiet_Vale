@@ -150,7 +150,7 @@ test("adjacent Travel tiles join the same connected settlement network", () => {
   assert.deepEqual(networks[0].tileIds, ["tile-001", "tile-002"]);
 });
 
-test("Bridge connects Travel Networks across the river", () => {
+test("Bridge connects settlement networks across the river", () => {
   let state = fillWarehouse(newState());
   state = place(state, "core_gravel_path_basic", "C5", "rotation-0");
   state = place(state, "core_gravel_path_basic", "C8", "rotation-0");
@@ -164,21 +164,21 @@ test("Bridge connects Travel Networks across the river", () => {
   assert.deepEqual(networks[0].tileIds, ["tile-001", "tile-002", "tile-003"]);
 });
 
-test("river-adjacent Docks connect their Travel Networks to each other", () => {
+test("Docks connect water-linked settlement networks to each other", () => {
   let state = unlockSpecial(newState(), "special_docks", 2);
-  state = place(state, "special_docks", "C8");
-  state = place(state, "special_docks", "F4");
+  state = place(state, "special_docks", "C7");
+  state = place(state, "special_docks", "F6");
   const networks = buildTravelNetworks(state, { tiles });
 
   assert.equal(networks.length, 1);
   assert.deepEqual(networks[0].tileIds, ["tile-001", "tile-002"]);
-  assert.deepEqual(networks[0].coordinates, ["C8", "F4"]);
+  assert.deepEqual(networks[0].coordinates, ["C7", "F6"]);
 });
 
 test("Overstrained Docks do not connect to other Docks", () => {
   let state = unlockSpecial(newState(), "special_docks", 2);
-  state = place(state, "special_docks", "C8");
-  state = place(state, "special_docks", "F4");
+  state = place(state, "special_docks", "C7");
+  state = place(state, "special_docks", "F6");
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.DEBUG_SET_TILE_STRAIN,
     placedTileId: "tile-002",
@@ -258,5 +258,5 @@ test("Overstrained tiles cannot satisfy placement adjacency requirements", () =>
   );
 
   assert.equal(validation.valid, false);
-  assert.match(validation.errors.join(" "), /adjacent to Travel/);
+  assert.match(validation.errors.join(" "), /placed, non-Overstrained tile/);
 });

@@ -52,6 +52,14 @@ const FREE_ADJACENT_PLACEMENT_COST =
   /^Once per round,\s*when any player places a tile adjacent to this tile,\s*that tile costs 0 Resources\./i;
 const REDUCE_ADJACENT_PLACEMENT_COST =
   /^Once per round,\s*when any player places a tile adjacent to this tile,\s*reduce that tile's cost by (\d+) resource of the group's choice\./i;
+const REDUCE_ADJACENT_CORE_UPGRADE_COST =
+  /^Passive:\s*Once per round,\s*when upgrading an adjacent Core Tile,\s*reduce that upgrade cost by (\d+) resource of your choice\.$/i;
+const REDUCE_REACHABLE_CORE_UPGRADE_COST =
+  /^Passive:\s*Once per round,\s*when upgrading a reachable Core Tile,\s*reduce that upgrade cost by up to (\d+) resources of your choice\.$/i;
+const GOODS_AS_ONE_RESOURCE =
+  /^Passive:\s*Once per round,\s*when paying a resource cost,\s*you may spend 1 Goods as 1 resource of any type in that cost\.$/i;
+const GOODS_AS_UP_TO_TWO_ONE_TYPE =
+  /^Passive:\s*Once per round,\s*when paying a resource cost,\s*you may spend 1 Goods as up to 2 resources of one type in that cost\.$/i;
 
 export function createTileIndex(tiles) {
   return new Map(tiles.map((tile) => [tile.tile_id, tile]));
@@ -255,7 +263,11 @@ function effectMatchesTileResourceDiscount(effect, tile, operation) {
     return false;
   }
 
-  return !effect.targetCategories || effect.targetCategories.includes(tile.tile_category);
+  return (
+    !effect.targetCategories ||
+    effect.targetCategories.includes(tile.tile_category) ||
+    effect.targetCategories.includes(tile.internal_role_tag)
+  );
 }
 
 function getPendingTileResourceDiscountEffect(state, tile, operation) {
@@ -398,14 +410,191 @@ function getTileUpgradeResourceDiscount(state, action, tile, cost) {
   );
 }
 
-function getUpgradeCostReduction(state, action, tile, cost) {
+function getPassiveUpgradeCostReduction(tile) {
+  const adjacentMatch = REDUCE_ADJACENT_CORE_UPGRADE_COST.exec(String(tile?.benefit ?? "").trim());
+  const reachableMatch = REDUCE_REACHABLE_CORE_UPGRADE_COST.exec(String(tile?.benefit ?? "").trim());
+
+  if (adjacentMatch) {
+    return {
+      type: "reduce_adjacent_core_upgrade_cost",
+      range: "adjacent",
+      amount: Number(adjacentMatch[1])
+    };
+  }
+
+  if (reachableMatch) {
+    return {
+      type: "reduce_reachable_core_upgrade_cost",
+      range: "reachable",
+      amount: Number(reachableMatch[1])
+    };
+  }
+
+  return null;
+}
+
+function getAutoSelectedReductionResources(cost, amount) {
+  const selected = [];
+
+  for (const { resource, amount: costAmount } of cost) {
+    for (let index = 0; index < costAmount && selected.length < amount; index += 1) {
+      selected.push(resource);
+    }
+  }
+
+  return selected;
+}
+
+function reduceCostBySelectedResources(cost, selectedResources, providerName, targetName, amountLabel) {
+  const reduction = summarizeResourceAmounts(selectedResources.map((resource) => ({ resource, amount: 1 })));
+  const errors = [];
+
+  for (const entry of reduction) {
+    const costEntry = cost.find((candidate) => candidate.resource === entry.resource);
+
+    if (!costEntry) {
+      errors.push(`${providerName} can only reduce resources in ${targetName}'s upgrade cost.`);
+    } else if (entry.amount > costEntry.amount) {
+      errors.push(
+        `${providerName} cannot reduce ${entry.resource} by ${entry.amount}; ${targetName} only costs ${costEntry.amount}.`
+      );
+    }
+  }
+
+  if (errors.length > 0) {
+    return {
+      cost,
+      reduction,
+      amountReduced: 0,
+      errors
+    };
+  }
+
+  const reducedCost = cost
+    .map((entry) => {
+      const reductionEntry = reduction.find((candidate) => candidate.resource === entry.resource);
+
+      return reductionEntry
+        ? {
+            ...entry,
+            amount: entry.amount - reductionEntry.amount
+          }
+        : entry;
+    })
+    .filter((entry) => entry.amount > 0);
+
+  return {
+    cost: reducedCost,
+    reduction,
+    amountReduced: selectedResources.length,
+    amountLabel,
+    errors: []
+  };
+}
+
+function getPassiveCoreUpgradeCostReduction(state, action, placedTile, tile, cost, tileIndex) {
+  if (tile?.tile_source_type !== "Core" || cost.length === 0) {
+    return {
+      reduction: null,
+      cost,
+      errors: []
+    };
+  }
+
+  const adjacentPlacedTileIds = new Set(getAdjacentPlacedTiles(state, getPlacedTileCoordinates(placedTile)).map((candidate) => candidate.id));
+  const providers = sortPlacedTilesById(state.map.placedTiles)
+    .filter((provider) => provider.id !== placedTile.id)
+    .filter((provider) => !isOverstrainedPlacedTile(provider))
+    .filter((provider) => !(provider.upgradeDiscountRounds ?? []).includes(state.round))
+    .map((provider) => ({
+      placedTile: provider,
+      tile: tileIndex.get(provider.tileId),
+      details: getPassiveUpgradeCostReduction(tileIndex.get(provider.tileId))
+    }))
+    .filter((provider) => provider.details)
+    .filter(
+      (provider) =>
+        provider.details.range === "reachable" ||
+        (provider.details.range === "adjacent" && adjacentPlacedTileIds.has(provider.placedTile.id))
+    )
+    .sort((left, right) => right.details.amount - left.details.amount);
+
+  const provider = providers[0] ?? null;
+  if (!provider) {
+    return {
+      reduction: null,
+      cost,
+      errors: []
+    };
+  }
+
+  const maxAmount = Math.min(provider.details.amount, cost.reduce((sum, entry) => sum + entry.amount, 0));
+  const requestedResources = (action.passiveUpgradeCostReductionResources ?? action.upgradeCostReductionResources ?? [])
+    .filter(Boolean);
+  const selectedResources = requestedResources.length
+    ? requestedResources.slice(0, maxAmount)
+    : getAutoSelectedReductionResources(cost, maxAmount);
+
+  if (selectedResources.length === 0 || selectedResources.length > maxAmount) {
+    return {
+      reduction: null,
+      cost,
+      errors: [
+        `${provider.tile?.tile_name ?? provider.placedTile.tileId} can reduce up to ${maxAmount} upgrade cost resource${maxAmount === 1 ? "" : "s"}.`
+      ]
+    };
+  }
+
+  const reduced = reduceCostBySelectedResources(
+    cost,
+    selectedResources,
+    provider.tile?.tile_name ?? provider.placedTile.tileId,
+    tile.tile_name,
+    provider.details.amount
+  );
+
+  if (reduced.errors.length > 0) {
+    return {
+      reduction: null,
+      cost,
+      errors: reduced.errors
+    };
+  }
+
+  return {
+    reduction: {
+      source: "passive",
+      type: provider.details.type,
+      reason: provider.details.range === "adjacent" ? "adjacent_core_upgrade" : "reachable_core_upgrade",
+      providerPlacedTileId: provider.placedTile.id,
+      providerTileId: provider.placedTile.tileId,
+      providerTileName: provider.tile?.tile_name ?? provider.placedTile.tileId,
+      round: state.round,
+      originalCost: cost,
+      cost: reduced.cost,
+      reduction: reduced.reduction,
+      selectedResources,
+      amountReduced: reduced.amountReduced
+    },
+    cost: reduced.cost,
+    errors: []
+  };
+}
+
+function getUpgradeCostReduction(state, action, placedTile, tile, cost, tileIndex) {
   const coreReduction = getCoreUpgradeCostReduction(state, action, tile, cost);
 
   if (coreReduction.reduction || coreReduction.errors.length > 0) {
     return coreReduction;
   }
 
-  return getTileUpgradeResourceDiscount(state, action, tile, cost);
+  const boonReduction = getTileUpgradeResourceDiscount(state, action, tile, cost);
+
+  if (boonReduction.reduction || boonReduction.errors.length > 0) {
+    return boonReduction;
+  }
+
+  return getPassiveCoreUpgradeCostReduction(state, action, placedTile, tile, cost, tileIndex);
 }
 
 function hasAdjacentHexMatching(state, coordinates, predicate) {
@@ -439,6 +628,10 @@ function getAdjacentPlacedTileDefinitions(state, coordinates, tileIndex) {
     .filter((placedTile) => !isOverstrainedPlacedTile(placedTile))
     .map((placedTile) => tileIndex.get(placedTile.tileId))
     .filter(Boolean);
+}
+
+function definitionMatchesCategory(definition, category) {
+  return definition?.tile_category === category || definition?.internal_role_tag === category;
 }
 
 function getAdjacentPlacedTiles(state, coordinates) {
@@ -497,7 +690,9 @@ function getPendingFreePlacementCostEffect(state, tile) {
       (effect) =>
         effect.type === "free_tile_placement_cost" &&
         (effect.uses ?? 0) < (effect.maxUses ?? 1) &&
-        (!effect.targetCategories || effect.targetCategories.includes(tile.tile_category))
+        (!effect.targetCategories ||
+          effect.targetCategories.includes(tile.tile_category) ||
+          effect.targetCategories.includes(tile.internal_role_tag))
     ) ?? null
   );
 }
@@ -687,8 +882,134 @@ export function markPlacementDiscountRound(placedTile, round) {
   };
 }
 
+export function markUpgradeDiscountRound(placedTile, round) {
+  const upgradeDiscountRounds = placedTile.upgradeDiscountRounds ?? [];
+
+  if (upgradeDiscountRounds.includes(round)) {
+    return placedTile;
+  }
+
+  return {
+    ...placedTile,
+    upgradeDiscountRounds: [...upgradeDiscountRounds, round]
+  };
+}
+
+export function markGoodsSubstitutionRound(placedTile, round) {
+  const goodsSubstitutionRounds = placedTile.goodsSubstitutionRounds ?? [];
+
+  if (goodsSubstitutionRounds.includes(round)) {
+    return placedTile;
+  }
+
+  return {
+    ...placedTile,
+    goodsSubstitutionRounds: [...goodsSubstitutionRounds, round]
+  };
+}
+
+function getGoodsSubstitutionDetails(tile) {
+  const benefit = String(tile?.benefit ?? "").trim();
+
+  if (GOODS_AS_UP_TO_TWO_ONE_TYPE.test(benefit)) {
+    return {
+      type: "goods_as_up_to_two_one_type",
+      maxCovered: 2
+    };
+  }
+
+  if (GOODS_AS_ONE_RESOURCE.test(benefit)) {
+    return {
+      type: "goods_as_one_resource",
+      maxCovered: 1
+    };
+  }
+
+  return null;
+}
+
+function getResourceDeficits(warehouse, cost) {
+  return cost
+    .filter((entry) => entry.resource !== "Goods")
+    .map((entry) => ({
+      ...entry,
+      deficit: Math.max(0, entry.amount - (warehouse.resources[entry.resource] ?? 0))
+    }))
+    .filter((entry) => entry.deficit > 0);
+}
+
+function replaceCostResourceWithGoods(cost, resource, coveredAmount) {
+  const adjustedCost = cost
+    .map((entry) =>
+      entry.resource === resource
+        ? {
+            ...entry,
+            amount: entry.amount - coveredAmount
+          }
+        : entry
+    )
+    .filter((entry) => entry.amount > 0);
+  const existingGoods = adjustedCost.find((entry) => entry.resource === "Goods");
+
+  if (existingGoods) {
+    existingGoods.amount += 1;
+    return adjustedCost;
+  }
+
+  return [...adjustedCost, { amount: 1, resource: "Goods" }];
+}
+
+function getGoodsSubstitution(state, cost, tileIndex) {
+  if (cost.length === 0 || canAffordCost(state.warehouse, cost) || (state.warehouse.resources.Goods ?? 0) <= 0) {
+    return null;
+  }
+
+  const deficits = getResourceDeficits(state.warehouse, cost);
+
+  if (deficits.length === 0) {
+    return null;
+  }
+
+  const providers = sortPlacedTilesById(state.map.placedTiles)
+    .filter((placedTile) => !isOverstrainedPlacedTile(placedTile))
+    .filter((placedTile) => !(placedTile.goodsSubstitutionRounds ?? []).includes(state.round))
+    .map((placedTile) => ({
+      placedTile,
+      tile: tileIndex.get(placedTile.tileId),
+      details: getGoodsSubstitutionDetails(tileIndex.get(placedTile.tileId))
+    }))
+    .filter((provider) => provider.details)
+    .sort((left, right) => right.details.maxCovered - left.details.maxCovered);
+
+  for (const provider of providers) {
+    for (const deficit of deficits) {
+      const coveredAmount = Math.min(provider.details.maxCovered, deficit.deficit, deficit.amount);
+      const nextCost = replaceCostResourceWithGoods(cost, deficit.resource, coveredAmount);
+
+      if (canAffordCost(state.warehouse, nextCost)) {
+        return {
+          source: "passive",
+          type: provider.details.type,
+          reason: "goods_resource_substitution",
+          providerPlacedTileId: provider.placedTile.id,
+          providerTileId: provider.placedTile.tileId,
+          providerTileName: provider.tile?.tile_name ?? provider.placedTile.tileId,
+          round: state.round,
+          originalCost: cost,
+          cost: nextCost,
+          resource: deficit.resource,
+          goodsSpent: 1,
+          amountCovered: coveredAmount
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 function tilePermitsRiverPlacement(tile) {
-  return tile.placement_rules === "Place on a River hex.";
+  return ["Place on a River hex.", "Place on Water terrain."].includes(tile.placement_rules);
 }
 
 function validateTerrainRule(tile, hexes) {
@@ -716,7 +1037,7 @@ function validateTileTerrainPlacement(tile, footprintHexes) {
   }
 
   if (coveredRiverHexes.length === 0 && tilePermitsRiverPlacement(tile)) {
-    errors.push(`${tile.tile_name} must be placed on a River hex.`);
+    errors.push(`${tile.tile_name} must be placed on Water terrain.`);
   }
 
   const terrainError = validateTerrainRule(tile, footprintHexes);
@@ -728,9 +1049,16 @@ function validateTileTerrainPlacement(tile, footprintHexes) {
 }
 
 function validateAdjacencyRule(state, tile, coordinates, tileIndex) {
-  if (tile.placement_rules === "Place adjacent to a River hex.") {
+  if (tile.placement_rules === "Place adjacent to a River hex." || tile.placement_rules === "Place adjacent to Water terrain.") {
     const adjacentToRiver = hasAdjacentHexMatching(state, coordinates, (neighborHex) => isWaterHex(neighborHex));
-    return adjacentToRiver ? null : `${tile.tile_name} must be placed adjacent to a River hex.`;
+    return adjacentToRiver ? null : `${tile.tile_name} must be placed adjacent to Water terrain.`;
+  }
+
+  if (tile.placement_rules === "Place adjacent to any placed, non-Overstrained tile.") {
+    const adjacentDefinitions = getAdjacentPlacedTileDefinitions(state, coordinates, tileIndex);
+    return adjacentDefinitions.length > 0
+      ? null
+      : `${tile.tile_name} must be placed adjacent to a placed, non-Overstrained tile.`;
   }
 
   if (tile.placement_rules === "Place adjacent to Ruins terrain.") {
@@ -745,7 +1073,9 @@ function validateAdjacencyRule(state, tile, coordinates, tileIndex) {
   const requiredCategories = CATEGORY_ADJACENCY_RULES[tile.placement_rules];
   if (requiredCategories) {
     const adjacentDefinitions = getAdjacentPlacedTileDefinitions(state, coordinates, tileIndex);
-    const valid = adjacentDefinitions.some((definition) => requiredCategories.includes(definition.tile_category));
+    const valid = adjacentDefinitions.some((definition) =>
+      requiredCategories.some((category) => definitionMatchesCategory(definition, category))
+    );
     return valid ? null : `${tile.tile_name} must be placed adjacent to ${requiredCategories.join(" or ")}.`;
   }
 
@@ -783,7 +1113,9 @@ export function validatePlaceTile(state, action, context) {
     ? getPlacementCostReduction(state, action, footprintCoordinates, baseCost, tileIndex, tile)
     : { reduction: null, errors: [] };
   const placementCostReduction = placementCostReductionResult.reduction;
-  const cost = placementCostReduction?.cost ?? baseCost;
+  const costBeforeSubstitution = placementCostReduction?.cost ?? baseCost;
+  const resourceCostSubstitution = getGoodsSubstitution(state, costBeforeSubstitution, tileIndex);
+  const cost = resourceCostSubstitution?.cost ?? costBeforeSubstitution;
 
   errors.push(...placementCostReductionResult.errors);
 
@@ -830,6 +1162,7 @@ export function validatePlaceTile(state, action, context) {
     baseCost,
     cost,
     placementCostReduction,
+    resourceCostSubstitution,
     footprintCoordinates,
     hex,
     tile
@@ -983,9 +1316,10 @@ export function validateUpgradeTile(state, action, context) {
   }
 
   const baseCost = cost;
-  const costReduction = getUpgradeCostReduction(state, action, tile, baseCost);
+  const costReduction = getUpgradeCostReduction(state, action, placedTile, tile, baseCost, tileIndex);
   errors.push(...costReduction.errors);
-  cost = costReduction.cost;
+  const resourceCostSubstitution = getGoodsSubstitution(state, costReduction.cost, tileIndex);
+  cost = resourceCostSubstitution?.cost ?? costReduction.cost;
 
   if (cost.length > 0 && !canAffordCost(state.warehouse, cost)) {
     errors.push(`${upgradeTile.tile_name} upgrade costs ${describeCost(cost)}.`);
@@ -999,6 +1333,7 @@ export function validateUpgradeTile(state, action, context) {
     upgradeTile,
     baseCost,
     upgradeCostReduction: costReduction.reduction,
+    resourceCostSubstitution,
     cost
   };
 }

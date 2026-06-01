@@ -20,7 +20,7 @@ const ADD_ONE_ARRIVAL_TIMER =
 const ADD_UP_TO_ARRIVAL_TIMERS =
   /^Activated Effect:\s*Add up to (\d+) timer tokens to one active Arrival, up to the normal maximum of 3 timer tokens\.$/i;
 const FIXED_RESOURCE_EXCHANGE =
-  /^Activated Effect:\s*Exchange (\d+) resources in the Warehouse for (\d+) ([A-Za-z]+)\.$/i;
+  /^Activated Effect:\s*Exchange (\d+) resources? in the Warehouse for (\d+) ([A-Za-z]+)\.$/i;
 const FLEXIBLE_RESOURCE_EXCHANGE =
   /^Activated Effect:\s*Exchange up to (\d+) total resources in the Warehouse for the same number of non-Goods resources in any mix\.$/i;
 const RESOLVE_ONE_ACTIVE_BURDEN = /^Activated Effect:\s*Resolve 1 active Burden\.$/i;

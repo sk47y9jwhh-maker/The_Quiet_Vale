@@ -1,9 +1,9 @@
 [
   {
     "Field": "Approved Map",
-    "Value": "Option 01 — Balanced v0.4 Single Forking River",
+    "Value": "Redesigned Basic Map v0.1",
     "Status": "Approved",
-    "Notes": "Promote to Codex Default Map v0.1"
+    "Notes": "Default locked v2.0 map"
   },
   {
     "Field": "Approval Date",
@@ -19,13 +19,13 @@
   },
   {
     "Field": "Rows",
-    "Value": "A–I",
+    "Value": "1–9",
     "Status": "Locked",
     "Notes": "9 rows"
   },
   {
     "Field": "Columns",
-    "Value": "1–14",
+    "Value": "A–N",
     "Status": "Locked",
     "Notes": "14 columns"
   },
@@ -43,33 +43,33 @@
   },
   {
     "Field": "Water Hexes",
-    "Value": 15,
+    "Value": 21,
     "Status": "Pass",
     "Notes": "All Water hexes are part of the river system"
   },
   {
-    "Field": "Bridge Candidates",
-    "Value": "C7, H5, H9",
+    "Field": "Potential Bridge Sites",
+    "Value": "Every Water/River hex",
     "Status": "Pass",
-    "Notes": "All are Water hexes"
+    "Notes": "Bridge Candidate markers are optional review notes only"
   },
   {
     "Field": "River Fork",
-    "Value": "F7",
-    "Status": "Pass",
-    "Notes": "Feature = River Fork"
+    "Value": "N/A",
+    "Status": "Reference",
+    "Notes": "No fixed River Fork marker is required by v2.0 map data"
   },
   {
     "Field": "Ruins Placement",
-    "Value": "Near river fork, both sides",
+    "Value": "Seven Ruins hexes",
     "Status": "Pass",
-    "Notes": "Ruins at E5, E6, E8, F5, F9, G9"
+    "Notes": "Ruins at F4, F5, G5, I9, J9, M9, N9"
   },
   {
     "Field": "Arable Land Placement",
-    "Value": "Top and bottom of river",
+    "Value": "Six Arable Land hexes",
     "Status": "Pass",
-    "Notes": "Arable at A5, A6, B6 and H7, I6, I7"
+    "Notes": "Arable Land at L1, M1, N1, A6, B6, A7"
   },
   {
     "Field": "Edge Terrain Placement",

@@ -25,10 +25,11 @@ export const STANDARD_RULES = Object.freeze({
   hiddenCardsPerPlayer: 10,
   standardDeckCardsPerPlayer: 5,
   goldenBoonsPerGame: 1,
+  councilVariantStartingWarehouseResources: 0,
   arrivalStartTimerTokens: 3,
   arrivalTimerMax: 3,
-  activeBurdenPenaltyRenown: 1,
-  strainPenaltyRenown: 1,
+  activeBurdenPenaltyRenown: 10,
+  strainPenaltyRenown: 2,
   standardPoolPerPlayer: Object.freeze({
     [ENCOUNTER_TYPES.BOON]: 5,
     [ENCOUNTER_TYPES.BURDEN]: 5,
@@ -41,7 +42,7 @@ export const STANDARD_RULES = Object.freeze({
     3: 5,
     4: 0
   }),
-  resources: Object.freeze(["Food", "Wood", "Stone", "Goods", "Metal", "Herbs"])
+  resources: Object.freeze(["Wood", "Stone", "Metal", "Food", "Herbs", "Goods"])
 });
 
 export function getSeasonForRound(round) {
@@ -165,8 +166,9 @@ function createPlayers(playerCount, standardPool) {
   });
 }
 
-function getStartingWarehouseResourceCount(playerCount) {
-  return STANDARD_RULES.startingWarehouseResourcesByPlayerCount[playerCount] ?? 0;
+export function getStartingWarehouseResourceCount(playerCount) {
+  return STANDARD_RULES.startingWarehouseResourcesByPlayerCount[playerCount] ??
+    STANDARD_RULES.councilVariantStartingWarehouseResources;
 }
 
 function createWarehouse(playerCount) {

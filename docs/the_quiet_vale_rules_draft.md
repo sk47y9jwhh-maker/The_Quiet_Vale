@@ -12,8 +12,7 @@ This draft uses the repository as source of truth, especially:
 - `src/data/rules_config.json`
 - `src/data/tiles.json`
 - `src/data/encounter_cards.json`
-- `src/data/codex_default_map_v0_1.json`
-- `src/data/map_approval.json`
+- `src/data/redesigned_basic_map_v0_1.json`
 - `docs/prototype_rules_coverage_notes.md`
 
 The implementation prompt names a production rulebook docx as the highest source, but that exact file is not present in the current repository checkout. Treat this document as a repo-derived production draft, suitable for editing into finished rulebook copy.
@@ -28,11 +27,11 @@ The players guide a settlement through three Seasons. Over 15 rounds, players se
 
 | Component | Quantity | Notes |
 | --- | --- | --- |
-| Map board / coordinate map | 1 | 126 flat-top hexes; terrain counts: Arable Land: 6, Grasslands: 81, Heaths: 6, Mountains: 6, Ruins: 6, Water: 15, Woodland: 6 |
+| Map board / coordinate map | 1 | Redesigned Basic Map v0.1; 126 flat-top hexes; terrain counts: Arable Land: 6, Grasslands: 74, Heaths: 6, Mountains: 6, Ruins: 7, Water/River: 21, Woodland: 6 |
 | Core tile pieces | 58 | Double-sided pieces: Basic face paired with Upgraded face. |
 | Special tile pieces | 25 | One-sided tiles unlocked by Arrivals. |
 | Encounter Cards | 80 | Arrival: 25, Boon: 25, Burden: 25, Golden Boon: 5 |
-| Warehouse resources | TBD production quantity | Food, Wood, Stone, Goods, Metal, Herbs; prototype cap is 15 per resource. |
+| Warehouse resources | TBD production quantity | Wood, Stone, Metal, Food, Herbs, Goods; prototype cap is 15 per resource. |
 | Strain tokens | TBD production quantity | 3 Strain overstrains a tile; final token count not specified in JSON. |
 | Arrival timer tokens | TBD production quantity | Arrivals start with 3; maximum 3. |
 | Steward/player markers | TBD production quantity | Prototype uses last-interaction marker as the local stand-in for Steward Tokens. |
@@ -43,10 +42,10 @@ Full tile and card component tables are in `docs/the_quiet_vale_component_list_t
 ## Standard Setup
 
 1. Choose 1-4 players.
-2. Use the approved Codex Default Map v0.1.
+2. Use Redesigned Basic Map v0.1 as the default locked map.
 3. Place all directly placeable Core Basic tiles in the tile supply. Upgraded faces are not placed directly; they are used when tiles are upgraded.
 4. Keep Special Tiles locked until their matching Arrival is completed.
-5. Stock the shared Warehouse based on player count: 1 player starts with 15 of each resource, 2 players with 10 of each, 3 players with 5 of each, and 4 players with 0 of each.
+5. Stock the shared Warehouse based on player count: 1 player starts with 15 of each resource, 2 players with 10 of each, 3 players with 5 of each, and 4 players with 0 of each. The 5+ Council Variant reference value is also 0 of each resource, but the prototype does not implement Council Variant.
 6. Build a balanced standard Encounter pool with 5 Boons, 5 Burdens, and 5 Arrivals per player.
 7. Shuffle the standard pool.
 8. Deal 10 hidden Encounter Cards to each player.
@@ -115,24 +114,25 @@ If a player ends their turn with unspent Actions, those Actions are not carried 
 
 ## Map, Terrain, And River
 
-Use the approved flat-top hex map only.
+Use Redesigned Basic Map v0.1 as the default locked flat-top hex map.
 
 Map facts from JSON:
 
 - Hexes: 126.
-- Terrain counts: Arable Land: 6, Grasslands: 81, Heaths: 6, Mountains: 6, Ruins: 6, Water: 15, Woodland: 6.
-- Water/River hexes: A7, B7, C7, D7, E7, F6, F7, F8, G5, G8, H4, H5, H9, I4, I9.
-- Bridge candidate hexes: C7, H5, H9.
-- River-adjacent land hexes: 27 sites.
+- Coordinate convention: columns A-N left to right, rows 1-9 top to bottom.
+- Terrain counts: Arable Land: 6, Grasslands: 74, Heaths: 6, Mountains: 6, Ruins: 7, Water/River: 21, Woodland: 6.
+- Water/River hexes: D1, D2, E3, F3, E4, G4, H4, E5, I5, J5, E6, K6, E7, K7, L7, E8, F8, M8, N8, G9, H9.
+- Every Water/River hex is a legal potential Bridge placement site.
+- Bridge Candidate markers are optional review/test annotations only, not placement restrictions.
 
 Map rules:
 
 - Use flat-top hex adjacency only.
-- No tile may be placed on a River/Water hex unless the tile explicitly permits River placement.
-- Bridge is the normal tile placed on a River hex and is a Travel Tile.
+- No tile may be placed on a River/Water hex unless the tile explicitly permits Water/River placement.
+- Bridge is the normal tile placed on a Water/River hex and is a Travel Tile.
 - Placed, non-Overstrained tiles adjacent to a Bridge connect through that Bridge, including across the river.
 - An Overstrained Bridge loses Travel connectivity.
-- Docks and Washhouse/Bathhouse-style tiles are placed adjacent to a River hex unless their tile text says otherwise.
+- Docks and Washhouse/Bathhouse-style tiles follow their printed Water terrain placement text.
 - Crossing the river without a Bridge connection costs 1 Action.
 
 ## Tile Placement
@@ -190,7 +190,7 @@ Activation effects currently represented in the source include production, Strai
 
 ## Warehouse And Resources
 
-The shared Warehouse stores: Food, Wood, Stone, Goods, Metal, Herbs.
+The shared Warehouse stores: Wood, Stone, Metal, Food, Herbs, Goods.
 
 The prototype uses a cap of 15 per resource unless a rule explicitly changes that cap. Costs are paid from the shared Warehouse. Gains cannot exceed the cap.
 
@@ -315,8 +315,8 @@ At game end:
 
 1. Add Population from non-Overstrained placed tiles.
 2. Add Renown from non-Overstrained placed tiles.
-3. Subtract 1 Renown for each unresolved active Burden.
-4. Subtract 1 Renown for each Strain token on the board.
+3. Subtract 10 Renown for each unresolved active Burden.
+4. Subtract 2 Renown for each Strain token on the board.
 
 Final score = Population + Renown - active Burden penalties - Strain penalties.
 

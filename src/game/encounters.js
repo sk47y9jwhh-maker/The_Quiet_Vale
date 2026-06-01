@@ -42,6 +42,8 @@ const TILE_PLACED_OR_UPGRADED_RESOURCE_DISCOUNT =
   /^The next (?:(two) tiles?|tile) placed or upgraded this round (?:each )?costs? (\d+) fewer resources?(?: of your choice| total)?\.$/i;
 const FREE_NEXT_TILE_PLACEMENT =
   /^The next (?:(.+?) Tile|tile) placed this round costs 0 Resources\.?$/i;
+const TILE_PLACEMENT_ACTION_DISCOUNT =
+  /^The next (?:(.+?) Tile|tile) placed this round (?:costs 0 Actions|may be placed by spending 0 Actions\. Pay costs and follow all normal placement requirements)\.?$/i;
 const TRAVEL_TILE_ACTION_DISCOUNT =
   /^The next (?:(two) )?Travel Tiles? placed( or upgraded)? this round costs? 0 Actions?\.$/i;
 const REMOVE_STRAIN_FROM_SUPPORTED_TILE =
@@ -60,7 +62,7 @@ const GOLDEN_EYED_TRAVELER_EXTRA_TURNS =
 const GOLDEN_SCROLL_HAND_REFRESH =
   /^When revealed, each player may discard any number of standard Encounter Cards from their own hand\. For each card discarded this way, that player draws 1 random standard Encounter Card from the game box into their hand\. Golden Boons may not be drawn this way\. If there are not enough standard Encounter Cards in the box, draw as many as possible\. Then discard this card\.$/i;
 const GOLDEN_SIGNET_RING_RELOCATE_TILES =
-  /^When revealed, choose up to 5 placed tiles\. Remove those chosen tiles, then place each chosen tile into a legal empty map space\. Chosen tiles may be placed into spaces vacated by other chosen tiles\. Ignore adjacency and reachability restrictions for these placements, but terrain restrictions still apply\. If moving a multi-hex tile, every covered hex in the new position must be empty and legal\. Chosen tiles keep Strain, Supported, upgrade state, and any tokens\. Recalculate Travel Networks and Overstrained effects immediately\. Then discard this card\.$/i;
+  /^When revealed, choose up to 5 placed tiles\. Remove those chosen tiles, then place each chosen tile into a legal empty map space\. Chosen tiles may be placed into spaces vacated by other chosen tiles\. Ignore adjacency and reachability restrictions for these placements, but terrain restrictions still apply\. If moving a multi-hex tile, every covered hex in the new position must be empty and legal\. Chosen tiles keep Strain, Supported, upgrade state, and any tokens\. Recalculate (?:Travel Networks|connected settlement networks) and Overstrained effects immediately\. Then discard this card\.$/i;
 const GOLDEN_VIAL_DISCONNECTED_TRAVEL =
   /^When revealed, this effect remains for the rest of the game: once per round, during any player's turn, that player may take the Travel to a Disconnected Tile action without spending an Action\. All normal destination and placement rules still apply\. Then discard this card\.$/i;
 const RESOURCE_BURDEN_STRAIN_PLACEMENT =
@@ -103,6 +105,7 @@ const BOON_EFFECT_TEMPLATES = Object.freeze([
   ["category_place_or_upgrade_resource_discount", CATEGORY_PLACED_OR_UPGRADED_RESOURCE_DISCOUNT],
   ["tile_place_or_upgrade_resource_discount", TILE_PLACED_OR_UPGRADED_RESOURCE_DISCOUNT],
   ["free_tile_placement_cost", FREE_NEXT_TILE_PLACEMENT],
+  ["tile_placement_action_discount", TILE_PLACEMENT_ACTION_DISCOUNT],
   ["travel_tile_action_discount", TRAVEL_TILE_ACTION_DISCOUNT],
   ["choice_resource_production_bonus", CHOICE_RESOURCE_PRODUCTION_BONUS],
   ["next_resource_production_bonus", NEXT_RESOURCE_PRODUCTION_BONUS],
@@ -230,6 +233,7 @@ export function createBoonRoundEffect(state, card, index = 0) {
     String(effectText ?? "").trim()
   );
   const freeNextPlacementMatch = FREE_NEXT_TILE_PLACEMENT.exec(String(effectText ?? "").trim());
+  const tilePlacementActionDiscountMatch = TILE_PLACEMENT_ACTION_DISCOUNT.exec(String(effectText ?? "").trim());
   const travelTileActionDiscountMatch = TRAVEL_TILE_ACTION_DISCOUNT.exec(String(effectText ?? "").trim());
   const choiceMatch = CHOICE_RESOURCE_PRODUCTION_BONUS.exec(String(effectText ?? "").trim());
   const nextMatch = NEXT_RESOURCE_PRODUCTION_BONUS.exec(String(effectText ?? "").trim());
@@ -395,6 +399,25 @@ export function createBoonRoundEffect(state, card, index = 0) {
       season: state.season,
       effectText,
       targetCategories: freeNextPlacementMatch[1]?.split(/\s+or\s+/i) ?? null,
+      maxUses: 1,
+      uses: 0,
+      expiresAtEndOfRound: true,
+      discardOnReveal: true
+    };
+  }
+
+  if (tilePlacementActionDiscountMatch) {
+    return {
+      id: `round-effect-${card.card_id}-${state.round}-${index + 1}`,
+      source: "boon",
+      type: "tile_action_discount",
+      cardId: card.card_id,
+      cardName: card.card_name,
+      round: state.round,
+      season: state.season,
+      effectText,
+      targetCategories: tilePlacementActionDiscountMatch[1]?.split(/\s+or\s+/i) ?? null,
+      appliesTo: ["placement"],
       maxUses: 1,
       uses: 0,
       expiresAtEndOfRound: true,

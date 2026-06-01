@@ -123,7 +123,7 @@ test("final scoring subtracts active Burden and Strain penalties", () => {
   assert.equal(score.renown, 10);
   assert.equal(score.activeBurdenCount, 1);
   assert.equal(score.strainTokens, 5);
-  assert.equal(score.activeBurdenPenalty, 1);
-  assert.equal(score.strainPenalty, 5);
-  assert.equal(score.total, 4);
+  assert.equal(score.activeBurdenPenalty, 10);
+  assert.equal(score.strainPenalty, 10);
+  assert.equal(score.total, -10);
 });
