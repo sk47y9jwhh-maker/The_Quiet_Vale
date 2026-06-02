@@ -178,3 +178,43 @@ test("redesigned basic map v0.1 treats every River hex as a legal Bridge site", 
     assert.equal(validation.valid, true, `${coordinate}: ${validation.errors.join(", ")}`);
   }
 });
+
+test("redesigned basic map v0.1 allows Dig Site on every Ruins hex", () => {
+  const state = createInitialGameState({
+    playerCount: 1,
+    seed: "redesigned-map-dig-site",
+    encounterCards,
+    tiles,
+    mapHexes: redesignedMapHexes
+  });
+  const ruinsCoordinates = redesignedMapHexes
+    .filter((hex) => hex.Terrain === "Ruins")
+    .map((hex) => hex.Coordinate);
+
+  assert.deepEqual(ruinsCoordinates, ["F4", "F5", "G5", "I9", "J9", "M9", "N9"]);
+
+  for (const coordinate of ruinsCoordinates) {
+    const validation = validatePlaceTile(
+      state,
+      {
+        tileId: "core_dig_site_basic",
+        coordinate
+      },
+      { tiles }
+    );
+
+    assert.equal(validation.valid, true, `${coordinate}: ${validation.errors.join(", ")}`);
+  }
+
+  const nonRuinsValidation = validatePlaceTile(
+    state,
+    {
+      tileId: "core_dig_site_basic",
+      coordinate: "F6"
+    },
+    { tiles }
+  );
+
+  assert.equal(nonRuinsValidation.valid, false);
+  assert.match(nonRuinsValidation.errors.join(" "), /Ruins/);
+});

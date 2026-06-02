@@ -1,9 +1,10 @@
 import { getActivationDetails, getAdjacentPlacedTiles } from "./activation.js";
-import { getBurdenResolutionCost } from "./encounters.js";
+import { SEED_PACKET_POSITIONS, getBurdenResolutionCost, getEncounterSeasonEffect } from "./encounters.js";
 import { HEX_DIRECTIONS, createMapIndex, getNeighborCoordinates, isWaterHex } from "./map.js";
 import { dispatchGameAction } from "./reducer.js";
 import { calculateScore } from "./scoring.js";
 import { ENCOUNTER_TYPES, GAME_PHASES, createInitialGameState } from "./setup.js";
+import { getPendingOpeningResourcePlacement } from "./stewards.js";
 import {
   TILE_ACTION_TYPES,
   canAffordCost,
@@ -41,6 +42,18 @@ export const SIMULATION_BOT_PROFILES = Object.freeze({
     strainRemovalThreshold: 1,
     choicePressure: "pay_if_affordable",
     priorities: ["resolve_burden", "remove_strain", "complete_arrival", "produce", "place", "upgrade"]
+  }),
+  score: Object.freeze({
+    id: "score",
+    label: "Score Bot",
+    burdenCostLimit: 99,
+    strainRemovalThreshold: 1,
+    choicePressure: "pay_if_affordable",
+    optimizeForScore: true,
+    maxPlacementCandidates: 12,
+    maxPlacementsPerTile: 1,
+    maxUpgradeCandidates: 10,
+    priorities: ["complete_arrival", "resolve_burden", "upgrade", "place", "remove_strain", "utility", "produce"]
   })
 });
 
@@ -96,7 +109,28 @@ export const SIMULATION_ROUND_FIELDS = Object.freeze([
 const TILE_CATEGORY_PRIORITY = Object.freeze({
   builder: Object.freeze(["Resource", "Housing", "Travel", "Wellbeing", "Social", "Crafting", "Merchant"]),
   balanced: Object.freeze(["Resource", "Wellbeing", "Social", "Housing", "Travel", "Crafting", "Merchant"]),
-  careful: Object.freeze(["Wellbeing", "Social", "Resource", "Housing", "Travel", "Crafting", "Merchant"])
+  careful: Object.freeze(["Wellbeing", "Social", "Resource", "Housing", "Travel", "Crafting", "Merchant"]),
+  score: Object.freeze(["Housing", "Merchant", "Social", "Crafting", "Wellbeing", "Travel", "Resource"])
+});
+
+const SCORE_RESOURCE_WEIGHTS = Object.freeze({
+  Goods: 0.35,
+  Food: 0.2,
+  Metal: 0.18,
+  Stone: 0.16,
+  Wood: 0.14,
+  Herbs: 0.14
+});
+
+const SCORE_BOT_WEIGHTS = Object.freeze({
+  population: 2.2,
+  renown: 0.55,
+  burdenResolution: 9000,
+  arrivalCompletion: 1600,
+  strainRemoval: 1100,
+  arrivalTimer: 275,
+  resourceEngine: 340,
+  resourceProduction: 520
 });
 
 function numberValue(value) {
@@ -115,6 +149,41 @@ function summarizePayment(payment = []) {
   }
 
   return [...totals.entries()].map(([resource, amount]) => ({ resource, amount }));
+}
+
+function getResourcePaymentOrder(state, excludedResources = []) {
+  const excluded = new Set(excludedResources);
+
+  return [...state.rules.resources]
+    .filter((resource) => !excluded.has(resource))
+    .sort((left, right) => {
+      const amountDifference = numberValue(state.warehouse.resources[right]) - numberValue(state.warehouse.resources[left]);
+
+      if (amountDifference !== 0) {
+        return amountDifference;
+      }
+
+      return (SCORE_RESOURCE_WEIGHTS[left] ?? 0.1) - (SCORE_RESOURCE_WEIGHTS[right] ?? 0.1);
+    });
+}
+
+function getResourceGainOrder(state, excludedResources = []) {
+  const excluded = new Set(excludedResources);
+
+  return [...state.rules.resources]
+    .filter((resource) => !excluded.has(resource))
+    .sort((left, right) => {
+      const weightDifference = (SCORE_RESOURCE_WEIGHTS[right] ?? 0.1) - (SCORE_RESOURCE_WEIGHTS[left] ?? 0.1);
+
+      if (weightDifference !== 0) {
+        return weightDifference;
+      }
+
+      const leftSpace = state.warehouse.cap - numberValue(state.warehouse.resources[left]);
+      const rightSpace = state.warehouse.cap - numberValue(state.warehouse.resources[right]);
+
+      return rightSpace - leftSpace;
+    });
 }
 
 function createSimulationAccumulator(gameId, randomSeed, playerCount, profileId) {
@@ -306,10 +375,239 @@ function getEncounterIndex(encounterCards) {
   return new Map(encounterCards.map((card) => [card.card_id, card]));
 }
 
+function parseSeedResourceCost(text, resources) {
+  const requirementText = String(text ?? "").split(/\bwithin\b/i)[0].trim();
+  const housingMatch = /^Have at least \d+ Housing Tiles? and pay (.+)$/i.exec(requirementText);
+  const resourceText = housingMatch ? housingMatch[1] : requirementText;
+
+  try {
+    return parseResourceCost(resourceText).filter((entry) => resources.includes(entry.resource));
+  } catch {
+    return [];
+  }
+}
+
+function countMissingResources(warehouse, cost) {
+  return cost.reduce(
+    (total, entry) => total + Math.max(0, numberValue(entry.amount) - numberValue(warehouse.resources[entry.resource])),
+    0
+  );
+}
+
+function getBoonSeedValue(card, state) {
+  const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "");
+  let value = 55;
+
+  if (/0 Actions|0 Resources|fewer resources?|discount|reduce/i.test(effectText)) {
+    value += 18;
+  }
+
+  if (/Remove .*Strain|Supported/i.test(effectText)) {
+    value += 14 + countBoardPressure(state).strainTokens;
+  }
+
+  if (/Production|gain \d+/i.test(effectText)) {
+    value += 8;
+  }
+
+  return value;
+}
+
+function getArrivalSeedValue(card, state) {
+  const cost = parseSeedResourceCost(card.requirement, state.rules.resources);
+  const missing = countMissingResources(state.warehouse, cost);
+  const rewardValue = /x\s*2/i.test(String(card.reward ?? "")) ? 12 : 8;
+
+  return 42 + rewardValue - missing * 4 - sumCost(cost) / 2;
+}
+
+function getBurdenSeedValue(card, state) {
+  const resolution = getBurdenResolutionCost(card, state.season);
+  const pressure = countBoardPressure(state);
+  const cost = resolution.supported ? sumCost(resolution.cost) + numberValue(resolution.amount) : 12;
+  const affordable = resolution.supported && resolution.requiresPaymentChoice
+    ? Boolean(choosePaymentResources(state.warehouse, resolution.amount, resolution.allowedResources ?? state.rules.resources))
+    : canAffordCost(state.warehouse, resolution.cost ?? []);
+
+  return -70 - pressure.strainTokens * 3 - pressure.overstrained * 20 + (affordable ? 16 : -12) - cost * 3;
+}
+
+function getSeedCardValue(card, state) {
+  if (card?.encounter_type === ENCOUNTER_TYPES.BOON) {
+    return getBoonSeedValue(card, state);
+  }
+
+  if (card?.encounter_type === ENCOUNTER_TYPES.ARRIVAL) {
+    return getArrivalSeedValue(card, state);
+  }
+
+  if (card?.encounter_type === ENCOUNTER_TYPES.BURDEN) {
+    return getBurdenSeedValue(card, state);
+  }
+
+  return 0;
+}
+
+function buildScoreSeedAction(state, profile, context) {
+  if (!profile.optimizeForScore) {
+    return {
+      type: TILE_ACTION_TYPES.SEED_ENCOUNTERS
+    };
+  }
+
+  const encounterIndex = getEncounterIndex(context.encounterCards ?? []);
+  const selectedValues = [];
+  const seedSelections = Object.fromEntries(
+    state.players
+      .filter((player) => player.hand.length > 0)
+      .map((player) => {
+        const best = player.hand
+          .map((cardId) => {
+            const card = encounterIndex.get(cardId);
+
+            return {
+              cardId,
+              value: getSeedCardValue(card, state)
+            };
+          })
+          .sort((left, right) => right.value - left.value || left.cardId.localeCompare(right.cardId))[0];
+
+        selectedValues.push(best.value);
+        return [player.id, best.cardId];
+      })
+  );
+  const averageValue = selectedValues.length
+    ? selectedValues.reduce((total, value) => total + value, 0) / selectedValues.length
+    : 0;
+  const seedPosition =
+    averageValue >= 35
+      ? SEED_PACKET_POSITIONS.TOP
+      : averageValue >= 0
+        ? SEED_PACKET_POSITIONS.UPPER_THIRD
+        : averageValue >= -45
+          ? SEED_PACKET_POSITIONS.LOWER_THIRD
+          : SEED_PACKET_POSITIONS.BOTTOM;
+
+  return {
+    type: TILE_ACTION_TYPES.SEED_ENCOUNTERS,
+    seedSelections,
+    seedPosition
+  };
+}
+
 function getTilePriority(profileId, tile) {
   const order = TILE_CATEGORY_PRIORITY[profileId] ?? TILE_CATEGORY_PRIORITY.balanced;
   const categoryIndex = order.indexOf(tile?.tile_category);
   return categoryIndex === -1 ? order.length : categoryIndex;
+}
+
+function getScoreBotTileValue(tile) {
+  return numberValue(tile?.population) * SCORE_BOT_WEIGHTS.population +
+    numberValue(tile?.renown) * SCORE_BOT_WEIGHTS.renown;
+}
+
+function compareTilesForProfile(profile, left, right) {
+  if (profile.optimizeForScore) {
+    const scoreDifference = getScoreBotTileValue(right) - getScoreBotTileValue(left);
+
+    if (scoreDifference !== 0) {
+      return scoreDifference;
+    }
+  }
+
+  const priorityDifference = getTilePriority(profile.id, left) - getTilePriority(profile.id, right);
+
+  if (priorityDifference !== 0) {
+    return priorityDifference;
+  }
+
+  const leftCost = sumCost(parseResourceCost(left?.place_cost ?? left?.upgrade_cost));
+  const rightCost = sumCost(parseResourceCost(right?.place_cost ?? right?.upgrade_cost));
+
+  return leftCost - rightCost || String(left?.tile_name ?? "").localeCompare(String(right?.tile_name ?? ""));
+}
+
+function addResourceNeed(needs, resource, amount) {
+  if (!resource || amount <= 0) {
+    return;
+  }
+
+  needs.set(resource, (needs.get(resource) ?? SCORE_RESOURCE_WEIGHTS[resource] ?? 0.1) + amount);
+}
+
+function getScoreBotResourceNeeds(state, context) {
+  const needs = new Map(state.rules.resources.map((resource) => [resource, SCORE_RESOURCE_WEIGHTS[resource] ?? 0.1]));
+  const encounterIndex = getEncounterIndex(context.encounterCards ?? []);
+  const activeBurdens = state.encounter.active.filter(
+    (active) => active.encounterType === ENCOUNTER_TYPES.BURDEN && !active.resolved
+  );
+
+  for (const activeBurden of activeBurdens) {
+    const card = encounterIndex.get(activeBurden.cardId);
+    const resolution = getBurdenResolutionCost(card, state.season);
+
+    if (!resolution.supported) {
+      continue;
+    }
+
+    if (resolution.requiresPaymentChoice) {
+      const allowedResources = resolution.allowedResources ?? state.rules.resources;
+      const needPerResource = numberValue(resolution.amount) / Math.max(1, allowedResources.length);
+
+      for (const resource of allowedResources) {
+        addResourceNeed(needs, resource, needPerResource * 2.5);
+      }
+      continue;
+    }
+
+    for (const costEntry of resolution.cost ?? []) {
+      const available = numberValue(state.warehouse.resources[costEntry.resource]);
+      const missing = Math.max(0, numberValue(costEntry.amount) - available);
+
+      addResourceNeed(needs, costEntry.resource, Math.max(missing, numberValue(costEntry.amount) * 0.75) * 3);
+    }
+  }
+
+  const populationTileGoals = getAvailablePlacementTiles(state, context)
+    .filter((tile) => numberValue(tile.population) > 0)
+    .sort((left, right) => getScoreBotTileValue(right) - getScoreBotTileValue(left))
+    .slice(0, 8);
+
+  for (const tile of populationTileGoals) {
+    const populationValue = numberValue(tile.population) / 10;
+
+    for (const costEntry of parseResourceCost(tile.place_cost)) {
+      const available = numberValue(state.warehouse.resources[costEntry.resource]);
+      const missing = Math.max(0, numberValue(costEntry.amount) - available);
+
+      addResourceNeed(needs, costEntry.resource, (missing + numberValue(costEntry.amount) * 0.15) * populationValue);
+    }
+  }
+
+  return needs;
+}
+
+function getResourceNeedValue(context, resource) {
+  return context.scoreResourceNeeds?.get(resource) ?? SCORE_RESOURCE_WEIGHTS[resource] ?? 0.1;
+}
+
+function getProductionPotentialValue(tile, context, multiplier = SCORE_BOT_WEIGHTS.resourceEngine) {
+  let activation = null;
+
+  try {
+    activation = getActivationDetails(tile);
+  } catch {
+    return 0;
+  }
+
+  if (activation?.type !== "production") {
+    return 0;
+  }
+
+  return activation.gains.reduce(
+    (total, gain) => total + numberValue(gain.amount) * getResourceNeedValue(context, gain.resource) * multiplier,
+    0
+  );
 }
 
 function sortTilesForProfile(profileId, tileIndex, placedTilesOrEntries) {
@@ -349,6 +647,42 @@ function choosePaymentResources(warehouse, amount, allowedResources) {
 
 function getAffordablePaymentOption(state, options = []) {
   return options.find((option) => canAffordCost(state.warehouse, [option])) ?? null;
+}
+
+function getPendingBurdenResolutionDiscountEffect(state) {
+  return (
+    (state.encounter.roundEffects ?? []).find(
+      (effect) => effect.type === "burden_resolution_discount" && (effect.uses ?? 0) < (effect.maxUses ?? 1)
+    ) ?? null
+  );
+}
+
+function chooseCostReductionResources(cost, discountEffect, context) {
+  if (!discountEffect || cost.length === 0) {
+    return [];
+  }
+
+  const amount = Math.min(discountEffect.amount, sumCost(cost));
+  const expandedResources = cost
+    .flatMap((entry) => Array.from({ length: entry.amount }, () => entry.resource))
+    .sort((left, right) => getResourceNeedValue(context, right) - getResourceNeedValue(context, left));
+
+  return expandedResources.slice(0, amount);
+}
+
+function applyCostReduction(cost, selectedResources) {
+  const reduction = summarizePayment(selectedResources.map((resource) => ({ resource, amount: 1 })));
+
+  return cost
+    .map((entry) => {
+      const reducedBy = reduction.find((candidate) => candidate.resource === entry.resource)?.amount ?? 0;
+
+      return {
+        ...entry,
+        amount: entry.amount - reducedBy
+      };
+    })
+    .filter((entry) => entry.amount > 0);
 }
 
 function shouldPayForPressureChoice(profile, state, effect) {
@@ -450,6 +784,7 @@ function buildResolveBurdenCandidates(state, profile, context) {
     (active) => active.encounterType === ENCOUNTER_TYPES.BURDEN && !active.resolved
   );
   const candidates = [];
+  const discountEffect = getPendingBurdenResolutionDiscountEffect(state);
 
   for (const activeBurden of activeBurdens) {
     const card = encounterIndex.get(activeBurden.cardId);
@@ -463,14 +798,22 @@ function buildResolveBurdenCandidates(state, profile, context) {
       ? choosePaymentResources(state.warehouse, resolution.amount, resolution.allowedResources ?? state.rules.resources)
       : resolution.cost;
 
-    if (!payment || !canAffordCost(state.warehouse, payment)) {
+    if (!payment) {
+      continue;
+    }
+
+    const burdenResolutionReductionResources = chooseCostReductionResources(payment, discountEffect, context);
+    const discountedPayment = applyCostReduction(payment, burdenResolutionReductionResources);
+
+    if (!canAffordCost(state.warehouse, discountedPayment)) {
       continue;
     }
 
     candidates.push({
       type: TILE_ACTION_TYPES.RESOLVE_BURDEN,
       activeEncounterId: activeBurden.id,
-      payment
+      payment,
+      burdenResolutionReductionResources
     });
   }
 
@@ -554,17 +897,122 @@ function buildProductionCandidates(state, profile, context) {
   return candidates;
 }
 
+function buildUtilityActivationCandidates(state, profile, context) {
+  const tileIndex = context.tileIndex;
+  const candidates = [];
+
+  for (const placedTile of sortTilesForProfile(profile.id, tileIndex, state.map.placedTiles)) {
+    const tile = tileIndex.get(placedTile.tileId);
+    const activation = getActivationDetails(tile);
+
+    if (!activation || isOverstrainedPlacedTile(placedTile)) {
+      continue;
+    }
+
+    if (activation.type === "resolve_active_burden") {
+      const activeBurdens = state.encounter.active.filter(
+        (active) => active.encounterType === ENCOUNTER_TYPES.BURDEN && !active.resolved
+      );
+
+      for (const activeBurden of activeBurdens) {
+        candidates.push({
+          type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+          placedTileId: placedTile.id,
+          targetActiveEncounterId: activeBurden.id
+        });
+      }
+      continue;
+    }
+
+    if (activation.type === "add_arrival_timer") {
+      const timerMax = state.rules.arrivalTimerMax ?? 3;
+      const activeArrivals = state.encounter.active.filter((active) => {
+        const timerTokens = numberValue(active.timerTokens ?? state.rules.arrivalStartTimerTokens);
+
+        return active.encounterType === ENCOUNTER_TYPES.ARRIVAL && !active.completed && timerTokens < timerMax;
+      });
+
+      for (const activeArrival of activeArrivals) {
+        candidates.push({
+          type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+          placedTileId: placedTile.id,
+          targetActiveEncounterId: activeArrival.id
+        });
+      }
+      continue;
+    }
+
+    if (activation.type === "resource_exchange") {
+      const gainResource = activation.gain.resource;
+      const gainSpace = state.warehouse.cap - numberValue(state.warehouse.resources[gainResource]);
+      const payment = gainSpace >= activation.gain.amount
+        ? choosePaymentResources(state.warehouse, activation.paymentAmount, getResourcePaymentOrder(state, [gainResource]))
+        : null;
+
+      if (payment) {
+        candidates.push({
+          type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+          placedTileId: placedTile.id,
+          payment
+        });
+      }
+      continue;
+    }
+
+    if (activation.type === "flexible_resource_exchange") {
+      const gainResource = getResourceGainOrder(state, activation.excludedGainResources).find(
+        (resource) => numberValue(state.warehouse.resources[resource]) < state.warehouse.cap
+      );
+      const paymentResource = gainResource
+        ? getResourcePaymentOrder(state, [gainResource]).find((resource) => numberValue(state.warehouse.resources[resource]) > 0)
+        : null;
+
+      if (!gainResource || !paymentResource) {
+        continue;
+      }
+
+      const amount = Math.min(
+        activation.maxAmount,
+        numberValue(state.warehouse.resources[paymentResource]),
+        state.warehouse.cap - numberValue(state.warehouse.resources[gainResource])
+      );
+
+      if (amount > 0) {
+        candidates.push({
+          type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+          placedTileId: placedTile.id,
+          payment: [{ resource: paymentResource, amount }],
+          gains: [{ resource: gainResource, amount }]
+        });
+      }
+    }
+  }
+
+  return candidates;
+}
+
 function getAvailablePlacementTiles(state, context) {
   const supplyByTileId = new Map(
     [...state.tileSupply.core, ...state.tileSupply.special].map((entry) => [entry.tileId, entry])
   );
-  const directCoreTiles = getDirectlyPlaceableTiles(context.tiles ?? []);
+  const directCoreTileIds = new Set(getDirectlyPlaceableTiles(context.tiles ?? []).map((tile) => tile.tile_id));
+  const unlockedCoreTiles = (context.tiles ?? []).filter((tile) => {
+    const supply = supplyByTileId.get(tile.tile_id);
+
+    return (
+      tile.tile_source_type === "Core" &&
+      tile.side === "Basic" &&
+      supply &&
+      !supply.locked &&
+      (directCoreTileIds.has(tile.tile_id) || supply.unlockedBySteward)
+    );
+  });
   const unlockedSpecialTiles = (context.tiles ?? []).filter((tile) => {
     const supply = supplyByTileId.get(tile.tile_id);
     return tile.tile_source_type === "Special" && supply && !supply.locked;
   });
 
-  return [...directCoreTiles, ...unlockedSpecialTiles].filter((tile) => {
+  return [...unlockedCoreTiles, ...unlockedSpecialTiles].filter((tile) => {
     const supply = supplyByTileId.get(tile.tile_id);
     return supply && supply.available > 0 && !supply.locked;
   });
@@ -711,24 +1159,16 @@ function getPlacementCoordinateCandidates(state, tile, context) {
 function buildPlacementCandidates(state, profile, context) {
   const tileIndex = context.tileIndex;
   const candidates = [];
-  const maxCandidates = 8;
+  const maxCandidates = profile.maxPlacementCandidates ?? 8;
+  const maxPlacementsPerTile = profile.maxPlacementsPerTile ?? 1;
   const tiles = getAvailablePlacementTiles(state, context).filter((tile) =>
     canAffordCost(state.warehouse, parseResourceCost(tile.place_cost))
-  ).sort((left, right) => {
-    const priorityDifference = getTilePriority(profile.id, left) - getTilePriority(profile.id, right);
-
-    if (priorityDifference !== 0) {
-      return priorityDifference;
-    }
-
-    const leftCost = sumCost(parseResourceCost(left.place_cost));
-    const rightCost = sumCost(parseResourceCost(right.place_cost));
-    return leftCost - rightCost || left.tile_name.localeCompare(right.tile_name);
-  });
+  ).sort((left, right) => compareTilesForProfile(profile, left, right));
 
   for (const tile of tiles) {
     const orientations = tile.size_hexes > 1 ? HEX_DIRECTIONS.map((direction) => direction.id) : [HEX_DIRECTIONS[0].id];
     const coordinateCandidates = getPlacementCoordinateCandidates(state, tile, context).slice(0, 36);
+    let placementCountForTile = 0;
 
     for (const coordinate of coordinateCandidates) {
       for (const orientation of orientations) {
@@ -742,6 +1182,7 @@ function buildPlacementCandidates(state, profile, context) {
 
         if (validation.valid) {
           candidates.push(action);
+          placementCountForTile += 1;
 
           if (candidates.length >= maxCandidates) {
             return candidates;
@@ -750,7 +1191,40 @@ function buildPlacementCandidates(state, profile, context) {
         }
       }
 
-      if (candidates.at(-1)?.tileId === tile.tile_id) {
+      if (placementCountForTile >= maxPlacementsPerTile) {
+        break;
+      }
+    }
+  }
+
+  return candidates;
+}
+
+function buildOpeningPlacementCandidates(state, profile, context) {
+  const pending = getPendingOpeningResourcePlacement(state, state.activePlayerId);
+
+  if (!pending) {
+    return [];
+  }
+
+  const allowedTileIds = new Set(pending.tileIds);
+  const tiles = getAvailablePlacementTiles(state, context)
+    .filter((tile) => allowedTileIds.has(tile.tile_id))
+    .sort((left, right) => compareTilesForProfile(profile, left, right));
+  const candidates = [];
+
+  for (const tile of tiles) {
+    for (const coordinate of getPlacementCoordinateCandidates(state, tile, context)) {
+      const action = {
+        type: TILE_ACTION_TYPES.PLACE_TILE,
+        tileId: tile.tile_id,
+        coordinate,
+        orientation: HEX_DIRECTIONS[0].id
+      };
+      const validation = validatePlaceTile(state, action, context);
+
+      if (validation.valid) {
+        candidates.push(action);
         break;
       }
     }
@@ -762,7 +1236,7 @@ function buildPlacementCandidates(state, profile, context) {
 function buildUpgradeCandidates(state, profile, context) {
   const tileIndex = context.tileIndex;
   const candidates = [];
-  const maxCandidates = 8;
+  const maxCandidates = profile.maxUpgradeCandidates ?? 8;
 
   for (const placedTile of sortTilesForProfile(profile.id, tileIndex, state.map.placedTiles)) {
     const tile = tileIndex.get(placedTile.tileId);
@@ -796,11 +1270,139 @@ function buildActionCandidates(state, profile, context, priority) {
     resolve_burden: (currentState) => buildResolveBurdenCandidates(currentState, profile, context),
     remove_strain: (currentState) => buildRemoveStrainCandidates(currentState, profile, context),
     produce: (currentState) => buildProductionCandidates(currentState, profile, context),
+    utility: (currentState) => buildUtilityActivationCandidates(currentState, profile, context),
     place: (currentState) => buildPlacementCandidates(currentState, profile, context),
     upgrade: (currentState) => buildUpgradeCandidates(currentState, profile, context)
   };
 
   return builders[priority]?.(state) ?? [];
+}
+
+function estimateActivationCandidateValue(state, action, context) {
+  const placedTile = state.map.placedTiles.find((candidate) => candidate.id === action.placedTileId);
+  const tile = context.tileIndex.get(placedTile?.tileId);
+  const activation = getActivationDetails(tile);
+
+  if (!activation) {
+    return 0;
+  }
+
+  if (activation.type === "resolve_active_burden") {
+    return SCORE_BOT_WEIGHTS.burdenResolution;
+  }
+
+  if (activation.type === "remove_strain_adjacent") {
+    const targetIds = action.targetPlacedTileIds ?? [action.targetPlacedTileId];
+    const removed = targetIds
+      .filter(Boolean)
+      .map((targetId) => state.map.placedTiles.find((candidate) => candidate.id === targetId))
+      .filter(Boolean)
+      .reduce(
+        (total, target) =>
+          total +
+          Math.min(activation.amount, numberValue(target.strain)) +
+          (isOverstrainedPlacedTile(target) ? 1 : 0),
+        0
+      );
+
+    return removed * SCORE_BOT_WEIGHTS.strainRemoval;
+  }
+
+  if (activation.type === "production") {
+    return activation.gains.reduce(
+      (total, gain) =>
+        total + numberValue(gain.amount) * getResourceNeedValue(context, gain.resource) * SCORE_BOT_WEIGHTS.resourceProduction,
+      0
+    );
+  }
+
+  if (activation.type === "resource_exchange" || activation.type === "flexible_resource_exchange") {
+    const gained = summarizePayment(action.gains ?? (activation.gain ? [activation.gain] : []));
+    const paid = summarizePayment(action.payment ?? []);
+    const gainValue = gained.reduce(
+      (total, gain) => total + numberValue(gain.amount) * getResourceNeedValue(context, gain.resource),
+      0
+    );
+    const paymentValue = paid.reduce(
+      (total, payment) => total + numberValue(payment.amount) * getResourceNeedValue(context, payment.resource),
+      0
+    );
+
+    return (gainValue - paymentValue) * SCORE_BOT_WEIGHTS.resourceProduction;
+  }
+
+  if (activation.type === "add_arrival_timer") {
+    return SCORE_BOT_WEIGHTS.arrivalTimer;
+  }
+
+  return 0;
+}
+
+function estimateScoreCandidateValue(state, action, context, candidateIndex) {
+  const activeBurdenCount = state.encounter.active.filter(
+    (active) => active.encounterType === ENCOUNTER_TYPES.BURDEN && !active.resolved
+  ).length;
+
+  if (action.type === TILE_ACTION_TYPES.COMPLETE_ARRIVAL) {
+    return Math.max(450, SCORE_BOT_WEIGHTS.arrivalCompletion - activeBurdenCount * 180) - candidateIndex / 1000;
+  }
+
+  if (action.type === TILE_ACTION_TYPES.RESOLVE_BURDEN) {
+    return SCORE_BOT_WEIGHTS.burdenResolution + activeBurdenCount * 150 - sumCost(action.payment) * 60 - candidateIndex / 1000;
+  }
+
+  if (action.type === TILE_ACTION_TYPES.PLACE_TILE) {
+    const tile = context.tileIndex.get(action.tileId);
+
+    return getScoreBotTileValue(tile) * 100 +
+      getProductionPotentialValue(tile, context) -
+      sumCost(parseResourceCost(tile?.place_cost)) * 25 -
+      candidateIndex / 1000;
+  }
+
+  if (action.type === TILE_ACTION_TYPES.UPGRADE_TILE) {
+    const placedTile = state.map.placedTiles.find((candidate) => candidate.id === action.placedTileId);
+    const currentTile = context.tileIndex.get(placedTile?.tileId);
+    const upgradeTile = findUpgradeTile(currentTile, context.tileIndex);
+    const scoreGain = getScoreBotTileValue(upgradeTile) - getScoreBotTileValue(currentTile);
+    const productionGain = getProductionPotentialValue(upgradeTile, context) - getProductionPotentialValue(currentTile, context);
+
+    return scoreGain * 100 + productionGain - sumCost(parseResourceCost(upgradeTile?.upgrade_cost)) * 25 - candidateIndex / 1000;
+  }
+
+  if (action.type === TILE_ACTION_TYPES.ACTIVATE_TILE) {
+    return estimateActivationCandidateValue(state, action, context) - candidateIndex / 1000;
+  }
+
+  return -candidateIndex / 1000;
+}
+
+function buildScoreOptimizedCandidates(state, profile, context) {
+  return profile.priorities.flatMap((priority) => buildActionCandidates(state, profile, context, priority));
+}
+
+function tryScoreOptimizedAction(state, profile, context, dispatchWithTelemetry) {
+  const scoreContext = {
+    ...context,
+    scoreResourceNeeds: getScoreBotResourceNeeds(state, context)
+  };
+  const roughRanked = buildScoreOptimizedCandidates(state, profile, scoreContext)
+    .map((candidate, index) => ({
+      action: candidate,
+      candidateIndex: index,
+      estimate: estimateScoreCandidateValue(state, candidate, scoreContext, index)
+    }))
+    .sort((left, right) => right.estimate - left.estimate || left.candidateIndex - right.candidateIndex);
+
+  for (const candidate of roughRanked) {
+    const outcome = dispatchWithTelemetry(state, candidate.action, scoreContext);
+
+    if (outcome.result.ok) {
+      return outcome;
+    }
+  }
+
+  return null;
 }
 
 function tryActionCandidates(state, candidates, context, dispatchWithTelemetry) {
@@ -828,13 +1430,27 @@ function playActivePlayerTurn(state, profile, context, dispatchWithTelemetry) {
     }
 
     let outcome = null;
+    const openingCandidates = buildOpeningPlacementCandidates(workingState, profile, context);
 
-    for (const priority of profile.priorities) {
-      const candidates = buildActionCandidates(workingState, profile, context, priority);
-      outcome = tryActionCandidates(workingState, candidates, context, dispatchWithTelemetry);
+    if (openingCandidates.length > 0) {
+      outcome = tryActionCandidates(workingState, openingCandidates, context, dispatchWithTelemetry);
 
       if (outcome) {
+        workingState = resolvePendingBurdenChoices(outcome.state, profile, context, dispatchWithTelemetry);
         break;
+      }
+    }
+
+    if (profile.optimizeForScore) {
+      outcome = tryScoreOptimizedAction(workingState, profile, context, dispatchWithTelemetry);
+    } else {
+      for (const priority of profile.priorities) {
+        const candidates = buildActionCandidates(workingState, profile, context, priority);
+        outcome = tryActionCandidates(workingState, candidates, context, dispatchWithTelemetry);
+
+        if (outcome) {
+          break;
+        }
       }
     }
 
@@ -885,7 +1501,8 @@ export function runAutomatedGame({
     seed,
     encounterCards,
     tiles,
-    mapHexes
+    mapHexes,
+    enforceOpeningResourcePlacement: true
   });
   const summary = createSimulationAccumulator(gameId, seed, playerCount, profileId);
   const rounds = [];
@@ -903,7 +1520,7 @@ export function runAutomatedGame({
     guard += 1;
 
     if (state.phase === GAME_PHASES.SEED_ENCOUNTERS) {
-      const outcome = dispatchWithTelemetry(state, { type: TILE_ACTION_TYPES.SEED_ENCOUNTERS }, context);
+      const outcome = dispatchWithTelemetry(state, buildScoreSeedAction(state, profile, context), context);
       if (!outcome.result.ok) {
         throw new Error(outcome.result.errors.join(" "));
       }

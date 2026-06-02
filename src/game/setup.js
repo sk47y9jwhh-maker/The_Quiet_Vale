@@ -1,4 +1,9 @@
 import { isDirectlyPlaceableTile } from "./tiles.js";
+import {
+  getStewardRole,
+  getUnlockedStewardHouseTileIds,
+  normalizeStewardRoleIds
+} from "./stewards.js";
 
 export const ENCOUNTER_TYPES = Object.freeze({
   BOON: "Boon",
@@ -149,19 +154,29 @@ function selectStandardPool(encounterCards, playerCount, random) {
   });
 }
 
-function createPlayers(playerCount, standardPool) {
+function createPlayers(playerCount, standardPool, stewardRoleIds) {
   const handSize = STANDARD_RULES.hiddenCardsPerPlayer;
 
   return Array.from({ length: playerCount }, (_, index) => {
     const handStart = index * handSize;
     const hand = standardPool.slice(handStart, handStart + handSize);
+    const stewardRoleId = stewardRoleIds[index];
+    const stewardRole = getStewardRole(stewardRoleId);
 
     return {
       id: `P${index + 1}`,
       name: `Player ${index + 1}`,
+      stewardRoleId,
+      stewardRoleName: stewardRole?.name ?? "Steward",
       actionsRemaining: STANDARD_RULES.actionsPerPlayer,
       hand: hand.map((card) => card.card_id),
-      lastInteraction: null
+      lastInteraction: null,
+      openingResourcePlacement: {
+        requiredRound: 1,
+        completed: false,
+        tileIds: [...(stewardRole?.openingResourceTileIds ?? [])],
+        summary: stewardRole?.openingSummary ?? ""
+      }
     };
   });
 }
@@ -180,20 +195,27 @@ function createWarehouse(playerCount) {
   };
 }
 
-function createTileSupply(tiles) {
+function createTileSupply(tiles, stewardRoleIds = []) {
   const core = tiles.filter((tile) => tile.tile_source_type === "Core");
   const special = tiles.filter((tile) => tile.tile_source_type === "Special");
+  const unlockedStewardHouseTileIds = new Set(getUnlockedStewardHouseTileIds(stewardRoleIds));
 
   return {
-    core: core.map((tile) => ({
-      tileId: tile.tile_id,
-      name: tile.tile_name,
-      side: tile.side,
-      category: tile.tile_category,
-      stock: Number(tile.stock ?? 0),
-      available: isDirectlyPlaceableTile(tile) ? Number(tile.stock ?? 0) : 0,
-      locked: !isDirectlyPlaceableTile(tile)
-    })),
+    core: core.map((tile) => {
+      const unlockedBySteward = tile.side === "Basic" && unlockedStewardHouseTileIds.has(tile.tile_id);
+      const availableAtSetup = isDirectlyPlaceableTile(tile) || unlockedBySteward;
+
+      return {
+        tileId: tile.tile_id,
+        name: tile.tile_name,
+        side: tile.side,
+        category: tile.tile_category,
+        stock: Number(tile.stock ?? 0),
+        available: availableAtSetup ? Number(tile.stock ?? 0) : 0,
+        locked: !availableAtSetup,
+        unlockedBySteward: unlockedBySteward ? true : undefined
+      };
+    }),
     special: special.map((tile) => ({
       tileId: tile.tile_id,
       name: tile.tile_name,
@@ -218,12 +240,21 @@ function createLogEntry(index, message, data = {}) {
   };
 }
 
-export function createInitialGameState({ playerCount, seed = "quiet-vale", encounterCards, tiles, mapHexes }) {
+export function createInitialGameState({
+  playerCount,
+  seed = "quiet-vale",
+  encounterCards,
+  tiles,
+  mapHexes,
+  stewardRoles = [],
+  enforceOpeningResourcePlacement = false
+}) {
   requirePlayerCount(playerCount);
 
   const random = createSeededRandom(seed);
   const standardPool = shuffle(selectStandardPool(encounterCards, playerCount, random), random);
-  const players = createPlayers(playerCount, standardPool);
+  const stewardRoleIds = normalizeStewardRoleIds(playerCount, stewardRoles);
+  const players = createPlayers(playerCount, standardPool, stewardRoleIds);
   const standardDeckStart = STANDARD_RULES.hiddenCardsPerPlayer * playerCount;
   const standardDeckSize = STANDARD_RULES.standardDeckCardsPerPlayer * playerCount;
   const standardDeckCards = standardPool.slice(standardDeckStart, standardDeckStart + standardDeckSize);
@@ -244,6 +275,7 @@ export function createInitialGameState({ playerCount, seed = "quiet-vale", encou
     round: 1,
     season: getSeasonForRound(1),
     playerCount,
+    openingResourcePlacementRequired: enforceOpeningResourcePlacement,
     activePlayerId: null,
     seed,
     rules: STANDARD_RULES,
@@ -267,7 +299,7 @@ export function createInitialGameState({ playerCount, seed = "quiet-vale", encou
       }
     },
     warehouse: createWarehouse(playerCount),
-    tileSupply: createTileSupply(tiles),
+    tileSupply: createTileSupply(tiles, stewardRoleIds),
     score: {
       population: 0,
       renown: 0,
@@ -295,6 +327,14 @@ export function createInitialGameState({ playerCount, seed = "quiet-vale", encou
       createLogEntry(4, "Stocked the starting Warehouse for the player count.", {
         resourcesPerType: getStartingWarehouseResourceCount(playerCount),
         cap: STANDARD_RULES.warehouseCapPerResource
+      }),
+      createLogEntry(5, "Assigned Steward roles and unlocked their Houses.", {
+        stewardRoles: players.map((player) => ({
+          playerId: player.id,
+          stewardRoleId: player.stewardRoleId,
+          stewardRoleName: player.stewardRoleName,
+          openingResourcePlacement: player.openingResourcePlacement.summary
+        }))
       })
     ]
   };

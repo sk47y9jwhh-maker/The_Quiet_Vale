@@ -36,7 +36,10 @@ import { validateActivateTile } from "./activation.js";
 import {
   STEWARD_POWER_TYPES,
   getAvailableStewardPowerProviders,
+  getPendingOpeningResourcePlacement,
   getRequestedStewardPowerProvider,
+  isOpeningResourceTileForPlayer,
+  markOpeningResourcePlacementComplete,
   markStewardPowerUsed
 } from "./stewards.js";
 import {
@@ -122,6 +125,40 @@ function markPlayerMapInteraction(state, playerId, placedTile, type) {
         : player
     )
   };
+}
+
+function markPlayerOpeningResourcePlacement(state, playerId, placedTile) {
+  return {
+    ...state,
+    players: state.players.map((player) =>
+      player.id === playerId ? markOpeningResourcePlacementComplete(player, placedTile) : player
+    )
+  };
+}
+
+function getOpeningPlacementBlockMessage(state, playerId = state.activePlayerId) {
+  const pending = getPendingOpeningResourcePlacement(state, playerId);
+
+  if (!pending) {
+    return "";
+  }
+
+  return `${pending.player.name}'s first Round 1 action must be their ${pending.role.name} opening move: ${pending.summary}.`;
+}
+
+function blockForPendingOpeningPlacement(state, actionType, playerId = state.activePlayerId) {
+  const message = getOpeningPlacementBlockMessage(state, playerId);
+
+  return message
+    ? {
+        state,
+        result: {
+          ok: false,
+          action: actionType,
+          errors: [message]
+        }
+      }
+    : null;
 }
 
 function createStewardPowerUse(provider, actionCost, operation) {
@@ -1170,6 +1207,33 @@ function placeTile(state, action, context) {
     };
   }
 
+  const player = getActivePlayer(state, action.playerId);
+  if (!player) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.PLACE_TILE,
+        errors: [`Unknown player: ${action.playerId ?? state.activePlayerId}`]
+      }
+    };
+  }
+
+  const pendingOpeningPlacement = getPendingOpeningResourcePlacement(state, player.id);
+
+  if (pendingOpeningPlacement && !isOpeningResourceTileForPlayer(player, action.tileId)) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.PLACE_TILE,
+        errors: [
+          `${player.name}'s first Round 1 action must be their ${pendingOpeningPlacement.role.name} opening move: ${pendingOpeningPlacement.summary}.`
+        ]
+      }
+    };
+  }
+
   const validation = validatePlaceTile(state, action, context);
 
   if (!validation.valid) {
@@ -1179,18 +1243,6 @@ function placeTile(state, action, context) {
         ok: false,
         action: TILE_ACTION_TYPES.PLACE_TILE,
         errors: validation.errors
-      }
-    };
-  }
-
-  const player = getActivePlayer(state, action.playerId);
-  if (!player) {
-    return {
-      state,
-      result: {
-        ok: false,
-        action: TILE_ACTION_TYPES.PLACE_TILE,
-        errors: [`Unknown player: ${action.playerId ?? state.activePlayerId}`]
       }
     };
   }
@@ -1279,11 +1331,15 @@ function placeTile(state, action, context) {
     supported: false,
     supportedUsedThisRound: false
   };
-  const actionState = markPlayerMapInteraction(
-    spendPlayerActions(state, player.id, actionCost),
+  const actionState = markPlayerOpeningResourcePlacement(
+    markPlayerMapInteraction(
+      spendPlayerActions(state, player.id, actionCost),
+      player.id,
+      placedTile,
+      "place"
+    ),
     player.id,
-    placedTile,
-    "place"
+    placedTile
   );
   const placedTilesAfterDiscount = actionState.map.placedTiles.map((existingTile) =>
     existingTile.id === validation.placementCostReduction?.providerPlacedTileId
@@ -1398,6 +1454,11 @@ function activateTile(state, action, context) {
         errors: [`Unknown player: ${action.playerId ?? state.activePlayerId}`]
       }
     };
+  }
+
+  const openingBlock = blockForPendingOpeningPlacement(state, TILE_ACTION_TYPES.ACTIVATE_TILE, player.id);
+  if (openingBlock) {
+    return openingBlock;
   }
 
   const baseActionCost = calculatePlacedTileActionCost(
@@ -1824,6 +1885,11 @@ function upgradeTile(state, action, context) {
     };
   }
 
+  const openingBlock = blockForPendingOpeningPlacement(state, TILE_ACTION_TYPES.UPGRADE_TILE, player.id);
+  if (openingBlock) {
+    return openingBlock;
+  }
+
   const baseActionCost = calculatePlacedTileActionCost(
     state,
     validation.placedTile,
@@ -2007,6 +2073,11 @@ function useStewardPower(state, action, context) {
         errors: [`Unknown player: ${action.playerId ?? state.activePlayerId}`]
       }
     };
+  }
+
+  const openingBlock = blockForPendingOpeningPlacement(state, TILE_ACTION_TYPES.USE_STEWARD_POWER, player.id);
+  if (openingBlock) {
+    return openingBlock;
   }
 
   const stewardPowerProvider = getRequestedStewardPowerProvider(
@@ -2409,6 +2480,11 @@ function completeArrival(state, action, context) {
     };
   }
 
+  const openingBlock = blockForPendingOpeningPlacement(state, TILE_ACTION_TYPES.COMPLETE_ARRIVAL, player.id);
+  if (openingBlock) {
+    return openingBlock;
+  }
+
   if (player.actionsRemaining < 1) {
     return {
       state,
@@ -2678,6 +2754,11 @@ function resolveBoon(state, action, context) {
         errors: ["Boon choices can only be resolved during the Player Turns phase."]
       }
     };
+  }
+
+  const openingBlock = blockForPendingOpeningPlacement(state, TILE_ACTION_TYPES.RESOLVE_BOON);
+  if (openingBlock) {
+    return openingBlock;
   }
 
   const activeBoon = state.encounter.active.find((activeState) => activeState.id === action.activeEncounterId);
@@ -3257,6 +3338,11 @@ function resolveBurden(state, action, context) {
     };
   }
 
+  const openingBlock = blockForPendingOpeningPlacement(state, TILE_ACTION_TYPES.RESOLVE_BURDEN, player.id);
+  if (openingBlock) {
+    return openingBlock;
+  }
+
   const stewardPowerProvider = getRequestedStewardPowerProvider(
     state,
     context,
@@ -3410,6 +3496,11 @@ function endTurn(state) {
         errors: [`Unknown active player: ${state.activePlayerId}`]
       }
     };
+  }
+
+  const openingBlock = blockForPendingOpeningPlacement(state, TILE_ACTION_TYPES.END_TURN, player.id);
+  if (openingBlock) {
+    return openingBlock;
   }
 
   const activePlayerIndex = state.players.findIndex((candidate) => candidate.id === player.id);
