@@ -24,6 +24,7 @@ import {
 import { ENCOUNTER_TYPES, GAME_PHASES, createSeededRandom, getSeasonForRound, shuffle } from "./setup.js";
 import {
   applyStrainReliefEffect,
+  applyPersistentArrivalTimerRoundEffects,
   getBurdenResolutionCost,
   getOptionalBoonStrainReliefApplications,
   resolveBurdenSeasonEffect,
@@ -655,6 +656,16 @@ function applyPlacementCostReductionUse(encounter, placementCostReduction) {
 function applyActionCostDiscountUse(encounter, actionCostDiscount) {
   if (!["boon", "golden_boon"].includes(actionCostDiscount?.source) || !actionCostDiscount.effectId) {
     return encounter;
+  }
+
+  const effect = (encounter.roundEffects ?? []).find((candidate) => candidate.id === actionCostDiscount.effectId);
+
+  if (effect?.discardAfterUse && (effect.uses ?? 0) + 1 >= (effect.maxUses ?? 1)) {
+    return {
+      ...encounter,
+      discard: [...encounter.discard, effect.cardId],
+      roundEffects: (encounter.roundEffects ?? []).filter((candidate) => candidate.id !== effect.id)
+    };
   }
 
   return {
@@ -4040,12 +4051,26 @@ function endRound(state, context) {
     };
   }
 
-  const encounterResolution = resolveEndRoundEncounters(state);
+  const arrivalTimerEffects = applyPersistentArrivalTimerRoundEffects(
+    state,
+    state.encounter.active,
+    state.encounter.roundEffects ?? []
+  );
+  const stateAfterArrivalTimerEffects = {
+    ...state,
+    encounter: {
+      ...state.encounter,
+      active: arrivalTimerEffects.active,
+      discard: [...state.encounter.discard, ...arrivalTimerEffects.discardedCardIds],
+      roundEffects: arrivalTimerEffects.roundEffects
+    }
+  };
+  const encounterResolution = resolveEndRoundEncounters(stateAfterArrivalTimerEffects);
   const seasonEffects = applyEndOfSeasonEffects(
     {
-      ...state,
+      ...stateAfterArrivalTimerEffects,
       encounter: {
-        ...state.encounter,
+        ...stateAfterArrivalTimerEffects.encounter,
         active: encounterResolution.active,
         discard: encounterResolution.discard
       }
@@ -4067,7 +4092,7 @@ function endRound(state, context) {
       }
     : reapplySeasonStartBurdens(seasonEffects.state, encounterResolution.active, nextRound, nextSeason, context);
   const nextState = {
-    ...state,
+    ...stateAfterArrivalTimerEffects,
     phase: isComplete ? GAME_PHASES.COMPLETE : GAME_PHASES.SEED_ENCOUNTERS,
     round: isComplete ? state.round : nextRound,
     season: nextSeason,
@@ -4078,11 +4103,11 @@ function endRound(state, context) {
     warehouse: burdenReapplication.warehouse,
     map: burdenReapplication.map,
     encounter: {
-      ...state.encounter,
+      ...stateAfterArrivalTimerEffects.encounter,
       active: burdenReapplication.active,
       discard: encounterResolution.discard,
       roundEffects: resetRecurringRoundEffects(
-        (state.encounter.roundEffects ?? []).filter(
+        (stateAfterArrivalTimerEffects.encounter.roundEffects ?? []).filter(
           (effect) => effect.expiresAtEndOfRound === false || effect.round > state.round
         )
       )

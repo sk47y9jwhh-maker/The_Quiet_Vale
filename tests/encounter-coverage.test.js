@@ -38,8 +38,8 @@ test("encounter coverage audit summarizes the current prototype support boundary
   const coverage = audit();
 
   assert.deepEqual(coverage.statusCounts, {
-    supported: 80,
-    partial: 0,
+    supported: 70,
+    partial: 10,
     unsupported: 0
   });
   assert.deepEqual(coverage.typeCounts[ENCOUNTER_TYPES.BOON].statuses, {
@@ -48,8 +48,8 @@ test("encounter coverage audit summarizes the current prototype support boundary
     unsupported: 0
   });
   assert.deepEqual(coverage.typeCounts[ENCOUNTER_TYPES.BURDEN].statuses, {
-    supported: 25,
-    partial: 0,
+    supported: 15,
+    partial: 10,
     unsupported: 0
   });
   assert.deepEqual(coverage.typeCounts[ENCOUNTER_TYPES.ARRIVAL].statuses, {
@@ -86,9 +86,11 @@ test("coverage audit reports representative implemented templates", () => {
   assert.ok(burdenOfCommand.implementationAreas.includes("steward_token_strain_placement"));
   assert.ok(burdenOfCommand.implementationAreas.includes("resolution_fixed"));
 
-  assert.equal(smokeOverHearths.status, "supported");
-  assert.equal(smokeOverHearths.lifecycle.hasResolutionCost, false);
-  assert.ok(smokeOverHearths.implementationAreas.includes("persistent_active_burden_no_resolution"));
+  assert.equal(smokeOverHearths.status, "partial");
+  assert.ok(smokeOverHearths.implementationAreas.includes("adjacent_category_strain_placement"));
+  assert.equal(smokeOverHearths.lifecycle.mode, "season_three_only");
+  assert.equal(smokeOverHearths.resolution.mode, "season_three_only");
+  assert.match(smokeOverHearths.resolution.errors.join(" "), /Season III/);
 });
 
 test("coverage audit tracks implemented and pending Golden Boon effects", () => {

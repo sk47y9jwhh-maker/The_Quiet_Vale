@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { getBurdenResolutionCost } from "../src/game/encounters.js";
 import { dispatchGameAction } from "../src/game/reducer.js";
 import { ENCOUNTER_TYPES, GAME_PHASES, createInitialGameState } from "../src/game/setup.js";
 import { TILE_ACTION_TYPES } from "../src/game/tiles.js";
@@ -890,6 +891,70 @@ test("category-adjacent Burdens place Strain on matching adjacent targets", () =
   );
 });
 
+test("Season III fallback Burdens use fallback targets only after printed targets miss", () => {
+  const base = newState(1);
+  const state = {
+    ...base,
+    round: 11,
+    season: "III",
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    map: {
+      ...base.map,
+      placedTiles: [
+        { id: "tile-001", tileId: "core_workshops_basic", coordinate: "A3", coordinates: ["A3"], strain: 0 }
+      ]
+    },
+    encounter: {
+      ...base.encounter,
+      deck: ["burden_smoke_over_hearths"],
+      discard: [],
+      active: [],
+      revealedRounds: []
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+  const effect = result.revealed[0].burdenEffect;
+
+  assert.equal(result.ok, true);
+  assert.equal(nextState.map.placedTiles[0].strain, 1);
+  assert.equal(effect.mode, "season_three_fallback");
+  assert.equal(effect.fallbackTargetText, "Crafting Tile");
+  assert.deepEqual(
+    effect.applications.map((application) => application.placedTileId),
+    ["tile-001"]
+  );
+});
+
+test("Season I and II fallback Burdens still miss when printed targets miss", () => {
+  const base = newState(1);
+  const state = {
+    ...base,
+    round: 6,
+    season: "II",
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    map: {
+      ...base.map,
+      placedTiles: [
+        { id: "tile-001", tileId: "core_workshops_basic", coordinate: "A3", coordinates: ["A3"], strain: 0 }
+      ]
+    },
+    encounter: {
+      ...base.encounter,
+      deck: ["burden_smoke_over_hearths"],
+      discard: [],
+      active: [],
+      revealedRounds: []
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+  const effect = result.revealed[0].burdenEffect;
+
+  assert.equal(result.ok, true);
+  assert.equal(nextState.map.placedTiles[0].strain, 0);
+  assert.equal(effect.mode, "adjacent_category");
+  assert.equal(effect.applications.length, 0);
+});
+
 test("strained-neighbor Burdens require the adjacent category to have Strain", () => {
   const base = newState(1);
   const state = {
@@ -1664,6 +1729,47 @@ test("Over Promising to Over Compensate supports mixed active Arrival pay-or-tim
   assert.equal(result.effect.timerTokensRemoved, 1);
 });
 
+test("Season III Arrival-pressure Burdens strain a fallback tile when no Arrival is active", () => {
+  const base = newState(1);
+  const state = {
+    ...base,
+    round: 11,
+    season: "III",
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    map: {
+      ...base.map,
+      placedTiles: [{ id: "tile-001", tileId: "core_cottage_basic", coordinate: "A3", coordinates: ["A3"], strain: 0 }]
+    },
+    encounter: {
+      ...base.encounter,
+      deck: ["burden_over_promising_to_over_compensate"],
+      discard: [],
+      active: [],
+      revealedRounds: []
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+  const effect = result.revealed[0].burdenEffect;
+
+  assert.equal(result.ok, true);
+  assert.equal(nextState.map.placedTiles[0].strain, 1);
+  assert.equal(effect.mode, "season_three_fallback");
+  assert.equal(effect.fallbackTargetText, "placed tile");
+  assert.equal(nextState.encounter.active[0].pendingChoice, null);
+});
+
+test("previously unresolvable Burdens gain only a Season III 4 Goods resolution", () => {
+  const card = encounterCards.find((candidate) => candidate.card_id === "burden_smoke_over_hearths");
+  const seasonTwoResolution = getBurdenResolutionCost(card, "II");
+  const seasonThreeResolution = getBurdenResolutionCost(card, "III");
+
+  assert.equal(seasonTwoResolution.supported, false);
+  assert.match(seasonTwoResolution.errors.join(" "), /Season III/);
+  assert.equal(seasonThreeResolution.supported, true);
+  assert.deepEqual(seasonThreeResolution.cost, [{ amount: 4, resource: "Goods" }]);
+  assert.equal(seasonThreeResolution.actionCost, 1);
+});
+
 test("The Welcome Wears Thin has no reveal choice when there are no active Arrivals", () => {
   const base = newState(1);
   const state = {
@@ -2189,13 +2295,14 @@ test("When the roads filled once more creates a placement-only Travel action dis
   const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(nextState.encounter.discard, [boonId]);
+  assert.deepEqual(nextState.encounter.discard, []);
   assert.equal(nextState.encounter.roundEffects.length, 1);
   assert.equal(nextState.encounter.roundEffects[0].type, "tile_action_discount");
   assert.deepEqual(nextState.encounter.roundEffects[0].targetCategories, ["Travel"]);
   assert.deepEqual(nextState.encounter.roundEffects[0].appliesTo, ["placement"]);
   assert.equal(nextState.encounter.roundEffects[0].maxUses, 1);
-  assert.equal(nextState.encounter.roundEffects[0].expiresAtEndOfRound, true);
+  assert.equal(nextState.encounter.roundEffects[0].expiresAtEndOfRound, false);
+  assert.equal(nextState.encounter.roundEffects[0].discardAfterUse, true);
 });
 
 test("When the roads filled once more creates a two-use Travel place-or-upgrade action discount in Season III", () => {
@@ -2218,11 +2325,13 @@ test("When the roads filled once more creates a two-use Travel place-or-upgrade 
   const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(nextState.encounter.discard, [boonId]);
+  assert.deepEqual(nextState.encounter.discard, []);
   assert.equal(nextState.encounter.roundEffects[0].type, "tile_action_discount");
   assert.deepEqual(nextState.encounter.roundEffects[0].targetCategories, ["Travel"]);
   assert.deepEqual(nextState.encounter.roundEffects[0].appliesTo, ["placement", "upgrade"]);
   assert.equal(nextState.encounter.roundEffects[0].maxUses, 2);
+  assert.equal(nextState.encounter.roundEffects[0].expiresAtEndOfRound, false);
+  assert.equal(nextState.encounter.roundEffects[0].discardAfterUse, true);
 });
 
 test("The Apprentice Steward creates a one-use placement action discount round effect", () => {
@@ -2245,13 +2354,91 @@ test("The Apprentice Steward creates a one-use placement action discount round e
   const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(nextState.encounter.discard, [boonId]);
+  assert.deepEqual(nextState.encounter.discard, []);
   assert.equal(nextState.encounter.roundEffects.length, 1);
   assert.equal(nextState.encounter.roundEffects[0].type, "tile_action_discount");
   assert.deepEqual(nextState.encounter.roundEffects[0].targetCategories, ["Resource", "Housing"]);
   assert.deepEqual(nextState.encounter.roundEffects[0].appliesTo, ["placement"]);
   assert.equal(nextState.encounter.roundEffects[0].maxUses, 1);
-  assert.equal(nextState.encounter.roundEffects[0].expiresAtEndOfRound, true);
+  assert.equal(nextState.encounter.roundEffects[0].expiresAtEndOfRound, false);
+  assert.equal(nextState.encounter.roundEffects[0].discardAfterUse, true);
+});
+
+test("A Little Time stays face-up when no Arrival can receive timer tokens", () => {
+  const base = newState(1);
+  const boonId = "boon_a_little_more_time";
+  const state = {
+    ...base,
+    round: 1,
+    season: "I",
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    encounter: {
+      ...base.encounter,
+      deck: [boonId],
+      discard: [],
+      active: [],
+      roundEffects: [],
+      revealedRounds: []
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(nextState.encounter.discard, []);
+  assert.equal(nextState.encounter.roundEffects.length, 1);
+  assert.equal(nextState.encounter.roundEffects[0].type, "arrival_timer_tokens");
+  assert.equal(nextState.encounter.roundEffects[0].expiresAtEndOfRound, false);
+  assert.equal(nextState.encounter.roundEffects[0].discardAfterUse, true);
+});
+
+test("pending A Little Time adds timer tokens before end-of-round timer loss", () => {
+  const base = newState(1);
+  const arrivalId = firstCardIdOfType(ENCOUNTER_TYPES.ARRIVAL);
+  const state = {
+    ...base,
+    phase: GAME_PHASES.END_ROUND,
+    encounter: {
+      ...base.encounter,
+      active: [
+        {
+          id: "arrival-active",
+          cardId: arrivalId,
+          encounterType: ENCOUNTER_TYPES.ARRIVAL,
+          revealedRound: 1,
+          revealedSeason: "I",
+          resolved: false,
+          completed: false,
+          timerTokens: 2
+        }
+      ],
+      discard: [],
+      roundEffects: [
+        {
+          id: "little-time-1",
+          source: "boon",
+          type: "arrival_timer_tokens",
+          cardId: "boon_a_little_more_time",
+          cardName: "A Little Time",
+          round: 1,
+          season: "I",
+          effectText: "Add 1 timer token to 1 active Arrival. No Arrival may exceed 3 timer tokens.",
+          amount: 1,
+          timerMax: 3,
+          maxUses: 1,
+          uses: 0,
+          expiresAtEndOfRound: false,
+          discardOnReveal: false,
+          discardAfterUse: true
+        }
+      ]
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.END_ROUND });
+
+  assert.equal(result.ok, true);
+  assert.equal(nextState.encounter.active[0].timerTokens, 2);
+  assert.deepEqual(nextState.encounter.discard, ["boon_a_little_more_time"]);
+  assert.deepEqual(nextState.encounter.roundEffects, []);
 });
 
 test("deck-peek Boons expose the top Encounter cards and preserve order for now", () => {
@@ -3405,7 +3592,7 @@ test("resolving a fixed-cost Burden spends 1 Action, pays resources, and discard
   assert.equal(nextState.log.at(-1).type, "encounter");
 });
 
-test("source Burdens without To resolve text stay active and cannot be resolved", () => {
+test("Season III-only Burdens stay active and cannot be resolved before Season III", () => {
   const base = newState(1);
   const burdenCard = encounterCards.find((card) => card.card_id === "burden_smoke_over_hearths");
   const state = {
@@ -3441,7 +3628,7 @@ test("source Burdens without To resolve text stay active and cannot be resolved"
   });
 
   assert.equal(result.ok, false);
-  assert.match(result.errors.join(" "), /no source-defined resolution cost/);
+  assert.match(result.errors.join(" "), /can only be resolved in Season III/);
   assert.equal(nextState, state);
 });
 

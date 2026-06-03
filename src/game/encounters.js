@@ -80,7 +80,7 @@ const DIRECT_CATEGORY_CHOICE_BURDEN_STRAIN_PLACEMENT =
 const CATEGORY_PAY_OR_STRAIN_BURDEN_CHOICE =
   /^Choose (\d+) (.+?) with fewer than 3 Strain\. (?:(For each chosen tile), )?Pay (.+?)(?:,)? or place 1 Strain on (it|each chosen tile)\.$/i;
 const ARRIVAL_PAY_OR_TIMER_BURDEN_CHOICE =
-  /^Choose (\d+) active Arrivals?\. (?:(For each chosen Arrival), )?Pay (\d+) ([A-Za-z]+) or remove 1 timer token from it\. If there are no active Arrivals, this Burden has no effect\.$/i;
+  /^Choose (\d+) active Arrivals?\. (?:(For each chosen Arrival), )?Pay (\d+) ([A-Za-z]+) or remove 1 timer token from it\.(?: If there are no active Arrivals, this Burden has no effect\.)?$/i;
 const CHOSEN_RESOURCE_LOSS_OR_STRAIN_BURDEN_CHOICE =
   /^Choose (.+?)\. Lose (\d+) of that resource, or choose (\d+) (Resource Tiles?|placed tiles?) with fewer than 3 Strain and place 1 Strain on (it|each chosen tile)\.$/i;
 const MOST_RESOURCE_LOSS_OR_STRAIN_BURDEN_CHOICE =
@@ -95,6 +95,10 @@ const QUIET_FRACTURES_OVERSTRAINED_SPREAD =
   /^Choose 1 Overstrained tile\. Then choose 2 adjacent placed tiles with 0 Strain\. Place 1 Strain on each chosen tile\. If there are no Overstrained tiles, resolve the Season II effect instead\.$/i;
 const STEWARD_TOKEN_BURDEN_STRAIN_PLACEMENT =
   /^Choose each tile occupied by one or more Steward Tokens with fewer than 3 Strain\. Place 1 Strain on each chosen tile(?:\. Then choose 1 Steward House with fewer than 3 Strain\. Place 1 Strain on it)?\.$/i;
+const SEASON_THREE_FALLBACK_STRAIN_TARGET =
+  /^In Season III, if there are no valid targets, choose 1 (.+?) with fewer than 3 Strain and place 1 Strain on it instead\.$/i;
+const SEASON_THREE_NO_ARRIVAL_FALLBACK_STRAIN_TARGET =
+  /^If there are no active Arrivals in Season III, choose 1 (.+?) with fewer than 3 Strain and place 1 Strain on it instead\.$/i;
 
 function normalizeV26GainText(gainText) {
   return String(gainText ?? "").replace(/\+(\d+) ([A-Za-z]+)/g, "$1 additional $2");
@@ -297,7 +301,8 @@ function normalizeBoonEffectText(effectText) {
 }
 
 function normalizeBurdenEffectText(effectText) {
-  const text = String(effectText ?? "").trim();
+  const { baseText } = splitSeasonThreeFallbackText(effectText);
+  const text = String(baseText ?? "").trim();
   let match = null;
 
   match =
@@ -354,6 +359,14 @@ function normalizeBurdenEffectText(effectText) {
     );
   if (match) {
     return `Choose ${match[1]} active Arrivals. For each chosen Arrival, pay ${match[2]} ${match[3]} or remove 1 timer token from it. If there are no active Arrivals, this Burden has no effect.`;
+  }
+
+  match =
+    /^Choose up to (\d+) active Arrivals?, choosing as many as possible\. For each chosen Arrival, pay (\d+) ([A-Za-z]+) or remove 1 timer token from it\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose ${match[1]} active Arrivals. For each chosen Arrival, pay ${match[2]} ${match[3]} or remove 1 timer token from it.`;
   }
 
   match =
@@ -570,6 +583,25 @@ function normalizeResourceSourceName(sourceName) {
   return sourceName.endsWith("s") ? sourceName.slice(0, -1) : sourceName;
 }
 
+function boonStaysFaceUpUntilUsed(card) {
+  return /^Keep this card face-up\. Discard it after its effect is used\.$/i.test(
+    String(card?.lifecycle_or_resolution ?? "").trim()
+  );
+}
+
+function getRoundLimitedBoonLifecycle(card) {
+  return boonStaysFaceUpUntilUsed(card)
+    ? {
+        expiresAtEndOfRound: false,
+        discardOnReveal: false,
+        discardAfterUse: true
+      }
+    : {
+        expiresAtEndOfRound: true,
+        discardOnReveal: true
+      };
+}
+
 function parseAdditionalGains(gainText) {
   return gainText
     .split(/\s+and\s+/i)
@@ -784,6 +816,8 @@ export function createBoonRoundEffect(state, card, index = 0) {
   }
 
   if (tilePlacementActionDiscountMatch) {
+    const lifecycle = getRoundLimitedBoonLifecycle(card);
+
     return {
       id: `round-effect-${card.card_id}-${state.round}-${index + 1}`,
       source: "boon",
@@ -797,12 +831,13 @@ export function createBoonRoundEffect(state, card, index = 0) {
       appliesTo: ["placement"],
       maxUses: 1,
       uses: 0,
-      expiresAtEndOfRound: true,
-      discardOnReveal: true
+      ...lifecycle
     };
   }
 
   if (travelTileActionDiscountMatch) {
+    const lifecycle = getRoundLimitedBoonLifecycle(card);
+
     return {
       id: `round-effect-${card.card_id}-${state.round}-${index + 1}`,
       source: "boon",
@@ -816,8 +851,7 @@ export function createBoonRoundEffect(state, card, index = 0) {
       appliesTo: travelTileActionDiscountMatch[2] ? ["placement", "upgrade"] : ["placement"],
       maxUses: travelTileActionDiscountMatch[1] ? 2 : 1,
       uses: 0,
-      expiresAtEndOfRound: true,
-      discardOnReveal: true
+      ...lifecycle
     };
   }
 
@@ -901,6 +935,125 @@ function getBoonArrivalTimerEffect(state, card) {
     effectText,
     amount: oneTimerMatch ? 1 : Number(dividedMatch[1]),
     timerMax: Number(oneTimerMatch?.[1] ?? dividedMatch?.[2] ?? state.rules.arrivalTimerMax ?? 3)
+  };
+}
+
+function applyArrivalTimerEffectToActive(state, activeStates, timerEffect) {
+  let remaining = timerEffect.amount;
+  const applications = [];
+  const active = activeStates.map((activeState) => ({ ...activeState }));
+
+  while (remaining > 0) {
+    let addedThisPass = 0;
+
+    for (const activeState of active) {
+      if (remaining <= 0) {
+        break;
+      }
+
+      if (activeState.encounterType !== ENCOUNTER_TYPES.ARRIVAL || activeState.completed) {
+        continue;
+      }
+
+      const before = Number(activeState.timerTokens ?? state.rules.arrivalStartTimerTokens ?? timerEffect.timerMax);
+      if (before >= timerEffect.timerMax) {
+        continue;
+      }
+
+      activeState.timerTokens = before + 1;
+      remaining -= 1;
+      addedThisPass += 1;
+      applications.push({
+        activeEncounterId: activeState.id,
+        cardId: activeState.cardId,
+        before,
+        after: activeState.timerTokens,
+        tokensAdded: 1
+      });
+    }
+
+    if (addedThisPass === 0) {
+      break;
+    }
+  }
+
+  return {
+    active,
+    tokensAdded: timerEffect.amount - remaining,
+    applications
+  };
+}
+
+function createPersistentArrivalTimerRoundEffect(state, card, timerEffect, index = 0) {
+  return {
+    id: `round-effect-${card.card_id}-${state.round}-${index + 1}`,
+    source: "boon",
+    type: "arrival_timer_tokens",
+    cardId: card.card_id,
+    cardName: card.card_name,
+    round: state.round,
+    season: state.season,
+    effectText: timerEffect.effectText,
+    amount: timerEffect.amount,
+    timerMax: timerEffect.timerMax,
+    maxUses: 1,
+    uses: 0,
+    expiresAtEndOfRound: false,
+    discardOnReveal: false,
+    discardAfterUse: true
+  };
+}
+
+export function applyPersistentArrivalTimerRoundEffects(state, activeStates, roundEffects) {
+  let active = activeStates;
+  const usedEffectIds = new Set();
+  const discardedCardIds = [];
+  const applications = [];
+
+  for (const effect of roundEffects) {
+    if (
+      effect.type !== "arrival_timer_tokens" ||
+      !effect.discardAfterUse ||
+      (effect.uses ?? 0) >= (effect.maxUses ?? 1)
+    ) {
+      continue;
+    }
+
+    const result = applyArrivalTimerEffectToActive(state, active, effect);
+
+    if (result.tokensAdded <= 0) {
+      continue;
+    }
+
+    active = result.active;
+    applications.push({
+      effectId: effect.id,
+      cardId: effect.cardId,
+      cardName: effect.cardName,
+      tokensAdded: result.tokensAdded,
+      applications: result.applications
+    });
+
+    if ((effect.uses ?? 0) + 1 >= (effect.maxUses ?? 1)) {
+      usedEffectIds.add(effect.id);
+      discardedCardIds.push(effect.cardId);
+    }
+  }
+
+  if (usedEffectIds.size === 0) {
+    return {
+      active,
+      roundEffects,
+      discardedCardIds,
+      applications
+    };
+  }
+
+  return {
+    active,
+    roundEffects: roundEffects.filter((effect) => !usedEffectIds.has(effect.id)),
+    discardedCardIds,
+    applications
   };
 }
 
@@ -1042,6 +1195,100 @@ function parseOptionalStrainReliefTargetCategories(targetText) {
   }
 
   return targetText.split(/\s+or\s+/i).map((part) => part.trim()).filter(Boolean);
+}
+
+function splitSeasonThreeFallbackText(effectText) {
+  const text = String(effectText ?? "").trim();
+  const fallbackMarker = ". In Season III, if there are no valid targets, ";
+  const noArrivalFallbackMarker = " If there are no active Arrivals in Season III, ";
+
+  if (text.includes(fallbackMarker)) {
+    const [baseText, fallbackText] = text.split(fallbackMarker);
+
+    return {
+      baseText: baseText.endsWith(".") ? baseText : `${baseText}.`,
+      fallbackText: `In Season III, if there are no valid targets, ${fallbackText}`
+    };
+  }
+
+  if (text.includes(noArrivalFallbackMarker)) {
+    const [baseText, fallbackText] = text.split(noArrivalFallbackMarker);
+
+    return {
+      baseText,
+      fallbackText: `If there are no active Arrivals in Season III, ${fallbackText}`
+    };
+  }
+
+  return {
+    baseText: text,
+    fallbackText: null
+  };
+}
+
+function parseSeasonThreeFallbackTargetCategories(fallbackText) {
+  const match =
+    SEASON_THREE_FALLBACK_STRAIN_TARGET.exec(fallbackText) ??
+    SEASON_THREE_NO_ARRIVAL_FALLBACK_STRAIN_TARGET.exec(fallbackText);
+
+  if (!match) {
+    return null;
+  }
+
+  const targetText = match[1].trim();
+
+  if (/^placed tile$/i.test(targetText)) {
+    return {
+      supported: true,
+      targetCategories: null,
+      targetText
+    };
+  }
+
+  return {
+    supported: true,
+    targetCategories: parsePayOrStrainTargetCategories(targetText),
+    targetText
+  };
+}
+
+function applySeasonThreeFallbackStrainTarget(state, card, reason, context, effectText, fallbackText, fallbackReason) {
+  if (state.season !== "III" || !fallbackText) {
+    return null;
+  }
+
+  const fallback = parseSeasonThreeFallbackTargetCategories(fallbackText);
+
+  if (!fallback?.supported) {
+    return null;
+  }
+
+  const target = getEligibleBurdenStrainTargets(state, context, (placedTile) =>
+    placedTileMatchesAnyCategory(context, placedTile, fallback.targetCategories)
+  )[0];
+  const placement = target
+    ? applyStrainPlacementToTargets(state, [target], context, fallbackReason)
+    : {
+        state,
+        applications: []
+      };
+
+  return createBurdenStrainPlacementEffect(
+    state,
+    card,
+    reason,
+    effectText,
+    {
+      mode: "season_three_fallback",
+      fallbackReason,
+      fallbackEffectText: fallbackText,
+      fallbackTargetText: fallback.targetText,
+      targetCategories: fallback.targetCategories,
+      maxTargets: 1
+    },
+    placement.applications,
+    placement.state
+  );
 }
 
 function getAdjacentPlacedTiles(state, placedTile) {
@@ -1492,19 +1739,18 @@ export function getOptionalBoonStrainReliefApplications(state, effect, targetPla
   };
 }
 
-function resolveBurdenStrainPlacementEffect(state, card, reason, context) {
+function resolveBurdenStrainPlacementEffect(state, card, reason, context, effectText, fallbackText = null) {
   if (card?.encounter_type !== ENCOUNTER_TYPES.BURDEN) {
     return null;
   }
 
-  const effectText = normalizeBurdenEffectText(getEncounterSeasonEffect(card, state.season));
   const match = RESOURCE_BURDEN_STRAIN_PLACEMENT.exec(effectText);
 
   if (!match) {
     return (
-      resolveCategoryBurdenStrainPlacementEffect(state, card, reason, context, effectText) ??
-      resolveOtherCategoryBurdenStrainPlacementEffect(state, card, reason, context, effectText) ??
-      resolveDirectCategoryChoiceBurdenStrainPlacementEffect(state, card, reason, context, effectText) ??
+      resolveCategoryBurdenStrainPlacementEffect(state, card, reason, context, effectText, fallbackText) ??
+      resolveOtherCategoryBurdenStrainPlacementEffect(state, card, reason, context, effectText, fallbackText) ??
+      resolveDirectCategoryChoiceBurdenStrainPlacementEffect(state, card, reason, context, effectText, fallbackText) ??
       resolveUpgradedCoreBurdenStrainPlacementEffect(state, card, reason, context, effectText) ??
       resolveRenownBurdenStrainPlacementEffect(state, card, reason, context, effectText) ??
       resolveStewardTokenBurdenStrainPlacementEffect(state, card, reason, context, effectText) ??
@@ -1548,6 +1794,22 @@ function resolveBurdenStrainPlacementEffect(state, card, reason, context) {
     }
   }
 
+  if (applications.length === 0) {
+    const fallback = applySeasonThreeFallbackStrainTarget(
+      state,
+      card,
+      reason,
+      context,
+      effectText,
+      fallbackText,
+      "resource_family_fallback"
+    );
+
+    if (fallback) {
+      return fallback;
+    }
+  }
+
   return createBurdenStrainPlacementEffect(
     state,
     card,
@@ -1565,7 +1827,7 @@ function resolveBurdenStrainPlacementEffect(state, card, reason, context) {
   );
 }
 
-function resolveCategoryBurdenStrainPlacementEffect(state, card, reason, context, effectText) {
+function resolveCategoryBurdenStrainPlacementEffect(state, card, reason, context, effectText, fallbackText = null) {
   const adjacentStrainedMatch = ADJACENT_STRAINED_CATEGORY_BURDEN_STRAIN_PLACEMENT.exec(effectText);
   const adjacentMatch = ADJACENT_CATEGORY_BURDEN_STRAIN_PLACEMENT.exec(effectText);
   const notAdjacentMatch = NOT_ADJACENT_CATEGORY_BURDEN_STRAIN_PLACEMENT.exec(effectText);
@@ -1593,6 +1855,22 @@ function resolveCategoryBurdenStrainPlacementEffect(state, card, reason, context
   }).slice(0, maxTargets);
   const placement = applyStrainPlacementToTargets(state, targets, context, mode);
 
+  if (placement.applications.length === 0) {
+    const fallback = applySeasonThreeFallbackStrainTarget(
+      state,
+      card,
+      reason,
+      context,
+      effectText,
+      fallbackText,
+      `${mode}_fallback`
+    );
+
+    if (fallback) {
+      return fallback;
+    }
+  }
+
   return createBurdenStrainPlacementEffect(
     state,
     card,
@@ -1609,7 +1887,7 @@ function resolveCategoryBurdenStrainPlacementEffect(state, card, reason, context
   );
 }
 
-function resolveOtherCategoryBurdenStrainPlacementEffect(state, card, reason, context, effectText) {
+function resolveOtherCategoryBurdenStrainPlacementEffect(state, card, reason, context, effectText, fallbackText = null) {
   const match = OTHER_CATEGORY_BURDEN_STRAIN_PLACEMENT.exec(effectText);
 
   if (!match) {
@@ -1638,6 +1916,22 @@ function resolveOtherCategoryBurdenStrainPlacementEffect(state, card, reason, co
     : sortPlacedTilesById([...merchantTargets, ...craftingTargets]);
   const placement = applyStrainPlacementToTargets(state, targets, context, "other_category");
 
+  if (placement.applications.length === 0) {
+    const fallback = applySeasonThreeFallbackStrainTarget(
+      state,
+      card,
+      reason,
+      context,
+      effectText,
+      fallbackText,
+      "other_category_fallback"
+    );
+
+    if (fallback) {
+      return fallback;
+    }
+  }
+
   return createBurdenStrainPlacementEffect(
     state,
     card,
@@ -1655,7 +1949,7 @@ function resolveOtherCategoryBurdenStrainPlacementEffect(state, card, reason, co
   );
 }
 
-function resolveDirectCategoryChoiceBurdenStrainPlacementEffect(state, card, reason, context, effectText) {
+function resolveDirectCategoryChoiceBurdenStrainPlacementEffect(state, card, reason, context, effectText, fallbackText = null) {
   const match = DIRECT_CATEGORY_CHOICE_BURDEN_STRAIN_PLACEMENT.exec(effectText);
 
   if (!match) {
@@ -1670,6 +1964,22 @@ function resolveDirectCategoryChoiceBurdenStrainPlacementEffect(state, card, rea
   ).slice(0, maxTargets);
   const placement = applyStrainPlacementToTargets(state, targets, context, "category_choice");
   const resourceLoss = lossResource ? loseWarehouseResourceIfAble(placement.state, lossResource, 1) : null;
+
+  if (placement.applications.length === 0) {
+    const fallback = applySeasonThreeFallbackStrainTarget(
+      state,
+      card,
+      reason,
+      context,
+      effectText,
+      fallbackText,
+      "category_choice_fallback"
+    );
+
+    if (fallback) {
+      return fallback;
+    }
+  }
 
   return createBurdenStrainPlacementEffect(
     state,
@@ -1687,7 +1997,7 @@ function resolveDirectCategoryChoiceBurdenStrainPlacementEffect(state, card, rea
   );
 }
 
-function createBurdenPayOrStrainChoiceEffect(state, card, reason, context, effectText) {
+function createBurdenPayOrStrainChoiceEffect(state, card, reason, context, effectText, fallbackText = null) {
   const match = CATEGORY_PAY_OR_STRAIN_BURDEN_CHOICE.exec(effectText);
 
   if (!match) {
@@ -1707,6 +2017,22 @@ function createBurdenPayOrStrainChoiceEffect(state, card, reason, context, effec
   const targets = getEligibleBurdenStrainTargets(state, context, (placedTile) =>
     placedTileMatchesAnyCategory(context, placedTile, targetCategories)
   ).slice(0, maxTargets);
+
+  if (targets.length === 0) {
+    const fallback = applySeasonThreeFallbackStrainTarget(
+      state,
+      card,
+      reason,
+      context,
+      effectText,
+      fallbackText,
+      "pay_or_strain_fallback"
+    );
+
+    if (fallback) {
+      return fallback;
+    }
+  }
 
   return {
     state,
@@ -1737,7 +2063,7 @@ function createBurdenPayOrStrainChoiceEffect(state, card, reason, context, effec
   };
 }
 
-function createBurdenArrivalTimerChoiceEffect(state, card, reason, context, effectText) {
+function createBurdenArrivalTimerChoiceEffect(state, card, reason, context, effectText, fallbackText = null) {
   const match = ARRIVAL_PAY_OR_TIMER_BURDEN_CHOICE.exec(effectText);
 
   if (!match) {
@@ -1761,6 +2087,22 @@ function createBurdenArrivalTimerChoiceEffect(state, card, reason, context, effe
         Number(activeState.timerTokens ?? state.rules.arrivalStartTimerTokens ?? 0) > 0
     )
     .slice(0, maxTargets);
+
+  if (targets.length === 0) {
+    const fallback = applySeasonThreeFallbackStrainTarget(
+      state,
+      card,
+      reason,
+      context,
+      effectText,
+      fallbackText,
+      "arrival_timer_fallback"
+    );
+
+    if (fallback) {
+      return fallback;
+    }
+  }
 
   return {
     state,
@@ -2203,58 +2545,53 @@ function resolveBoonImmediateEffect(state, card, activeStates, deck, context = {
     };
   }
 
-  let remaining = timerEffect.amount;
-  const applications = [];
-  const active = activeStates.map((activeState) => ({ ...activeState }));
-
-  while (remaining > 0) {
-    let addedThisPass = 0;
-
-    for (const activeState of active) {
-      if (remaining <= 0) {
-        break;
-      }
-
-      if (activeState.encounterType !== ENCOUNTER_TYPES.ARRIVAL || activeState.completed) {
-        continue;
-      }
-
-      const before = Number(activeState.timerTokens ?? state.rules.arrivalStartTimerTokens ?? timerEffect.timerMax);
-      if (before >= timerEffect.timerMax) {
-        continue;
-      }
-
-      activeState.timerTokens = before + 1;
-      remaining -= 1;
-      addedThisPass += 1;
-      applications.push({
-        activeEncounterId: activeState.id,
-        cardId: activeState.cardId,
-        before,
-        after: activeState.timerTokens,
-        tokensAdded: 1
-      });
-    }
-
-    if (addedThisPass === 0) {
-      break;
-    }
-  }
+  const timerApplication = applyArrivalTimerEffectToActive(state, activeStates, timerEffect);
 
   return {
     state,
-    active,
+    active: timerApplication.active,
     deck,
     effect: {
       ...timerEffect,
-      tokensAdded: timerEffect.amount - remaining,
-      applications
+      tokensAdded: timerApplication.tokensAdded,
+      applications: timerApplication.applications
     }
   };
 }
 
 export function getBurdenResolutionCost(card, season) {
   const lifecycle = normalizeBurdenLifecycleText(card?.lifecycle_or_resolution);
+  const seasonThreeMatch =
+    /^Place this card on the Stewards Board as an active Burden\. In Season III, to resolve: Spend 1 Action and pay (\d+) ([A-Za-z]+)\. Then discard this card\.$/i.exec(
+      lifecycle
+    );
+
+  if (seasonThreeMatch) {
+    if (season !== "III") {
+      return {
+        supported: false,
+        errors: [`${card?.card_name ?? "This Burden"} can only be resolved in Season III.`],
+        cost: [],
+        mode: "season_three_only"
+      };
+    }
+
+    const amount = Number(seasonThreeMatch[1]);
+    const resource = seasonThreeMatch[2];
+
+    return {
+      supported: true,
+      errors: [],
+      cost: [{ amount, resource }],
+      actionCost: 1,
+      resolveText: `Spend 1 Action and pay ${amount} ${resource}.`,
+      mode: "season_three_fixed",
+      amount,
+      allowedResources: [resource],
+      requiresPaymentChoice: false
+    };
+  }
+
   const resolveText = lifecycle.split("To resolve:")[1]?.trim();
 
   if (!resolveText) {
@@ -2361,11 +2698,12 @@ export function createBurdenApplication(state, card, reason) {
 
 export function resolveBurdenSeasonEffect(state, card, reason, context = {}) {
   const sourceEffectText = String(getEncounterSeasonEffect(card, state.season) ?? "").trim();
-  const effectText = normalizeBurdenEffectText(sourceEffectText);
+  const { baseText, fallbackText } = splitSeasonThreeFallbackText(sourceEffectText);
+  const effectText = normalizeBurdenEffectText(baseText);
   const strainPlacementEffect =
-    resolveBurdenStrainPlacementEffect(state, card, reason, context) ??
-    createBurdenPayOrStrainChoiceEffect(state, card, reason, context, effectText) ??
-    createBurdenArrivalTimerChoiceEffect(state, card, reason, context, effectText) ??
+    resolveBurdenStrainPlacementEffect(state, card, reason, context, effectText, fallbackText) ??
+    createBurdenPayOrStrainChoiceEffect(state, card, reason, context, effectText, fallbackText) ??
+    createBurdenArrivalTimerChoiceEffect(state, card, reason, context, effectText, fallbackText) ??
     createBurdenResourceLossChoiceEffect(state, card, reason, context, effectText);
 
   if (!strainPlacementEffect) {
@@ -2798,11 +3136,15 @@ export function revealEncounters(state, encounterCards, context = {}) {
   const deck = [...state.encounter.deck];
   const discard = [...state.encounter.discard];
   let active = [...state.encounter.active];
-  const roundEffects = [...(state.encounter.roundEffects ?? [])];
+  let roundEffects = [...(state.encounter.roundEffects ?? [])];
   const revealed = [];
   const requiredStandard = getRevealCountForPlayerCount(state.playerCount);
   let standardRevealed = 0;
   let goldenRevealed = 0;
+  const initialTimerEffects = applyPersistentArrivalTimerRoundEffects(state, active, roundEffects);
+  active = initialTimerEffects.active;
+  roundEffects = initialTimerEffects.roundEffects;
+  discard.push(...initialTimerEffects.discardedCardIds);
 
   while (deck.length > 0 && standardRevealed < requiredStandard) {
     const cardId = deck.shift();
@@ -2866,6 +3208,13 @@ export function revealEncounters(state, encounterCards, context = {}) {
       active.push(createActiveEncounterState({ ...state, encounter: { ...state.encounter, active } }, card, burdenEffect.application));
     } else if (card.encounter_type === ENCOUNTER_TYPES.ARRIVAL) {
       active.push(createActiveEncounterState({ ...state, encounter: { ...state.encounter, active } }, card));
+      const timerEffects = applyPersistentArrivalTimerRoundEffects(state, active, roundEffects);
+      active = timerEffects.active;
+      roundEffects = timerEffects.roundEffects;
+      discard.push(...timerEffects.discardedCardIds);
+      if (timerEffects.applications.length > 0) {
+        entry.persistentArrivalTimerEffects = timerEffects.applications;
+      }
     } else {
       const immediateEffect = resolveBoonImmediateEffect(state, card, active, deck, context);
       state = immediateEffect.state;
@@ -2875,7 +3224,12 @@ export function revealEncounters(state, encounterCards, context = {}) {
         entry.immediateEffect = immediateEffect.effect;
       }
 
-      const roundEffect = createBoonRoundEffect(state, card, roundEffects.length);
+      const roundEffect =
+        immediateEffect.effect?.type === "arrival_timer_tokens" &&
+        immediateEffect.effect.tokensAdded === 0 &&
+        boonStaysFaceUpUntilUsed(card)
+          ? createPersistentArrivalTimerRoundEffect(state, card, immediateEffect.effect, roundEffects.length)
+          : createBoonRoundEffect(state, card, roundEffects.length);
       if (roundEffect) {
         roundEffects.push(roundEffect);
         entry.roundEffect = roundEffect;
