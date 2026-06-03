@@ -275,7 +275,7 @@ test("Boon round production effects add bonuses on matching Resource activation"
   assert.deepEqual(result.bonusGains, [{ resource: "Food", amount: 1 }]);
   assert.deepEqual(result.totalGains, [{ resource: "Food", amount: 3 }]);
   assert.equal(result.productionBonuses[0].source, "boon");
-  assert.equal(result.productionBonuses[0].cardName, "Bounty of the first harvest");
+  assert.equal(result.productionBonuses[0].cardName, "First Harvest Bounty");
   assert.equal(nextState.encounter.roundEffects[0].uses, 1);
   assert.equal(nextState.warehouse.resources.Food, 3);
 });
@@ -909,8 +909,8 @@ test("Workshops reduces an adjacent Core Tile upgrade cost once per round", () =
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.baseCost, [{ amount: 4, resource: "Stone" }]);
-  assert.deepEqual(result.cost, [{ amount: 3, resource: "Stone" }]);
+  assert.deepEqual(result.baseCost, [{ amount: 2, resource: "Stone" }]);
+  assert.deepEqual(result.cost, [{ amount: 1, resource: "Stone" }]);
   assert.equal(result.upgradeCostReduction.providerTileName, "Workshops");
   assert.deepEqual(
     nextState.map.placedTiles.find((tile) => tile.id === "tile-002").upgradeDiscountRounds,
@@ -942,8 +942,8 @@ test("The Makers Conclave reduces a reachable Core Tile upgrade cost by up to tw
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.baseCost, [{ amount: 4, resource: "Stone" }]);
-  assert.deepEqual(result.cost, [{ amount: 2, resource: "Stone" }]);
+  assert.deepEqual(result.baseCost, [{ amount: 2, resource: "Stone" }]);
+  assert.deepEqual(result.cost, []);
   assert.equal(result.upgradeCostReduction.providerTileName, "The Makers Conclave");
   assert.equal(nextState.map.placedTiles.find((tile) => tile.id === "tile-002").tileId, "core_the_makers_conclave_upgraded");
   assert.deepEqual(

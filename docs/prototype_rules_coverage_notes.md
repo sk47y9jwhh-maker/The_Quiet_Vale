@@ -5,7 +5,7 @@ This note tracks the local prototype as of the v2.0 aligned production-set pass.
 ## Supported Now
 
 - Loads the JSON map, tiles, encounter cards, and rules config from `src/data/`.
-- Uses `Redesigned Basic Map v0.1` as the default locked map; the previous map is no longer selectable in the app.
+- Uses `Redesigned Basic Map v0.2` as the default locked map; `Redesigned Basic Map v0.1` remains available as the previous reference map.
 - Provides a setup `Redeal Cards` control for generating a fresh playtest seed and rebuilding Encounter hands/deck without changing map or player count.
 - Stocks the starting Warehouse by player count: 15 of each resource at 1p, 10 at 2p, 5 at 3p, and 0 at 4p/5+ Council reference.
 - Renders the current flat-top hex map with terrain, features, placed tiles, Strain, Support, and player last-interaction markers.

@@ -86,7 +86,7 @@ test("burden resolution preset can resolve Blighted Lands", () => {
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.cost, [{ amount: 2, resource: "Herbs" }]);
+  assert.deepEqual(result.cost, [{ amount: 2, resource: "Food" }]);
   assert.equal(state.encounter.active.length, 0);
   assert.ok(state.encounter.discard.includes("burden_blighted_lands"));
 });
@@ -105,8 +105,8 @@ test("boon upgrade preset applies Raised in Good Season to the next Core upgrade
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.baseCost, [{ amount: 4, resource: "Stone" }]);
-  assert.deepEqual(result.cost, [{ amount: 3, resource: "Stone" }]);
+  assert.deepEqual(result.baseCost, [{ amount: 2, resource: "Stone" }]);
+  assert.deepEqual(result.cost, [{ amount: 1, resource: "Stone" }]);
   assert.deepEqual(state.encounter.roundEffects, []);
   assert.ok(state.encounter.discard.includes("boon_raised_in_good_season"));
 });

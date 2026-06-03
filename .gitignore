@@ -1,2 +1,7 @@
 .DS_Store
 src/.DS_Store
+node_modules/
+coverage/
+*.log
+.env
+.env.*

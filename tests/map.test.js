@@ -31,6 +31,8 @@ const tiles = await readJson("tiles.json");
 const mapHexes = await readJson("codex_default_map_v0_1.json");
 const redesignedMapSource = await readJson("redesigned_basic_map_v0_1.json");
 const redesignedMapHexes = normalizeMapSource(redesignedMapSource);
+const redesignedMapV02Source = await readJson("redesigned_basic_map_v0_2.json");
+const redesignedMapV02Hexes = normalizeMapSource(redesignedMapV02Source);
 const riverRules = await readJson("river_rules.json");
 
 const redesignedRiverCoordinates = [
@@ -48,6 +50,30 @@ const redesignedRiverCoordinates = [
   "K6",
   "E7",
   "K7",
+  "L7",
+  "E8",
+  "F8",
+  "M8",
+  "N8",
+  "G9",
+  "H9"
+];
+
+const redesignedMapV02RiverCoordinates = [
+  "D1",
+  "D2",
+  "E3",
+  "F3",
+  "E4",
+  "G4",
+  "H4",
+  "E5",
+  "I5",
+  "J5",
+  "E6",
+  "K6",
+  "L6",
+  "E7",
   "L7",
   "E8",
   "F8",
@@ -177,6 +203,45 @@ test("redesigned basic map v0.1 treats every River hex as a legal Bridge site", 
 
     assert.equal(validation.valid, true, `${coordinate}: ${validation.errors.join(", ")}`);
   }
+});
+
+test("redesigned basic map v0.2 is the promoted K7/L6 and row 9 terrain revision", () => {
+  const validation = validateMapOption(redesignedMapV02Hexes, {
+    label: "Redesigned Basic Map v0.2",
+    expectedRows: MAP_ROW_NUMBERS,
+    expectedColumns: MAP_COLUMN_LETTERS,
+    expectedCoordinateConvention: COORDINATE_CONVENTIONS.COLUMN_LETTER_ROW_NUMBER,
+    expectedHexes: 126,
+    expectedTerrain: redesignedMapV02Source.expected_terrain_counts,
+    expectedRiverCoordinates: redesignedMapV02RiverCoordinates,
+    requireWaterFeatureRiver: true
+  });
+
+  const k7 = redesignedMapV02Hexes.find((hex) => hex.Coordinate === "K7");
+  const l6 = redesignedMapV02Hexes.find((hex) => hex.Coordinate === "L6");
+  const rowNineTerrain = Object.fromEntries(
+    ["I9", "J9", "K9", "L9", "M9", "N9"].map((coordinate) => [
+      coordinate,
+      redesignedMapV02Hexes.find((hex) => hex.Coordinate === coordinate)?.Terrain
+    ])
+  );
+
+  assert.equal(validation.valid, true);
+  assert.equal(k7.Terrain, "Grasslands");
+  assert.equal(k7.Feature, "None");
+  assert.equal(l6.Terrain, "Water");
+  assert.equal(l6.Feature, "River");
+  assert.deepEqual(rowNineTerrain, {
+    I9: "Grasslands",
+    J9: "Ruins",
+    K9: "Ruins",
+    L9: "Ruins",
+    M9: "Grasslands",
+    N9: "Grasslands"
+  });
+  assert.deepEqual(validation.terrainCounts, redesignedMapV02Source.expected_terrain_counts);
+  assert.deepEqual(validation.waterCoordinates, redesignedMapV02RiverCoordinates);
+  assert.equal(validation.allRiverHexesAreBridgePlacementSites, true);
 });
 
 test("redesigned basic map v0.1 allows Dig Site on every Ruins hex", () => {

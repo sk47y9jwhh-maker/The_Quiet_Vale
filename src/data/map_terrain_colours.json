@@ -1,0 +1,58 @@
+[
+  {
+    "terrain": "Grasslands",
+    "hex": "#D8CFAE",
+    "rgb": "216, 207, 174",
+    "role": "Default open ground",
+    "solid_use": "Primary neutral land colour",
+    "visual_note": "Warm parchment-tan with a faint field tint. Should feel like the unwashed map base plus sparse grass marks."
+  },
+  {
+    "terrain": "Woodland",
+    "hex": "#8F9B6A",
+    "rgb": "143, 155, 106",
+    "role": "Forests / wooded terrain",
+    "solid_use": "Woodland terrain fill",
+    "visual_note": "Muted moss green. Distinct from Grasslands but still restrained and survey-map compatible."
+  },
+  {
+    "terrain": "Heaths",
+    "hex": "#A99AB2",
+    "rgb": "169, 154, 178",
+    "role": "Heath / wild scrubland",
+    "solid_use": "Heath terrain fill",
+    "visual_note": "Soft lavender-grey heather. Atmospheric without becoming bright purple."
+  },
+  {
+    "terrain": "Water / River",
+    "hex": "#7894A0",
+    "rgb": "120, 148, 160",
+    "role": "River / water barrier",
+    "solid_use": "River path / water fill",
+    "visual_note": "Muted blue-grey. Needs to read clearly as a mechanical river barrier while staying archival."
+  },
+  {
+    "terrain": "Mountains",
+    "hex": "#8B969B",
+    "rgb": "139, 150, 155",
+    "role": "Mountain terrain",
+    "solid_use": "Mountain terrain fill",
+    "visual_note": "Cool grey-blue ridge tone. Low survey-ridge feel, not dramatic fantasy peaks."
+  },
+  {
+    "terrain": "Arable Land",
+    "hex": "#C6A96D",
+    "rgb": "198, 169, 109",
+    "role": "Fields / cultivated land",
+    "solid_use": "Arable terrain fill",
+    "visual_note": "Soft wheat ochre. Should read as tilled or cultivated land without harsh yellow."
+  },
+  {
+    "terrain": "Ruins",
+    "hex": "#9A8875",
+    "rgb": "154, 136, 117",
+    "role": "Old stones / ruins",
+    "solid_use": "Ruins terrain fill",
+    "visual_note": "Warm grey-brown rubble tone. Compatible with low foundations, broken stone, and old civic remnants."
+  }
+]

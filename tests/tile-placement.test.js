@@ -660,7 +660,7 @@ test("places a two-hex Gravel Path footprint across empty legal land hexes", () 
   assert.equal(result.ok, true);
   assert.deepEqual(nextState.map.placedTiles[0].coordinates, ["A3", "A4"]);
   assert.equal(nextState.map.placedTiles[0].orientation, "rotation-0");
-  assert.equal(nextState.tileSupply.core.find((entry) => entry.tileId === "core_gravel_path_basic").available, 5);
+  assert.equal(nextState.tileSupply.core.find((entry) => entry.tileId === "core_gravel_path_basic").available, 3);
 });
 
 test("places a three-hex Gravel Track footprint across empty legal land hexes", () => {
@@ -674,7 +674,7 @@ test("places a three-hex Gravel Track footprint across empty legal land hexes", 
 
   assert.equal(result.ok, true);
   assert.deepEqual(nextState.map.placedTiles[0].coordinates, ["A3", "A4", "B5"]);
-  assert.equal(nextState.tileSupply.core.find((entry) => entry.tileId === "core_gravel_track_basic").available, 5);
+  assert.equal(nextState.tileSupply.core.find((entry) => entry.tileId === "core_gravel_track_basic").available, 3);
 });
 
 test("rejects multihex footprints that leave the map", () => {
@@ -757,7 +757,7 @@ test("Brewery of Legends cannot discount two adjacent placements in the same rou
 
   assert.equal(result.ok, false);
   assert.equal(nextState, state);
-  assert.match(result.errors.join(" "), /Terrace costs 2 Wood, 2 Stone, 10 Food/);
+  assert.match(result.errors.join(" "), /Terrace costs 2 Wood, 2 Metal, 8 Food/);
 });
 
 test("Brewery of Legends discounts again in a later round", () => {
@@ -804,7 +804,6 @@ test("Overstrained Brewery of Legends does not discount adjacent placement", () 
 
 test("Labourers' Yard reduces one chosen adjacent placement cost resource each round", () => {
   const state = withWarehouseResources(createLabourersYardPlacementState(), {
-    Wood: 1,
     Food: 5
   });
   const { state: nextState, result } = dispatch(state, {
@@ -820,14 +819,11 @@ test("Labourers' Yard reduces one chosen adjacent placement cost resource each r
     { amount: 2, resource: "Wood" },
     { amount: 5, resource: "Food" }
   ]);
-  assert.deepEqual(result.cost, [
-    { amount: 1, resource: "Wood" },
-    { amount: 5, resource: "Food" }
-  ]);
+  assert.deepEqual(result.cost, [{ amount: 5, resource: "Food" }]);
   assert.equal(result.placementCostReduction.providerPlacedTileId, "tile-002");
   assert.equal(result.placementCostReduction.providerTileName, "Labourers’ Yard");
   assert.equal(result.placementCostReduction.resource, "Wood");
-  assert.equal(result.placementCostReduction.amountReduced, 1);
+  assert.equal(result.placementCostReduction.amountReduced, 2);
   assert.deepEqual(labourersYard.placementDiscountRounds, [1]);
   assert.equal(nextState.warehouse.resources.Wood, 0);
   assert.equal(nextState.warehouse.resources.Food, 0);
@@ -854,7 +850,7 @@ test("Labourers' Yard rejects a reduction resource outside the placement cost", 
 test("Labourers' Yard cannot reduce two adjacent placements in the same round", () => {
   let state = withWarehouseResources(createLabourersYardPlacementState(), {
     Food: 5,
-    Wood: 1
+    Wood: 0
   });
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -863,9 +859,9 @@ test("Labourers' Yard cannot reduce two adjacent placements in the same round", 
     placementCostReductionResource: "Wood"
   }).state;
   state = withWarehouseResources(state, {
-    Food: 10,
-    Stone: 2,
-    Wood: 1
+    Food: 8,
+    Metal: 2,
+    Wood: 0
   });
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -876,13 +872,13 @@ test("Labourers' Yard cannot reduce two adjacent placements in the same round", 
 
   assert.equal(result.ok, false);
   assert.equal(nextState, state);
-  assert.match(result.errors.join(" "), /Terrace costs 2 Wood, 2 Stone, 10 Food/);
+  assert.match(result.errors.join(" "), /Terrace costs 2 Wood, 2 Metal, 8 Food/);
 });
 
 test("Labourers' Yard reduces adjacent placement again in a later round", () => {
   let state = withWarehouseResources(createLabourersYardPlacementState(), {
     Food: 5,
-    Wood: 1
+    Wood: 0
   });
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -897,9 +893,9 @@ test("Labourers' Yard reduces adjacent placement again in a later round", () => 
       players: state.players.map((player) => ({ ...player, actionsRemaining: 4 }))
     },
     {
-      Food: 10,
-      Stone: 2,
-      Wood: 1
+      Food: 8,
+      Metal: 2,
+      Wood: 0
     }
   );
   const { state: nextState, result } = dispatch(state, {
@@ -912,9 +908,8 @@ test("Labourers' Yard reduces adjacent placement again in a later round", () => 
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.cost, [
-    { amount: 1, resource: "Wood" },
-    { amount: 2, resource: "Stone" },
-    { amount: 10, resource: "Food" }
+    { amount: 2, resource: "Metal" },
+    { amount: 8, resource: "Food" }
   ]);
   assert.deepEqual(labourersYard.placementDiscountRounds, [1, 2]);
 });
@@ -939,4 +934,36 @@ test("Overstrained Labourers' Yard does not reduce adjacent placement costs", ()
   assert.equal(result.ok, false);
   assert.equal(nextState, state);
   assert.match(result.errors.join(" "), /Cottage costs 2 Wood, 5 Food/);
+});
+
+test("special tiles that require a base Resource tile can be placed next to its upgraded side", () => {
+  let state = unlockSpecial(newState(), "special_the_iron_roots_respite");
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_mine_basic",
+    coordinate: "A2"
+  }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.UPGRADE_TILE,
+    placedTileId: "tile-001"
+  }).state;
+  state = dispatch(state, { type: TILE_ACTION_TYPES.DEBUG_RESET_ACTIONS }).state;
+
+  const validation = validatePlaceTile(
+    state,
+    {
+      type: TILE_ACTION_TYPES.PLACE_TILE,
+      tileId: "special_the_iron_roots_respite",
+      coordinate: "B3"
+    },
+    { tiles }
+  );
+  const { result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "special_the_iron_roots_respite",
+    coordinate: "B3"
+  });
+
+  assert.equal(validation.valid, true);
+  assert.equal(result.ok, true);
 });

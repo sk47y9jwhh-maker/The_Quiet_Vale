@@ -3291,7 +3291,8 @@ test("Arrival completion checks non-resource requirements from the card text", (
       resources: {
         ...base.warehouse.resources,
         Herbs: 2,
-        Goods: 2
+        Stone: 2,
+        Metal: 2
       }
     },
     encounter: {
@@ -3345,11 +3346,13 @@ test("Arrival completion checks non-resource requirements from the card text", (
   assert.equal(result.ok, true);
   assert.deepEqual(result.requirementCost, [
     { amount: 2, resource: "Herbs" },
-    { amount: 2, resource: "Goods" }
+    { amount: 2, resource: "Stone" },
+    { amount: 2, resource: "Metal" }
   ]);
   assert.deepEqual(result.tileRequirements, [{ category: "Housing", amount: 1 }]);
   assert.equal(nextState.warehouse.resources.Herbs, 0);
-  assert.equal(nextState.warehouse.resources.Goods, 0);
+  assert.equal(nextState.warehouse.resources.Stone, 0);
+  assert.equal(nextState.warehouse.resources.Metal, 0);
   assert.equal(restingHall.locked, false);
   assert.equal(restingHall.available, restingHall.stock);
 });
@@ -3365,7 +3368,7 @@ test("resolving a fixed-cost Burden spends 1 Action, pays resources, and discard
       ...base.warehouse,
       resources: {
         ...base.warehouse.resources,
-        Herbs: 2
+        Food: 2
       }
     },
     encounter: {
@@ -3393,7 +3396,7 @@ test("resolving a fixed-cost Burden spends 1 Action, pays resources, and discard
 
   assert.equal(result.ok, true);
   assert.equal(nextState.players[0].actionsRemaining, 3);
-  assert.equal(nextState.warehouse.resources.Herbs, 0);
+  assert.equal(nextState.warehouse.resources.Food, 0);
   assert.deepEqual(nextState.encounter.active, []);
   assert.deepEqual(nextState.encounter.discard, [burdenId]);
   assert.equal(nextState.encounter.completed[0].cardId, burdenId);
@@ -3471,11 +3474,11 @@ test("Shared Hands, Lighter Loads discounts the next fixed-cost Burden resolutio
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.RESOLVE_BURDEN,
     activeEncounterId: "burden-active",
-    burdenResolutionReductionResources: ["Herbs", "Herbs"]
+    burdenResolutionReductionResources: ["Food", "Food"]
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.baseCost, [{ amount: 2, resource: "Herbs" }]);
+  assert.deepEqual(result.baseCost, [{ amount: 2, resource: "Food" }]);
   assert.deepEqual(result.cost, []);
   assert.equal(result.burdenResolutionDiscount.amountReduced, 2);
   assert.deepEqual(nextState.encounter.active, []);
@@ -3495,7 +3498,7 @@ test("Shared Hands, Lighter Loads requires explicit Burden reduction resources",
       ...base.warehouse,
       resources: {
         ...base.warehouse.resources,
-        Herbs: 2
+        Food: 2
       }
     },
     encounter: {
@@ -3717,7 +3720,7 @@ test("Burden resolution is blocked without enough resources", () => {
 
   assert.equal(result.result.ok, false);
   assert.equal(result.state, state);
-  assert.match(result.result.errors.join(" "), /costs 2 Herbs/);
+  assert.match(result.result.errors.join(" "), /costs 2 Food/);
 });
 
 test("choice-cost Burdens require explicit payment choices", () => {

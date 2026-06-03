@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check": "node --run check:syntax && node --run test",
+    "check:syntax": "node --check server.mjs && find src tests -name '*.js' -print0 | xargs -0 -n1 node --check",
+    "pages:check": "node --run check",
     "start": "node server.mjs",
     "test": "node --test tests/*.test.js"
   }

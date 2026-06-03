@@ -33,7 +33,7 @@ export const STANDARD_RULES = Object.freeze({
   councilVariantStartingWarehouseResources: 0,
   arrivalStartTimerTokens: 3,
   arrivalTimerMax: 3,
-  activeBurdenPenaltyRenown: 10,
+  activeBurdenPenaltyRenown: 6,
   strainPenaltyRenown: 2,
   standardPoolPerPlayer: Object.freeze({
     [ENCOUNTER_TYPES.BOON]: 5,

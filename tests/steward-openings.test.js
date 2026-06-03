@@ -99,3 +99,34 @@ test("Quartermaster opening can use any basic Resource tile on its matching terr
   assert.equal(placed.state.players[0].openingResourcePlacement.completed, true);
   assert.equal(placed.state.players[0].openingResourcePlacement.tileId, "core_farm_basic");
 });
+
+test("later players do not pay disconnected Travel for their required opening placement", () => {
+  let state = advanceToOpeningTurn(newState({
+    playerCount: 2,
+    stewardRoles: ["vanguard", "sentinel"]
+  }));
+  const woodland = firstTerrainCoordinate(state, "Woodland");
+  const mountains = firstTerrainCoordinate(state, "Mountains");
+
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_forest_basic",
+    coordinate: woodland
+  }).state;
+  state = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN }).state;
+  assert.equal(state.activePlayerId, "P2");
+
+  const placed = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_mine_basic",
+    coordinate: mountains
+  });
+
+  assert.equal(placed.result.ok, true);
+  assert.equal(placed.result.actionCost.connected, false);
+  assert.equal(placed.result.actionCost.disconnectedTravelIgnored, true);
+  assert.equal(placed.result.actionCost.disconnectedTravelActionCost, 0);
+  assert.equal(placed.result.actionCost.total, 1);
+  assert.equal(placed.state.players[1].actionsRemaining, 3);
+  assert.equal(placed.state.players[1].openingResourcePlacement.completed, true);
+});

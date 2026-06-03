@@ -103,7 +103,7 @@ test("adjacent passive Supported prevents Strain on neighboring tiles", () => {
   });
 
   assert.equal(support.supported, true);
-  assert.equal(support.providers[0].providerTileName, "Theater");
+  assert.equal(support.providers[0].providerTileName, "Theatre");
   assert.equal(result.strainPrevented, 1);
   assert.equal(result.strainAdded, 0);
   assert.equal(nextState.map.placedTiles[0].strain, 0);

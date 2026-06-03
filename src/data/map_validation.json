@@ -1,17 +1,17 @@
 [
   {
     "Metric": "Grasslands count",
-    "Value": 74,
+    "Value": 75,
     "Result": "Reference",
     "Notes": null,
-    "Coordinates / Detail": "See src/data/redesigned_basic_map_v0_1.json terrain_by_coordinate."
+    "Coordinates / Detail": "See src/data/redesigned_basic_map_v0_2.json terrain_by_coordinate."
   },
   {
     "Metric": "Water count",
     "Value": 21,
     "Result": "Reference",
     "Notes": null,
-    "Coordinates / Detail": "D1, D2, E3, F3, E4, G4, H4, E5, I5, J5, E6, K6, E7, K7, L7, E8, F8, M8, N8, G9, H9"
+    "Coordinates / Detail": "D1, D2, E3, F3, E4, G4, H4, E5, I5, J5, E6, K6, L6, E7, L7, E8, F8, M8, N8, G9, H9"
   },
   {
     "Metric": "Mountains count",
@@ -36,10 +36,10 @@
   },
   {
     "Metric": "Ruins count",
-    "Value": 7,
+    "Value": 6,
     "Result": "Reference",
     "Notes": null,
-    "Coordinates / Detail": "F4, F5, G5, I9, J9, M9, N9"
+    "Coordinates / Detail": "F4, F5, G5, J9, K9, L9"
   },
   {
     "Metric": "Arable Land count",
@@ -53,7 +53,7 @@
     "Value": 1,
     "Result": "Pass",
     "Notes": "Flat-top even-q adjacency",
-    "Coordinates / Detail": "D1, D2, E3, F3, E4, G4, H4, E5, I5, J5, E6, K6, E7, K7, L7, E8, F8, M8, N8, G9, H9"
+    "Coordinates / Detail": "D1, D2, E3, F3, E4, G4, H4, E5, I5, J5, E6, K6, L6, E7, L7, E8, F8, M8, N8, G9, H9"
   },
   {
     "Metric": "Potential Bridge sites",
@@ -74,6 +74,6 @@
     "Value": 39,
     "Result": "Reference",
     "Notes": "Computed from v2.0 Water/River coordinates.",
-    "Coordinates / Detail": "C1, E1, C2, E2, F2, C3, D3, G3, H3, D4, F4, I4, J4, D5, F5, G5, H5, K5, L5, D6, F6, I6, J6, L6, D7, F7, J7, M7, N7, D8, G8, H8, K8, L8, E9, F9, I9, M9, N9"
+    "Coordinates / Detail": "C1, E1, C2, E2, F2, C3, D3, G3, H3, D4, F4, I4, J4, D5, F5, G5, H5, K5, L5, D6, F6, I6, J6, M6, D7, F7, K7, M7, N7, D8, G8, H8, K8, L8, E9, F9, I9, M9, N9"
   }
 ]

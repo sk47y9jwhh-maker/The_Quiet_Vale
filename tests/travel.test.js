@@ -175,6 +175,72 @@ test("Docks connect water-linked settlement networks to each other", () => {
   assert.deepEqual(networks[0].coordinates, ["C7", "F6"]);
 });
 
+test("Stables place as two single-hex tiles in one action and connect separated networks", () => {
+  let state = unlockSpecial(fillWarehouse(newState()), "special_stables", 2);
+  state = place(state, "core_common_land_basic", "C1");
+  state = place(state, "core_common_land_basic", "I14");
+  state = dispatch(state, { type: TILE_ACTION_TYPES.DEBUG_RESET_ACTIONS }).state;
+
+  assert.equal(buildTravelNetworks(state, { tiles }).length, 2);
+
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "special_stables",
+    coordinate: "C2",
+    pairedCoordinate: "I13"
+  });
+  const networks = buildTravelNetworks(nextState, { tiles });
+  const stablesSupply = nextState.tileSupply.special.find((entry) => entry.tileId === "special_stables");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.actionCost.total, 1);
+  assert.equal(nextState.players[0].actionsRemaining, 3);
+  assert.deepEqual(
+    nextState.map.placedTiles.map((tile) => tile.coordinate),
+    ["C1", "I14", "C2", "I13"]
+  );
+  assert.equal(stablesSupply.available, 0);
+  assert.equal(networks.length, 1);
+  assert.deepEqual(networks[0].tileIds, ["tile-001", "tile-002", "tile-003", "tile-004"]);
+});
+
+test("Stables cannot be placed as only one copy", () => {
+  const state = unlockSpecial(fillWarehouse(newState()), "special_stables", 2);
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "special_stables",
+    coordinate: "C2"
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(nextState, state);
+  assert.match(result.errors.join(" "), /Choose a second Stables site/);
+});
+
+test("Overstrained Stables stop connecting separated networks", () => {
+  let state = unlockSpecial(fillWarehouse(newState()), "special_stables", 2);
+  state = place(state, "core_common_land_basic", "C1");
+  state = place(state, "core_common_land_basic", "I14");
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "special_stables",
+    coordinate: "C2",
+    pairedCoordinate: "I13"
+  }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.DEBUG_SET_TILE_STRAIN,
+    placedTileId: "tile-004",
+    strain: 3
+  }).state;
+  const networks = buildTravelNetworks(state, { tiles });
+
+  assert.equal(networks.length, 2);
+  assert.deepEqual(
+    networks.map((network) => network.tileIds),
+    [["tile-001", "tile-003"], ["tile-002"]]
+  );
+});
+
 test("Overstrained Docks do not connect to other Docks", () => {
   let state = unlockSpecial(newState(), "special_docks", 2);
   state = place(state, "special_docks", "C7");

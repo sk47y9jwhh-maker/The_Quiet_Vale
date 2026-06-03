@@ -161,6 +161,34 @@ function blockForPendingOpeningPlacement(state, actionType, playerId = state.act
     : null;
 }
 
+function isStablesPlacementTile(tile) {
+  return tile?.tile_name === "Stables";
+}
+
+function createPlacedTileRecord(state, action, validation, indexOffset = 0) {
+  return {
+    id: `tile-${String(state.map.placedTiles.length + 1 + indexOffset).padStart(3, "0")}`,
+    tileId: action.tileId,
+    coordinate: action.coordinate,
+    coordinates: validation.footprintCoordinates,
+    orientation: action.orientation,
+    strain: 0,
+    supported: false,
+    supportedUsedThisRound: false
+  };
+}
+
+function createStablesPairActionCost() {
+  return {
+    connected: true,
+    disconnectedTravelIgnored: true,
+    disconnectedTravelIgnoreReason: "stables_pair_placement",
+    placeActionCost: 1,
+    disconnectedTravelActionCost: 0,
+    total: 1
+  };
+}
+
 function createStewardPowerUse(provider, actionCost, operation) {
   if (!provider) {
     return null;
@@ -1247,10 +1275,57 @@ function placeTile(state, action, context) {
     };
   }
 
-  const baseActionCost = calculatePlacementActionCost(state, validation.footprintCoordinates, {
-    ...context,
-    playerId: player.id
-  });
+  const pairedStablesPlacement = isStablesPlacementTile(validation.tile);
+  const pairedCoordinate = action.pairedCoordinate ?? action.secondCoordinate ?? null;
+  const pairedValidation = pairedStablesPlacement && pairedCoordinate
+    ? validatePlaceTile(
+        state,
+        {
+          ...action,
+          coordinate: pairedCoordinate,
+          orientation: action.pairedOrientation ?? action.orientation
+        },
+        context
+      )
+    : null;
+  const supplyEntry = getTileSupplyEntry(state, action.tileId);
+  const pairedPlacementErrors = [];
+
+  if (pairedStablesPlacement) {
+    if (!pairedCoordinate) {
+      pairedPlacementErrors.push("Choose a second Stables site; Stables place as two single-hex tiles in one action.");
+    } else if (pairedCoordinate === action.coordinate) {
+      pairedPlacementErrors.push("The two Stables must be placed on different hexes.");
+    }
+
+    if (pairedValidation && !pairedValidation.valid) {
+      pairedPlacementErrors.push(...pairedValidation.errors.map((error) => `Second Stables site: ${error}`));
+    }
+
+    if (supplyEntry && supplyEntry.available < 2) {
+      pairedPlacementErrors.push("Stables need two remaining copies to place as their paired one-action tile.");
+    }
+  }
+
+  if (pairedPlacementErrors.length > 0) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.PLACE_TILE,
+        errors: pairedPlacementErrors
+      }
+    };
+  }
+
+  const baseActionCost = pairedStablesPlacement
+    ? createStablesPairActionCost()
+    : calculatePlacementActionCost(state, validation.footprintCoordinates, {
+        ...context,
+        playerId: player.id,
+        ignoreDisconnectedTravel: Boolean(pendingOpeningPlacement),
+        ignoreDisconnectedTravelReason: pendingOpeningPlacement ? "opening_placement" : null
+      });
   const actionDiscount = getDiscountedTileActionCost(
     state,
     validation.tile,
@@ -1320,26 +1395,32 @@ function placeTile(state, action, context) {
     };
   }
 
-  const supplyEntry = getTileSupplyEntry(state, action.tileId);
-  const placedTile = {
-    id: `tile-${String(state.map.placedTiles.length + 1).padStart(3, "0")}`,
-    tileId: action.tileId,
-    coordinate: action.coordinate,
-    coordinates: validation.footprintCoordinates,
-    orientation: action.orientation,
-    strain: 0,
-    supported: false,
-    supportedUsedThisRound: false
-  };
+  const placedTile = createPlacedTileRecord(state, action, validation);
+  const pairedPlacedTile =
+    pairedStablesPlacement && pairedValidation
+      ? createPlacedTileRecord(
+          state,
+          {
+            ...action,
+            coordinate: pairedCoordinate,
+            orientation: action.pairedOrientation ?? action.orientation
+          },
+          pairedValidation,
+          1
+        )
+      : null;
+  const placedTiles = pairedPlacedTile ? [placedTile, pairedPlacedTile] : [placedTile];
+  const lastPlacedTile = pairedPlacedTile ?? placedTile;
+  const stockSpent = placedTiles.length;
   const actionState = markPlayerOpeningResourcePlacement(
     markPlayerMapInteraction(
       spendPlayerActions(state, player.id, actionCost),
       player.id,
-      placedTile,
+      lastPlacedTile,
       "place"
     ),
     player.id,
-    placedTile
+    lastPlacedTile
   );
   const placedTilesAfterDiscount = actionState.map.placedTiles.map((existingTile) =>
     existingTile.id === validation.placementCostReduction?.providerPlacedTileId
@@ -1372,22 +1453,25 @@ function placeTile(state, action, context) {
     ...actionState,
     map: {
       ...actionState.map,
-      placedTiles: [...placedTilesAfterStewardPower, placedTile]
+      placedTiles: [...placedTilesAfterStewardPower, ...placedTiles]
     },
     encounter: encounterAfterTravelDiscount,
     tileSupply: updateTileSupply(actionState, action.tileId, (entry) => ({
       ...entry,
-      available: entry.available - 1
+      available: entry.available - stockSpent
     })),
     warehouse: spendWarehouseResources(actionState.warehouse, validation.cost),
     log: [
       ...actionState.log,
-      createActionLogEntry(actionState, "place_tile", `Placed ${validation.tile.tile_name} on ${action.coordinate}.`, {
+      createActionLogEntry(actionState, "place_tile", `Placed ${validation.tile.tile_name} on ${placedTiles.map((tile) => tile.coordinate).join(" and ")}.`, {
         playerId: player.id,
         tileId: action.tileId,
         coordinate: action.coordinate,
+        pairedCoordinate,
         coordinates: validation.footprintCoordinates,
+        pairedCoordinates: pairedValidation?.footprintCoordinates ?? null,
         orientation: action.orientation,
+        pairedOrientation: pairedPlacedTile?.orientation ?? null,
         actionCost,
         actionCostDiscount,
         disconnectedTravelActionDiscount,
@@ -1396,7 +1480,7 @@ function placeTile(state, action, context) {
         cost: validation.cost,
         placementCostReduction: validation.placementCostReduction,
         resourceCostSubstitution: validation.resourceCostSubstitution,
-        remainingStock: supplyEntry.available - 1
+        remainingStock: supplyEntry.available - stockSpent
       })
     ]
   };
@@ -1406,7 +1490,7 @@ function placeTile(state, action, context) {
     result: {
       ok: true,
       action: TILE_ACTION_TYPES.PLACE_TILE,
-      message: `Placed ${validation.tile.tile_name} on ${action.coordinate} for ${actionCost.total} Action${actionCost.total === 1 ? "" : "s"}.`,
+      message: `Placed ${validation.tile.tile_name} on ${placedTiles.map((tile) => tile.coordinate).join(" and ")} for ${actionCost.total} Action${actionCost.total === 1 ? "" : "s"}.`,
       actionCost,
       actionCostDiscount,
       disconnectedTravelActionDiscount,
@@ -1415,7 +1499,8 @@ function placeTile(state, action, context) {
       cost: validation.cost,
       placementCostReduction: validation.placementCostReduction,
       resourceCostSubstitution: validation.resourceCostSubstitution,
-      placedTile
+      placedTile,
+      placedTiles
     }
   };
 }

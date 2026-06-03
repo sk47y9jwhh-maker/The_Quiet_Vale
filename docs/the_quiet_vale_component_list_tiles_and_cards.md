@@ -2,7 +2,7 @@
 
 Draft date: 2026-05-28  
 Document status: source-derived component list for production-document preparation.  
-Primary source files: `src/data/tiles.json`, `src/data/encounter_cards.json`, `src/data/codex_default_map_v0_1.json`.
+Primary source files: `src/data/tiles.json`, `src/data/encounter_cards.json`, `src/data/redesigned_basic_map_v0_2.json`.
 
 ## Data Validation Summary
 
@@ -12,15 +12,15 @@ Primary source files: `src/data/tiles.json`, `src/data/encounter_cards.json`, `s
 | Tile face definitions | 77 | Core Basic: 26, Core Upgraded: 26, Special One-sided: 25 |
 | Physical Core tile pieces | 58 | Double-sided Basic/Upgraded pieces. |
 | Physical Special tile pieces | 25 | One-sided unlocked tiles. |
-| Map hexes | 126 | Default locked map: Redesigned Basic Map v0.1 |
-| Water hexes | 15 | A7, B7, C7, D7, E7, F6, F7, F8, G5, G8, H4, H5, H9, I4, I9 |
-| Bridge candidates | 3 | C7, H5, H9 |
+| Map hexes | 126 | Default locked map: Redesigned Basic Map v0.2 |
+| Water hexes | 21 | D1, D2, E3, F3, E4, G4, H4, E5, I5, J5, E6, K6, L6, E7, L7, E8, F8, M8, N8, G9, H9 |
+| Bridge candidates | 0 fixed | Every Water/River hex is a legal potential Bridge site. |
 
 ## Component Summary
 
 | Component | Quantity | Notes |
 | --- | --- | --- |
-| Map board / coordinate map | 1 | 126 flat-top hexes; terrain counts: Arable Land: 6, Grasslands: 81, Heaths: 6, Mountains: 6, Ruins: 6, Water: 15, Woodland: 6 |
+| Map board / coordinate map | 1 | 126 flat-top hexes; terrain counts: Arable Land: 6, Grasslands: 75, Heaths: 6, Mountains: 6, Ruins: 6, Water/River: 21, Woodland: 6 |
 | Core tile pieces | 58 | Double-sided pieces: Basic face paired with Upgraded face. |
 | Special tile pieces | 25 | One-sided tiles unlocked by Arrivals. |
 | Encounter Cards | 80 | Arrival: 25, Boon: 25, Burden: 25, Golden Boon: 5 |
@@ -84,7 +84,7 @@ Special tiles are one-sided and unlock from completed Arrivals.
 | 1 | The Waystation (special_the_waystation) | News travels faster than goods | 1 | 0 | Place adjacent to a Travel Tile. | Activated Effect: Look at the top 3 cards of the Encounter Deck, then return them in any order. | 5 Population, 5 Renown |
 | 1 | Alms House (special_alms_house) | No soul shall go without | 1 | 0 | - | Passive: While this tile is not Overstrained, adjacent tiles have Supported. | 5 Population, 5 Renown |
 | 1 | Atelier Workshop (special_atelier_workshop) | Reablement for the Realm | 1 | 0 | Place adjacent to a Wellbeing Tile. | Passive: While this tile is not Overstrained, adjacent tiles have Supported. | 5 Renown |
-| 1 | Stables (special_stables) | Remnants of the Cavalry | 1 | 0 | - | Activated Effect: Move your Steward Token from this Stables to another placed Stables, or from a tile adjacent to this Stables to a tile adjacent to another placed Stables. The destination tile must not be Overstrained. | 5 Renown |
+| 2 | Stables (special_stables) | Remnants of the Cavalry | 1 | 0 | - | Special Placement: Place both Stables as single-hex tiles in one action. Passive: While not Overstrained, placed Stables connect their connected settlement networks to each other. | 5 Renown |
 | 1 | Docks (special_docks) | Remnants of the Fleet | 1 | 0 | Place on Water terrain. | Passive: If placed adjacent to Water terrain, this tile connects its connected settlement network to every other placed tile adjacent to Water terrain. This does not permit normal tile placement on Water unless a tile explicitly allows it. | 5 Renown |
 | 1 | Brewery of Legends (special_brewery_of_legends) | Spirit-Lifting Spirit | 1 | 0 | Place adjacent to a Social Tile. | Once per round, when any player places a tile adjacent to this tile, that tile costs 0 Resources. The tile must still satisfy all placement requirements and action costs. | 5 Renown |
 | 1 | House of Learning (special_house_of_learning) | Strong foundations | 1 | 0 | - | Passive: While this tile is not Overstrained, adjacent tiles have Supported. | 5 Renown |

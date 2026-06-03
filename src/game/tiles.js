@@ -49,7 +49,7 @@ const TILE_NAME_ADJACENCY_RULES = Object.freeze({
 });
 
 const FREE_ADJACENT_PLACEMENT_COST =
-  /^Once per round,\s*when any player places a tile adjacent to this tile,\s*that tile costs 0 Resources\./i;
+  /^Once per round,\s*when any player places a(?: ([A-Za-z]+))? tile adjacent to this tile,\s*that tile costs 0 Resources\./i;
 const REDUCE_ADJACENT_PLACEMENT_COST =
   /^Once per round,\s*when any player places a tile adjacent to this tile,\s*reduce that tile's cost by (\d+) resource of the group's choice\./i;
 const REDUCE_ADJACENT_CORE_UPGRADE_COST =
@@ -668,8 +668,16 @@ function sortPlacedTilesById(placedTiles) {
   });
 }
 
-function providesFreeAdjacentPlacementCost(tile) {
-  return FREE_ADJACENT_PLACEMENT_COST.test(String(tile?.benefit ?? "").trim());
+function getFreeAdjacentPlacementCost(tile) {
+  const match = FREE_ADJACENT_PLACEMENT_COST.exec(String(tile?.benefit ?? "").trim());
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    targetCategory: match[1] ? match[1][0].toUpperCase() + match[1].slice(1).toLowerCase() : null
+  };
 }
 
 function getAdjacentPlacementCostReduction(tile) {
@@ -752,12 +760,19 @@ function findUnusedAdjacentProvider(state, coordinates, tileIndex, predicate) {
   });
 }
 
-function getFreeAdjacentPlacementCostReduction(state, coordinates, cost, tileIndex) {
+function getFreeAdjacentPlacementCostReduction(state, coordinates, cost, tileIndex, targetTile) {
   if (cost.length === 0) {
     return null;
   }
 
-  const providerTile = findUnusedAdjacentProvider(state, coordinates, tileIndex, providesFreeAdjacentPlacementCost);
+  const providerTile = findUnusedAdjacentProvider(state, coordinates, tileIndex, (tile) => {
+    const freePlacementCost = getFreeAdjacentPlacementCost(tile);
+
+    return (
+      freePlacementCost &&
+      (!freePlacementCost.targetCategory || freePlacementCost.targetCategory === targetTile.tile_category)
+    );
+  });
 
   if (!providerTile) {
     return null;
@@ -857,7 +872,7 @@ function getPlacementCostReduction(state, action, coordinates, cost, tileIndex, 
     return boonResourceDiscount;
   }
 
-  const freeReduction = getFreeAdjacentPlacementCostReduction(state, coordinates, cost, tileIndex);
+  const freeReduction = getFreeAdjacentPlacementCostReduction(state, coordinates, cost, tileIndex, targetTile);
 
   if (freeReduction) {
     return {
@@ -1082,7 +1097,11 @@ function validateAdjacencyRule(state, tile, coordinates, tileIndex) {
   const requiredTileNames = TILE_NAME_ADJACENCY_RULES[tile.placement_rules];
   if (requiredTileNames) {
     const adjacentDefinitions = getAdjacentPlacedTileDefinitions(state, coordinates, tileIndex);
-    const valid = adjacentDefinitions.some((definition) => requiredTileNames.includes(definition.tile_name));
+    const valid = adjacentDefinitions.some((definition) =>
+      requiredTileNames.some(
+        (tileName) => definition?.tile_name === tileName || definition?.base_tile === tileName
+      )
+    );
     return valid ? null : `${tile.tile_name} must be placed adjacent to ${requiredTileNames.join(" or ")}.`;
   }
 

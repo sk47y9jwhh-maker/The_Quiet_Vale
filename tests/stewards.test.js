@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { dispatchGameAction } from "../src/game/reducer.js";
 import { ENCOUNTER_TYPES, GAME_PHASES, createInitialGameState } from "../src/game/setup.js";
+import { STEWARD_POWER_TYPES, getAvailableStewardPowerProviders } from "../src/game/stewards.js";
 import { TILE_ACTION_TYPES } from "../src/game/tiles.js";
 
 const dataUrl = new URL("../src/data/", import.meta.url);
@@ -16,19 +17,20 @@ const encounterCards = await readJson("encounter_cards.json");
 const tiles = await readJson("tiles.json");
 const mapHexes = await readJson("codex_default_map_v0_1.json");
 
-function newState(playerCount = 1) {
+function newState(playerCount = 1, options = {}) {
   const state = createInitialGameState({
     playerCount,
     seed: "stewards",
     encounterCards,
     tiles,
-    mapHexes
+    mapHexes,
+    stewardRoles: options.stewardRoles ?? []
   });
 
   return {
     ...state,
     phase: GAME_PHASES.PLAYER_TURNS,
-    activePlayerId: "P1"
+    activePlayerId: options.activePlayerId ?? "P1"
   };
 }
 
@@ -121,9 +123,108 @@ test("debug marker control can set and clear the player's Steward marker", () =>
   assert.equal(cleared.state.players[1].lastInteraction, null);
 });
 
+test("Stewards share the connected settlement network for travel reachability", () => {
+  const state = withPlayerActions(
+    withPlacedTiles(newState(2, { stewardRoles: ["vanguard", "sentinel"], activePlayerId: "P2" }), [
+      {
+        id: "tile-001",
+        tileId: "core_gravel_path_basic",
+        coordinate: "C1",
+        coordinates: ["C1", "C2"],
+        orientation: "rotation-0",
+        strain: 0
+      }
+    ]),
+    1
+  );
+
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_gravel_path_basic",
+    coordinate: "C3",
+    orientation: "rotation-0"
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.actionCost.total, 1);
+  assert.equal(result.actionCost.disconnectedTravelActionCost, 0);
+  assert.equal(nextState.players[1].actionsRemaining, 0);
+  assert.equal(nextState.players[1].lastInteraction.placedTileId, "tile-002");
+});
+
+test("Steward House placement powers are only available to their matching Steward", () => {
+  const state = withPlayerActions(
+    withPlacedTiles(newState(2, { stewardRoles: ["vanguard", "sentinel"], activePlayerId: "P2" }), [
+      {
+        id: "tile-001",
+        tileId: "core_vanguard_home_upgraded",
+        coordinate: "B1",
+        coordinates: ["B1"],
+        orientation: "rotation-0",
+        strain: 0
+      }
+    ]),
+    0
+  );
+  const providers = getAvailableStewardPowerProviders(
+    state,
+    { tiles },
+    STEWARD_POWER_TYPES.FREE_PLACEMENT_ACTION,
+    (provider) => provider.details.categories.includes("Travel")
+  );
+
+  assert.deepEqual(providers, []);
+
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_gravel_path_basic",
+    coordinate: "C1",
+    orientation: "rotation-0",
+    stewardPowerPlacedTileId: "tile-001"
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /Selected Steward Power is not available/);
+  assert.equal(nextState, state);
+});
+
+test("Direct Steward House powers are only available to their matching Steward", () => {
+  const state = withWarehouseResources(
+    withPlacedTiles(newState(2, { stewardRoles: ["vanguard", "quartermaster"], activePlayerId: "P1" }), [
+      {
+        id: "tile-001",
+        tileId: "core_quartermaster_home_upgraded",
+        coordinate: "B1",
+        coordinates: ["B1"],
+        orientation: "rotation-0",
+        strain: 0
+      }
+    ]),
+    { Food: 1 }
+  );
+  const providers = getAvailableStewardPowerProviders(
+    state,
+    { tiles },
+    STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
+  );
+
+  assert.deepEqual(providers, []);
+
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+    placedTileId: "tile-001",
+    payment: [{ resource: "Food", amount: 1 }],
+    gains: [{ resource: "Metal", amount: 1 }]
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join(" "), /Choose an available Steward Power|Steward Power is not available/);
+  assert.equal(nextState, state);
+});
+
 test("Vanguard Home can make an eligible placement cost 0 Actions once per Season", () => {
   const state = withPlayerActions(
-    withPlacedTiles(newState(), [
+    withPlacedTiles(newState(1, { stewardRoles: ["vanguard"] }), [
       {
         id: "tile-001",
         tileId: "core_vanguard_home_upgraded",
@@ -154,7 +255,7 @@ test("Vanguard Home can make an eligible placement cost 0 Actions once per Seaso
 
 test("Vanguard Home does not waive the disconnected Travel action", () => {
   const state = withPlayerActions(
-    withPlacedTiles(newState(), [
+    withPlacedTiles(newState(1, { stewardRoles: ["vanguard"] }), [
       {
         id: "tile-001",
         tileId: "core_vanguard_home_upgraded",
@@ -192,7 +293,7 @@ test("Vanguard Home does not waive the disconnected Travel action", () => {
 
 test("Ranger Home ignores the disconnected Travel action for a placement", () => {
   const state = withPlayerActions(
-    withPlacedTiles(newState(), [
+    withPlacedTiles(newState(1, { stewardRoles: ["ranger"] }), [
       {
         id: "tile-001",
         tileId: "core_ranger_home_upgraded",
@@ -231,7 +332,7 @@ test("Ranger Home ignores the disconnected Travel action for a placement", () =>
 test("Sentinel Home can make a Core upgrade cost 0 Actions once per Season", () => {
   const state = withPlayerActions(
     withWarehouseResources(
-      withPlacedTiles(newState(), [
+      withPlacedTiles(newState(1, { stewardRoles: ["sentinel"] }), [
         {
           id: "tile-001",
           tileId: "core_sentinel_home_upgraded",
@@ -271,7 +372,7 @@ test("Sentinel Home can make a Core upgrade cost 0 Actions once per Season", () 
 test("Sentinel Home does not waive the disconnected Travel action for an upgrade", () => {
   const state = withPlayerActions(
     withStewardMarker(
-      withPlacedTiles(newState(), [
+      withPlacedTiles(newState(1, { stewardRoles: ["sentinel"] }), [
         {
           id: "tile-001",
           tileId: "core_sentinel_home_upgraded",
@@ -320,7 +421,7 @@ test("Sentinel Home does not waive the disconnected Travel action for an upgrade
 test("Warden Home can resolve an active Burden without spending an Action", () => {
   const base = withPlayerActions(
     withWarehouseResources(
-      withPlacedTiles(newState(), [
+      withPlacedTiles(newState(1, { stewardRoles: ["warden"] }), [
         {
           id: "tile-001",
           tileId: "core_warden_home_upgraded",
@@ -369,7 +470,7 @@ test("Warden Home can resolve an active Burden without spending an Action", () =
 
 test("Quartermaster Home exchanges Warehouse resources once per Season", () => {
   const state = withWarehouseResources(
-    withPlacedTiles(newState(), [
+    withPlacedTiles(newState(1, { stewardRoles: ["quartermaster"] }), [
       {
         id: "tile-001",
         tileId: "core_quartermaster_home_upgraded",

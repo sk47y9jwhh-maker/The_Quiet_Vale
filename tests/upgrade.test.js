@@ -176,7 +176,7 @@ test("upgrades a placed Core tile, spending 1 Action and listed resources", () =
     round: 1,
     season: "I"
   });
-  assert.equal(nextState.warehouse.resources.Stone, 11);
+  assert.equal(nextState.warehouse.resources.Stone, 13);
   assert.equal(nextState.score.renown, 5);
   assert.equal(nextState.score.total, 5);
   assert.equal(nextState.log.at(-1).type, "upgrade_tile");
@@ -219,12 +219,12 @@ test("Raised in Good Season reduces the next Core upgrade cost and then discards
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.baseCost, [{ amount: 4, resource: "Stone" }]);
-  assert.deepEqual(result.cost, [{ amount: 2, resource: "Stone" }]);
+  assert.deepEqual(result.baseCost, [{ amount: 2, resource: "Stone" }]);
+  assert.deepEqual(result.cost, []);
   assert.equal(result.upgradeCostReduction.amountReduced, 2);
   assert.deepEqual(result.upgradeCostReduction.reduction, [{ amount: 2, resource: "Stone" }]);
   assert.equal(nextState.map.placedTiles[0].tileId, "core_paved_path_upgraded");
-  assert.equal(nextState.warehouse.resources.Stone, 0);
+  assert.equal(nextState.warehouse.resources.Stone, 2);
   assert.deepEqual(nextState.encounter.roundEffects, []);
   assert.deepEqual(nextState.encounter.discard, ["boon_raised_in_good_season"]);
   assert.equal(nextState.log.at(-1).data.upgradeCostReduction.cardId, "boon_raised_in_good_season");
@@ -469,8 +469,8 @@ test("Many hands make light work can discount a non-Housing upgrade", () => {
   });
 
   assert.equal(result.ok, true);
-  assert.deepEqual(result.baseCost, [{ amount: 4, resource: "Stone" }]);
-  assert.deepEqual(result.cost, [{ amount: 2, resource: "Stone" }]);
+  assert.deepEqual(result.baseCost, [{ amount: 2, resource: "Stone" }]);
+  assert.deepEqual(result.cost, []);
   assert.equal(result.upgradeCostReduction.cardId, "boon_many_hands_make_light_work");
   assert.equal(result.upgradeCostReduction.amountReduced, 2);
   assert.equal(nextState.map.placedTiles[0].tileId, "core_paved_path_upgraded");
@@ -486,7 +486,7 @@ test("When the roads filled once more upgrades the next Travel tile for 0 Action
       ...base.warehouse,
       resources: {
         ...base.warehouse.resources,
-        Stone: 4
+        Stone: 2
       }
     },
     map: {
@@ -517,7 +517,7 @@ test("When the roads filled once more upgrades the next Travel tile for 0 Action
   assert.equal(result.actionCost.total, 0);
   assert.equal(result.actionCost.originalTotal, 1);
   assert.equal(result.actionCostDiscount.cardId, "boon_when_the_roads_filled_once_more");
-  assert.deepEqual(result.cost, [{ amount: 4, resource: "Stone" }]);
+  assert.deepEqual(result.cost, [{ amount: 2, resource: "Stone" }]);
   assert.equal(nextState.players[0].actionsRemaining, 0);
   assert.equal(nextState.warehouse.resources.Stone, 0);
   assert.equal(nextState.map.placedTiles[0].tileId, "core_paved_path_upgraded");

@@ -1,6 +1,6 @@
 import { getActivationDetails, getAdjacentPlacedTiles } from "./activation.js";
 import { SEED_PACKET_POSITIONS, getBurdenResolutionCost, getEncounterSeasonEffect } from "./encounters.js";
-import { HEX_DIRECTIONS, createMapIndex, getNeighborCoordinates, isWaterHex } from "./map.js";
+import { HEX_DIRECTIONS, createMapIndex, getFootprintCoordinates, getNeighborCoordinates, isWaterHex } from "./map.js";
 import { dispatchGameAction } from "./reducer.js";
 import { calculateScore } from "./scoring.js";
 import { ENCOUNTER_TYPES, GAME_PHASES, createInitialGameState } from "./setup.js";
@@ -19,41 +19,29 @@ import {
 } from "./tiles.js";
 
 export const SIMULATION_BOT_PROFILES = Object.freeze({
-  builder: Object.freeze({
-    id: "builder",
-    label: "Builder Bot",
-    burdenCostLimit: 2,
-    strainRemovalThreshold: 3,
-    choicePressure: "strain",
-    priorities: ["place", "upgrade", "produce", "resolve_burden", "remove_strain", "complete_arrival"]
-  }),
   balanced: Object.freeze({
     id: "balanced",
     label: "Balanced Bot",
-    burdenCostLimit: 8,
+    burdenCostLimit: 99,
     strainRemovalThreshold: 2,
     choicePressure: "pay_if_affordable",
-    priorities: ["complete_arrival", "resolve_burden", "remove_strain", "produce", "place", "upgrade"]
-  }),
-  careful: Object.freeze({
-    id: "careful",
-    label: "Careful Bot",
-    burdenCostLimit: 99,
-    strainRemovalThreshold: 1,
-    choicePressure: "pay_if_affordable",
-    priorities: ["resolve_burden", "remove_strain", "complete_arrival", "produce", "place", "upgrade"]
-  }),
-  score: Object.freeze({
-    id: "score",
-    label: "Score Bot",
-    burdenCostLimit: 99,
-    strainRemovalThreshold: 1,
-    choicePressure: "pay_if_affordable",
-    optimizeForScore: true,
-    maxPlacementCandidates: 12,
+    smartSeeding: true,
+    maxPlacementCandidates: 10,
+    maxPlacementTilesConsidered: 12,
+    maxPlacementCoordinateCandidates: 14,
     maxPlacementsPerTile: 1,
     maxUpgradeCandidates: 10,
-    priorities: ["complete_arrival", "resolve_burden", "upgrade", "place", "remove_strain", "utility", "produce"]
+    priorities: [
+      "resolve_burden",
+      "burden_utility",
+      "complete_arrival",
+      "arrival_utility",
+      "remove_strain",
+      "upgrade",
+      "place",
+      "produce",
+      "utility"
+    ]
   })
 });
 
@@ -65,6 +53,19 @@ export const SIMULATION_SUMMARY_FIELDS = Object.freeze([
   "final_score",
   "final_population",
   "final_renown",
+  "final_placed_tiles",
+  "final_upgraded_tiles",
+  "final_basic_population",
+  "final_basic_renown",
+  "final_upgraded_population",
+  "final_upgraded_renown",
+  "final_warehouse_total",
+  "final_warehouse_wood",
+  "final_warehouse_stone",
+  "final_warehouse_metal",
+  "final_warehouse_food",
+  "final_warehouse_herbs",
+  "final_warehouse_goods",
   "final_strain_tokens",
   "final_active_burdens",
   "total_burdens_revealed",
@@ -75,6 +76,7 @@ export const SIMULATION_SUMMARY_FIELDS = Object.freeze([
   "total_strain_prevented_by_supported",
   "total_strain_blocked_by_cap",
   "total_strain_removed",
+  "total_upgrade_actions",
   "actions_spent_resolving_burdens",
   "actions_spent_removing_strain",
   "max_tiles_at_1_strain",
@@ -107,10 +109,7 @@ export const SIMULATION_ROUND_FIELDS = Object.freeze([
 ]);
 
 const TILE_CATEGORY_PRIORITY = Object.freeze({
-  builder: Object.freeze(["Resource", "Housing", "Travel", "Wellbeing", "Social", "Crafting", "Merchant"]),
-  balanced: Object.freeze(["Resource", "Wellbeing", "Social", "Housing", "Travel", "Crafting", "Merchant"]),
-  careful: Object.freeze(["Wellbeing", "Social", "Resource", "Housing", "Travel", "Crafting", "Merchant"]),
-  score: Object.freeze(["Housing", "Merchant", "Social", "Crafting", "Wellbeing", "Travel", "Resource"])
+  balanced: Object.freeze(["Housing", "Special", "Wellbeing", "Social", "Resource", "Crafting", "Merchant", "Travel"])
 });
 
 const SCORE_RESOURCE_WEIGHTS = Object.freeze({
@@ -132,6 +131,21 @@ const SCORE_BOT_WEIGHTS = Object.freeze({
   resourceEngine: 340,
   resourceProduction: 520
 });
+
+const FREE_ADJACENT_PLACEMENT_PROVIDER =
+  /^Once per round,\s*when any player places a(?: ([A-Za-z]+))? tile adjacent to this tile,\s*that tile costs 0 Resources\./i;
+const REDUCE_ADJACENT_PLACEMENT_PROVIDER =
+  /^Once per round,\s*when any player places a tile adjacent to this tile,\s*reduce that tile's cost by (\d+) resource/i;
+const ADJACENT_CORE_UPGRADE_DISCOUNT =
+  /^Passive:\s*Once per round,\s*when upgrading an adjacent Core Tile,\s*reduce that upgrade cost by (\d+) resource/i;
+const ADJACENT_ANY_SUPPORT = /adjacent tiles have Supported/i;
+const ADJACENT_RESOURCE_SUPPORT = /adjacent Resource Tiles have Supported/i;
+const LIMITED_ADJACENT_CATEGORY_SUPPORT =
+  /(?:(\d+)|up to (\d+)) adjacent ([A-Za-z]+) Tiles? (?:has|have) Supported/i;
+const FIXED_ADJACENT_PRODUCTION_BONUS =
+  /^Passive:\s*When an adjacent (.+?) is activated for Resource production, gain (\d+) additional ([A-Za-z ]+)\./i;
+const MATCHING_ADJACENT_PRODUCTION_BONUS =
+  /^Passive:\s*When an adjacent (.+?) is activated for Resource production, gain (\d+) additional resources of types that (.+?) can produce\./i;
 
 function numberValue(value) {
   return Number(value ?? 0) || 0;
@@ -195,6 +209,19 @@ function createSimulationAccumulator(gameId, randomSeed, playerCount, profileId)
     final_score: 0,
     final_population: 0,
     final_renown: 0,
+    final_placed_tiles: 0,
+    final_upgraded_tiles: 0,
+    final_basic_population: 0,
+    final_basic_renown: 0,
+    final_upgraded_population: 0,
+    final_upgraded_renown: 0,
+    final_warehouse_total: 0,
+    final_warehouse_wood: 0,
+    final_warehouse_stone: 0,
+    final_warehouse_metal: 0,
+    final_warehouse_food: 0,
+    final_warehouse_herbs: 0,
+    final_warehouse_goods: 0,
     final_strain_tokens: 0,
     final_active_burdens: 0,
     total_burdens_revealed: 0,
@@ -205,6 +232,7 @@ function createSimulationAccumulator(gameId, randomSeed, playerCount, profileId)
     total_strain_prevented_by_supported: 0,
     total_strain_blocked_by_cap: 0,
     total_strain_removed: 0,
+    total_upgrade_actions: 0,
     actions_spent_resolving_burdens: 0,
     actions_spent_removing_strain: 0,
     max_tiles_at_1_strain: 0,
@@ -324,6 +352,10 @@ function recordDispatchResult(summary, round, result) {
     summary.arrivals_completed += 1;
   }
 
+  if (result.action === TILE_ACTION_TYPES.UPGRADE_TILE) {
+    summary.total_upgrade_actions += 1;
+  }
+
   if (result.action === TILE_ACTION_TYPES.ACTIVATE_TILE && result.strainRemoved > 0) {
     summary.total_strain_removed += result.strainRemoved;
     round.strain_removed_this_round += result.strainRemoved;
@@ -371,6 +403,37 @@ function finalizeRound(summary, round, state, context) {
   return round;
 }
 
+function getWarehouseFieldName(resource) {
+  return `final_warehouse_${String(resource).toLowerCase()}`;
+}
+
+function applyFinalSimulationTelemetry(summary, state, context, finalScore) {
+  const tileIndex = context.tileIndex ?? createTileIndex(context.tiles ?? []);
+
+  for (const entry of finalScore.placedTileScores) {
+    const definition = tileIndex.get(entry.tileId);
+    const upgraded = definition?.side === "Upgraded";
+
+    summary.final_placed_tiles += 1;
+
+    if (upgraded) {
+      summary.final_upgraded_tiles += 1;
+      summary.final_upgraded_population += numberValue(entry.population);
+      summary.final_upgraded_renown += numberValue(entry.renown);
+    } else {
+      summary.final_basic_population += numberValue(entry.population);
+      summary.final_basic_renown += numberValue(entry.renown);
+    }
+  }
+
+  for (const resource of state.rules.resources) {
+    const amount = numberValue(state.warehouse.resources[resource]);
+
+    summary.final_warehouse_total += amount;
+    summary[getWarehouseFieldName(resource)] = amount;
+  }
+}
+
 function getEncounterIndex(encounterCards) {
   return new Map(encounterCards.map((card) => [card.card_id, card]));
 }
@@ -396,7 +459,7 @@ function countMissingResources(warehouse, cost) {
 
 function getBoonSeedValue(card, state) {
   const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "");
-  let value = 55;
+  let value = 42;
 
   if (/0 Actions|0 Resources|fewer resources?|discount|reduce/i.test(effectText)) {
     value += 18;
@@ -416,9 +479,9 @@ function getBoonSeedValue(card, state) {
 function getArrivalSeedValue(card, state) {
   const cost = parseSeedResourceCost(card.requirement, state.rules.resources);
   const missing = countMissingResources(state.warehouse, cost);
-  const rewardValue = /x\s*2/i.test(String(card.reward ?? "")) ? 12 : 8;
+  const rewardValue = /x\s*2/i.test(String(card.reward ?? "")) ? 18 : 12;
 
-  return 42 + rewardValue - missing * 4 - sumCost(cost) / 2;
+  return 72 + rewardValue - missing * 5 - sumCost(cost) / 2;
 }
 
 function getBurdenSeedValue(card, state) {
@@ -449,7 +512,7 @@ function getSeedCardValue(card, state) {
 }
 
 function buildScoreSeedAction(state, profile, context) {
-  if (!profile.optimizeForScore) {
+  if (!profile.optimizeForScore && !profile.smartSeeding) {
     return {
       type: TILE_ACTION_TYPES.SEED_ENCOUNTERS
     };
@@ -506,12 +569,75 @@ function getScoreBotTileValue(tile) {
     numberValue(tile?.renown) * SCORE_BOT_WEIGHTS.renown;
 }
 
+function getBalancedTileValue(tile) {
+  if (!tile) {
+    return 0;
+  }
+
+  let value = numberValue(tile.population) * 220 + numberValue(tile.renown) * 42;
+  const category = tile.tile_category;
+
+  if (category === "Housing") {
+    value += 1800;
+  }
+
+  if (category === "Special") {
+    value += 850;
+  }
+
+  if (category === "Wellbeing") {
+    value += 360;
+  }
+
+  if (category === "Resource") {
+    value += 260;
+  }
+
+  let activation = null;
+
+  try {
+    activation = getActivationDetails(tile);
+  } catch {
+    activation = null;
+  }
+
+  if (activation?.type === "resolve_active_burden") {
+    value += 9000;
+  }
+
+  if (activation?.type === "add_arrival_timer") {
+    value += 1050 + numberValue(activation.amount) * 120;
+  }
+
+  if (activation?.type === "remove_strain_adjacent") {
+    value += 900 + numberValue(activation.amount) * 120 + numberValue(activation.maxTargets) * 80;
+  }
+
+  if (activation?.type === "production") {
+    value += activation.gains.reduce((total, gain) => total + numberValue(gain.amount) * 120, 0);
+  }
+
+  if (activation?.type === "resource_exchange" || activation?.type === "flexible_resource_exchange") {
+    value += 420;
+  }
+
+  return value - sumCost(parseResourceCost(tile.place_cost ?? tile.upgrade_cost)) * 22;
+}
+
 function compareTilesForProfile(profile, left, right) {
   if (profile.optimizeForScore) {
     const scoreDifference = getScoreBotTileValue(right) - getScoreBotTileValue(left);
 
     if (scoreDifference !== 0) {
       return scoreDifference;
+    }
+  }
+
+  if (profile.id === "balanced") {
+    const balancedDifference = getBalancedTileValue(right) - getBalancedTileValue(left);
+
+    if (balancedDifference !== 0) {
+      return balancedDifference;
     }
   }
 
@@ -584,6 +710,33 @@ function getScoreBotResourceNeeds(state, context) {
     }
   }
 
+  const upgradeTileGoals = state.map.placedTiles
+    .filter((placedTile) => !isOverstrainedPlacedTile(placedTile))
+    .map((placedTile) => {
+      const currentTile = context.tileIndex.get(placedTile.tileId);
+      const upgradeTile = findUpgradeTile(currentTile, context.tileIndex);
+
+      return {
+        currentTile,
+        upgradeTile,
+        value: getUpgradeCandidateValue(placedTile, context.tileIndex, context)
+      };
+    })
+    .filter(({ upgradeTile, value }) => upgradeTile && value > 0)
+    .sort((left, right) => right.value - left.value)
+    .slice(0, 10);
+
+  for (const { upgradeTile, value } of upgradeTileGoals) {
+    const upgradeValue = Math.max(1, value / 1500);
+
+    for (const costEntry of parseResourceCost(upgradeTile.upgrade_cost)) {
+      const available = numberValue(state.warehouse.resources[costEntry.resource]);
+      const missing = Math.max(0, numberValue(costEntry.amount) - available);
+
+      addResourceNeed(needs, costEntry.resource, (missing + numberValue(costEntry.amount) * 0.2) * upgradeValue);
+    }
+  }
+
   return needs;
 }
 
@@ -608,6 +761,369 @@ function getProductionPotentialValue(tile, context, multiplier = SCORE_BOT_WEIGH
     (total, gain) => total + numberValue(gain.amount) * getResourceNeedValue(context, gain.resource) * multiplier,
     0
   );
+}
+
+function getPlacementFootprint(state, action, tile) {
+  const mapIndex = createMapIndex(state.map.hexes);
+  return getFootprintCoordinates(
+    action.coordinate,
+    tile?.size_hexes ?? 1,
+    action.orientation ?? HEX_DIRECTIONS[0].id,
+    mapIndex
+  );
+}
+
+function getAdjacentPlacedTilesForFootprint(state, coordinates) {
+  if (!coordinates) {
+    return [];
+  }
+
+  const placedByCoordinate = new Map(
+    state.map.placedTiles.flatMap((placedTile) =>
+      getPlacedTileCoordinates(placedTile).map((coordinate) => [coordinate, placedTile])
+    )
+  );
+  const mapIndex = createMapIndex(state.map.hexes);
+  const footprint = new Set(coordinates);
+  const adjacentIds = new Set();
+
+  for (const coordinate of coordinates) {
+    for (const neighborCoordinate of getNeighborCoordinates(coordinate, mapIndex)) {
+      if (footprint.has(neighborCoordinate)) {
+        continue;
+      }
+
+      const placedTile = placedByCoordinate.get(neighborCoordinate);
+      if (placedTile) {
+        adjacentIds.add(placedTile.id);
+      }
+    }
+  }
+
+  return state.map.placedTiles.filter((placedTile) => adjacentIds.has(placedTile.id));
+}
+
+function getOpenAdjacentHexCount(state, coordinates) {
+  if (!coordinates) {
+    return 0;
+  }
+
+  const mapIndex = createMapIndex(state.map.hexes);
+  const occupied = getOccupiedCoordinates(state);
+  const footprint = new Set(coordinates);
+  const open = new Set();
+
+  for (const coordinate of coordinates) {
+    for (const neighborCoordinate of getNeighborCoordinates(coordinate, mapIndex)) {
+      const hex = mapIndex.get(neighborCoordinate);
+
+      if (hex && !isWaterHex(hex) && !occupied.has(neighborCoordinate) && !footprint.has(neighborCoordinate)) {
+        open.add(neighborCoordinate);
+      }
+    }
+  }
+
+  return open.size;
+}
+
+function getSafeActivationDetails(tile) {
+  try {
+    return getActivationDetails(tile);
+  } catch {
+    return null;
+  }
+}
+
+function tileMatchesSourceName(tile, sourceName) {
+  return [tile?.tile_name, tile?.base_tile, tile?.internal_role_tag].filter(Boolean).includes(sourceName);
+}
+
+function getAdjacentProductionBonus(tile) {
+  const benefit = String(tile?.benefit ?? "").trim();
+  const matchingTypesMatch = MATCHING_ADJACENT_PRODUCTION_BONUS.exec(benefit);
+  const fixedMatch = FIXED_ADJACENT_PRODUCTION_BONUS.exec(benefit);
+
+  if (matchingTypesMatch) {
+    return {
+      type: "matching_first_resource",
+      sourceTileName: matchingTypesMatch[1],
+      amount: Number(matchingTypesMatch[2])
+    };
+  }
+
+  if (fixedMatch) {
+    return {
+      type: "fixed_resource",
+      sourceTileName: fixedMatch[1],
+      amount: Number(fixedMatch[2]),
+      resource: fixedMatch[3]
+    };
+  }
+
+  return null;
+}
+
+function getAdjacentProductionBonusValue(providerTile, targetTile, context) {
+  const bonus = getAdjacentProductionBonus(providerTile);
+
+  if (!bonus || !tileMatchesSourceName(targetTile, bonus.sourceTileName)) {
+    return 0;
+  }
+
+  const targetActivation = getSafeActivationDetails(targetTile);
+  const resource = bonus.resource ?? targetActivation?.gains?.[0]?.resource;
+
+  if (!resource) {
+    return 0;
+  }
+
+  return bonus.amount * getResourceNeedValue(context, resource) * 1500;
+}
+
+function getLimitedSupportCategory(tile) {
+  const match = LIMITED_ADJACENT_CATEGORY_SUPPORT.exec(String(tile?.benefit ?? ""));
+  return match?.[3] ?? null;
+}
+
+function supportsAdjacentTarget(providerTile, targetTile) {
+  const benefit = String(providerTile?.benefit ?? "");
+
+  if (ADJACENT_ANY_SUPPORT.test(benefit)) {
+    return true;
+  }
+
+  if (ADJACENT_RESOURCE_SUPPORT.test(benefit)) {
+    return targetTile?.tile_category === "Resource";
+  }
+
+  const category = getLimitedSupportCategory(providerTile);
+  return Boolean(category && targetTile?.tile_category === category);
+}
+
+function getSupportPlacementValue(targetTile, placedTarget = null) {
+  const strainPressure = numberValue(placedTarget?.strain);
+  const scoreValue = getScoreBotTileValue(targetTile);
+  const categoryValue = {
+    Housing: 380,
+    Special: 340,
+    Resource: 300,
+    Wellbeing: 230,
+    Social: 210,
+    Travel: 180,
+    Crafting: 170,
+    Merchant: 160
+  }[targetTile?.tile_category] ?? 120;
+
+  return categoryValue + scoreValue * 20 + strainPressure * 260;
+}
+
+function getFreeAdjacentPlacementTargetCategory(tile) {
+  const match = FREE_ADJACENT_PLACEMENT_PROVIDER.exec(String(tile?.benefit ?? "").trim());
+  return match?.[1] ? match[1][0].toUpperCase() + match[1].slice(1).toLowerCase() : match ? null : undefined;
+}
+
+function canProvideFreeAdjacentPlacement(providerTile, targetTile) {
+  const targetCategory = getFreeAdjacentPlacementTargetCategory(providerTile);
+  return targetCategory !== undefined && (!targetCategory || targetCategory === targetTile?.tile_category);
+}
+
+function getReducedAdjacentPlacementAmount(tile) {
+  const match = REDUCE_ADJACENT_PLACEMENT_PROVIDER.exec(String(tile?.benefit ?? "").trim());
+  return match ? Number(match[1]) : 0;
+}
+
+function hasPotentialRoundPlacementDiscount(state, tile) {
+  return (state.encounter?.roundEffects ?? []).some((effect) => {
+    if ((effect.uses ?? 0) >= (effect.maxUses ?? 1)) {
+      return false;
+    }
+
+    if (effect.type !== "free_tile_placement_cost" && effect.type !== "placement_resource_discount") {
+      return false;
+    }
+
+    return (
+      !effect.targetCategories ||
+      effect.targetCategories.includes(tile.tile_category) ||
+      effect.targetCategories.includes(tile.internal_role_tag)
+    );
+  });
+}
+
+function hasPotentialAdjacentPlacementDiscount(state, tile, context) {
+  return state.map.placedTiles.some((placedTile) => {
+    if (isOverstrainedPlacedTile(placedTile) || placedTile.placementDiscountRounds?.includes(state.round)) {
+      return false;
+    }
+
+    const providerTile = context.tileIndex.get(placedTile.tileId);
+    return canProvideFreeAdjacentPlacement(providerTile, tile) || getReducedAdjacentPlacementAmount(providerTile) > 0;
+  });
+}
+
+function hasPotentialGoodsSubstitution(state, tile, context) {
+  if (numberValue(state.warehouse.resources.Goods) <= 0) {
+    return false;
+  }
+
+  const deficits = parseResourceCost(tile.place_cost).filter(
+    (entry) => entry.resource !== "Goods" && numberValue(state.warehouse.resources[entry.resource]) < entry.amount
+  );
+
+  if (deficits.length === 0) {
+    return false;
+  }
+
+  return state.map.placedTiles.some((placedTile) => {
+    if (isOverstrainedPlacedTile(placedTile) || placedTile.goodsSubstitutionRounds?.includes(state.round)) {
+      return false;
+    }
+
+    return /spend 1 Goods as/i.test(String(context.tileIndex.get(placedTile.tileId)?.benefit ?? ""));
+  });
+}
+
+function shouldEvaluatePlacementTile(state, tile, context) {
+  const baseCost = parseResourceCost(tile.place_cost);
+
+  return (
+    canAffordCost(state.warehouse, baseCost) ||
+    hasPotentialGoodsSubstitution(state, tile, context) ||
+    hasPotentialRoundPlacementDiscount(state, tile) ||
+    hasPotentialAdjacentPlacementDiscount(state, tile, context)
+  );
+}
+
+function canReduceAdjacentCoreUpgrade(tile) {
+  return ADJACENT_CORE_UPGRADE_DISCOUNT.test(String(tile?.benefit ?? "").trim());
+}
+
+function activationCanTargetTile(activation, targetTile) {
+  return !activation?.targetCategories?.length || activation.targetCategories.includes(targetTile?.tile_category);
+}
+
+function getAdjacentStrainReliefValue(sourceTile, targetTile, targetPlacedTile = null) {
+  const activation = getSafeActivationDetails(sourceTile);
+
+  if (activation?.type !== "remove_strain_adjacent" || !activationCanTargetTile(activation, targetTile)) {
+    return 0;
+  }
+
+  const strain = numberValue(targetPlacedTile?.strain);
+  const immediateRelief = Math.min(strain, numberValue(activation.amount || 1)) * SCORE_BOT_WEIGHTS.strainRemoval;
+  const futureRelief = strain > 0 ? 0 : getSupportPlacementValue(targetTile, targetPlacedTile) * 0.35;
+
+  return immediateRelief + futureRelief;
+}
+
+function getFutureProviderPlacementValue(tile, state, coordinates) {
+  const openSlots = getOpenAdjacentHexCount(state, coordinates);
+  let value = 0;
+
+  if (getFreeAdjacentPlacementTargetCategory(tile) !== undefined) {
+    value += openSlots * 520;
+  }
+
+  if (getReducedAdjacentPlacementAmount(tile) > 0) {
+    value += openSlots * 130;
+  }
+
+  if (ADJACENT_ANY_SUPPORT.test(String(tile?.benefit ?? "")) || ADJACENT_RESOURCE_SUPPORT.test(String(tile?.benefit ?? ""))) {
+    value += openSlots * 120;
+  }
+
+  if (getLimitedSupportCategory(tile)) {
+    value += openSlots * 90;
+  }
+
+  if (getAdjacentProductionBonus(tile)) {
+    value += openSlots * 70;
+  }
+
+  return value;
+}
+
+function getPlacementPositionValue(state, action, validation, context) {
+  const tile = context.tileIndex.get(action.tileId);
+  const coordinates = validation?.footprintCoordinates ?? getPlacementFootprint(state, action, tile);
+
+  if (!tile || !coordinates) {
+    return 0;
+  }
+
+  const adjacentPlacedTiles = getAdjacentPlacedTilesForFootprint(state, coordinates).filter(
+    (placedTile) => !isOverstrainedPlacedTile(placedTile)
+  );
+  const baseCost = validation?.baseCost ?? parseResourceCost(tile.place_cost);
+  const effectiveCost = validation?.cost ?? baseCost;
+  let value = Math.max(0, sumCost(baseCost) - sumCost(effectiveCost)) * 820;
+
+  value += adjacentPlacedTiles.length * 35;
+  value += getFutureProviderPlacementValue(tile, state, coordinates);
+
+  for (const adjacentPlacedTile of adjacentPlacedTiles) {
+    const adjacentTile = context.tileIndex.get(adjacentPlacedTile.tileId);
+
+    if (!adjacentTile) {
+      continue;
+    }
+
+    if (supportsAdjacentTarget(adjacentTile, tile)) {
+      value += getSupportPlacementValue(tile);
+    }
+
+    if (supportsAdjacentTarget(tile, adjacentTile)) {
+      value += getSupportPlacementValue(adjacentTile, adjacentPlacedTile);
+    }
+
+    value += getAdjacentProductionBonusValue(adjacentTile, tile, context);
+    value += getAdjacentProductionBonusValue(tile, adjacentTile, context);
+    value += getAdjacentStrainReliefValue(adjacentTile, tile);
+    value += getAdjacentStrainReliefValue(tile, adjacentTile, adjacentPlacedTile);
+
+    if (canProvideFreeAdjacentPlacement(adjacentTile, tile)) {
+      value += 160;
+    }
+
+    value += getReducedAdjacentPlacementAmount(adjacentTile) * 110;
+
+    if (canReduceAdjacentCoreUpgrade(adjacentTile) && tile.tile_source_type === "Core" && tile.side === "Basic") {
+      value += 330;
+    }
+
+    if (canReduceAdjacentCoreUpgrade(tile) && adjacentTile.tile_source_type === "Core" && adjacentTile.side === "Basic") {
+      value += 260;
+    }
+  }
+
+  return value;
+}
+
+function getUpgradeCandidateValue(placedTile, tileIndex, context) {
+  const currentTile = tileIndex.get(placedTile?.tileId);
+  const upgradeTile = findUpgradeTile(currentTile, tileIndex);
+
+  if (!currentTile || !upgradeTile) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const scoreGain = getScoreBotTileValue(upgradeTile) - getScoreBotTileValue(currentTile);
+  const balancedGain = getBalancedTileValue(upgradeTile) - getBalancedTileValue(currentTile);
+  const productionGain =
+    getProductionPotentialValue(upgradeTile, context) - getProductionPotentialValue(currentTile, context);
+  const upgradeCost = sumCost(parseResourceCost(upgradeTile.upgrade_cost));
+  const categoryBonus = {
+    Housing: 800,
+    Special: 700,
+    Resource: 360,
+    Wellbeing: 320,
+    Social: 260,
+    Crafting: 220,
+    Merchant: 180,
+    Travel: 140
+  }[upgradeTile.tile_category] ?? 0;
+
+  return balancedGain + scoreGain * 420 + productionGain * 0.65 + categoryBonus - upgradeCost * 65;
 }
 
 function sortTilesForProfile(profileId, tileIndex, placedTilesOrEntries) {
@@ -897,15 +1413,20 @@ function buildProductionCandidates(state, profile, context) {
   return candidates;
 }
 
-function buildUtilityActivationCandidates(state, profile, context) {
+function buildUtilityActivationCandidates(state, profile, context, options = {}) {
   const tileIndex = context.tileIndex;
   const candidates = [];
+  const allowedTypes = options.allowedTypes ? new Set(options.allowedTypes) : null;
 
   for (const placedTile of sortTilesForProfile(profile.id, tileIndex, state.map.placedTiles)) {
     const tile = tileIndex.get(placedTile.tileId);
     const activation = getActivationDetails(tile);
 
     if (!activation || isOverstrainedPlacedTile(placedTile)) {
+      continue;
+    }
+
+    if (allowedTypes && !allowedTypes.has(activation.type)) {
       continue;
     }
 
@@ -1156,43 +1677,203 @@ function getPlacementCoordinateCandidates(state, tile, context) {
     .map((hex) => hex.Coordinate);
 }
 
-function buildPlacementCandidates(state, profile, context) {
+function getCoordinateAdjacencyValue(state, coordinate, tile, context, lookup) {
+  const adjacentPlacedTileIds = new Set();
+  const neighbors = getNeighborCoordinates(coordinate, lookup.mapIndex);
+
+  for (const neighborCoordinate of neighbors) {
+    const placedTile = lookup.placedByCoordinate.get(neighborCoordinate);
+    if (placedTile && !isOverstrainedPlacedTile(placedTile)) {
+      adjacentPlacedTileIds.add(placedTile.id);
+    }
+  }
+
+  const adjacentPlacedTiles = [...adjacentPlacedTileIds]
+    .map((placedTileId) => lookup.placedById.get(placedTileId))
+    .filter(Boolean);
+  const adjacentValue = adjacentPlacedTiles.reduce((total, placedTile) => {
+    const adjacentTile = context.tileIndex.get(placedTile.tileId);
+
+    if (!adjacentTile) {
+      return total;
+    }
+
+    return total +
+      (supportsAdjacentTarget(adjacentTile, tile) ? 800 : 0) +
+      (canProvideFreeAdjacentPlacement(adjacentTile, tile) ? 1200 : 0) +
+      getReducedAdjacentPlacementAmount(adjacentTile) * 180 +
+      getAdjacentProductionBonusValue(adjacentTile, tile, context) * 0.45 +
+      getAdjacentStrainReliefValue(adjacentTile, tile) * 0.45;
+  }, 0);
+  const openNeighborCount = neighbors.filter((neighborCoordinate) => {
+    const hex = lookup.mapIndex.get(neighborCoordinate);
+    return hex && !isWaterHex(hex) && !lookup.occupied.has(neighborCoordinate);
+  }).length;
+
+  return adjacentValue + adjacentPlacedTiles.length * 120 + openNeighborCount * 8;
+}
+
+function sortPlacementCoordinates(state, tile, context, coordinates) {
+  const placedByCoordinate = new Map(
+    state.map.placedTiles.flatMap((placedTile) =>
+      getPlacedTileCoordinates(placedTile).map((coordinate) => [coordinate, placedTile])
+    )
+  );
+  const lookup = {
+    mapIndex: createMapIndex(state.map.hexes),
+    occupied: getOccupiedCoordinates(state),
+    placedByCoordinate,
+    placedById: new Map(state.map.placedTiles.map((placedTile) => [placedTile.id, placedTile]))
+  };
+
+  return coordinates
+    .map((coordinate, index) => ({
+      coordinate,
+      index,
+      value: getCoordinateAdjacencyValue(state, coordinate, tile, context, lookup)
+    }))
+    .sort((left, right) => right.value - left.value || left.index - right.index)
+    .map((entry) => entry.coordinate);
+}
+
+function createPlacementActionVariants(tile, coordinate, orientation) {
+  const action = {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: tile.tile_id,
+    coordinate,
+    orientation
+  };
+  const reductionResources = parseResourceCost(tile.place_cost)
+    .map((entry) => entry.resource)
+    .filter((resource, index, resources) => resources.indexOf(resource) === index);
+
+  return [
+    action,
+    ...reductionResources.map((placementCostReductionResource) => ({
+      ...action,
+      placementCostReductionResource
+    }))
+  ];
+}
+
+function isStablesTile(tile) {
+  return tile?.tile_name === "Stables";
+}
+
+function getPairedStablesCoordinate(state, tile, context, firstCoordinate, coordinateCandidates) {
+  for (const coordinate of coordinateCandidates) {
+    if (coordinate === firstCoordinate) {
+      continue;
+    }
+
+    const validation = validatePlaceTile(
+      state,
+      {
+        type: TILE_ACTION_TYPES.PLACE_TILE,
+        tileId: tile.tile_id,
+        coordinate,
+        orientation: HEX_DIRECTIONS[0].id
+      },
+      { ...context, tileIndex: context.tileIndex }
+    );
+
+    if (validation.valid) {
+      return coordinate;
+    }
+  }
+
+  return null;
+}
+
+function buildRankedPlacementCandidatesForTile(state, tile, context, options = {}) {
   const tileIndex = context.tileIndex;
+  const orientations = tile.size_hexes > 1 ? HEX_DIRECTIONS.map((direction) => direction.id) : [HEX_DIRECTIONS[0].id];
+  const coordinateLimit = options.coordinateLimit ?? context.maxPlacementCoordinateCandidates ?? 14;
+  const coordinateCandidates = sortPlacementCoordinates(
+    state,
+    tile,
+    context,
+    getPlacementCoordinateCandidates(state, tile, context)
+  ).slice(0, coordinateLimit);
+  const ranked = [];
+  const seen = new Set();
+
+  for (const [coordinateIndex, coordinate] of coordinateCandidates.entries()) {
+    const pairedStablesCoordinate = isStablesTile(tile)
+      ? getPairedStablesCoordinate(state, tile, context, coordinate, coordinateCandidates)
+      : null;
+
+    if (isStablesTile(tile) && !pairedStablesCoordinate) {
+      continue;
+    }
+
+    for (const orientation of orientations) {
+      for (const action of createPlacementActionVariants(tile, coordinate, orientation)) {
+        const candidateAction = pairedStablesCoordinate
+          ? {
+              ...action,
+              pairedCoordinate: pairedStablesCoordinate,
+              pairedOrientation: HEX_DIRECTIONS[0].id
+            }
+          : action;
+        const actionKey = [
+          candidateAction.tileId,
+          candidateAction.coordinate,
+          candidateAction.pairedCoordinate ?? "",
+          candidateAction.orientation,
+          candidateAction.placementCostReductionResource ?? ""
+        ].join("|");
+
+        if (seen.has(actionKey)) {
+          continue;
+        }
+        seen.add(actionKey);
+
+        const validation = validatePlaceTile(state, candidateAction, { ...context, tileIndex });
+
+        if (!validation.valid) {
+          continue;
+        }
+
+        ranked.push({
+          action: candidateAction,
+          value: getPlacementPositionValue(state, candidateAction, validation, context),
+          coordinateIndex
+        });
+      }
+    }
+  }
+
+  return ranked.sort(
+    (left, right) =>
+      right.value - left.value ||
+      left.coordinateIndex - right.coordinateIndex ||
+      String(left.action.orientation).localeCompare(String(right.action.orientation)) ||
+      String(left.action.placementCostReductionResource ?? "").localeCompare(
+        String(right.action.placementCostReductionResource ?? "")
+      )
+  );
+}
+
+function buildPlacementCandidates(state, profile, context) {
   const candidates = [];
   const maxCandidates = profile.maxPlacementCandidates ?? 8;
   const maxPlacementsPerTile = profile.maxPlacementsPerTile ?? 1;
-  const tiles = getAvailablePlacementTiles(state, context).filter((tile) =>
-    canAffordCost(state.warehouse, parseResourceCost(tile.place_cost))
-  ).sort((left, right) => compareTilesForProfile(profile, left, right));
+  const placementContext = {
+    ...context,
+    maxPlacementCoordinateCandidates: profile.maxPlacementCoordinateCandidates
+  };
+  const tiles = getAvailablePlacementTiles(state, context)
+    .filter((tile) => shouldEvaluatePlacementTile(state, tile, context))
+    .sort((left, right) => compareTilesForProfile(profile, left, right))
+    .slice(0, profile.maxPlacementTilesConsidered ?? 12);
 
   for (const tile of tiles) {
-    const orientations = tile.size_hexes > 1 ? HEX_DIRECTIONS.map((direction) => direction.id) : [HEX_DIRECTIONS[0].id];
-    const coordinateCandidates = getPlacementCoordinateCandidates(state, tile, context).slice(0, 36);
-    let placementCountForTile = 0;
+    for (const { action } of buildRankedPlacementCandidatesForTile(state, tile, placementContext).slice(0, maxPlacementsPerTile)) {
+      candidates.push(action);
 
-    for (const coordinate of coordinateCandidates) {
-      for (const orientation of orientations) {
-        const action = {
-          type: TILE_ACTION_TYPES.PLACE_TILE,
-          tileId: tile.tile_id,
-          coordinate,
-          orientation
-        };
-        const validation = validatePlaceTile(state, action, { ...context, tileIndex });
-
-        if (validation.valid) {
-          candidates.push(action);
-          placementCountForTile += 1;
-
-          if (candidates.length >= maxCandidates) {
-            return candidates;
-          }
-          break;
-        }
-      }
-
-      if (placementCountForTile >= maxPlacementsPerTile) {
-        break;
+      if (candidates.length >= maxCandidates) {
+        return candidates;
       }
     }
   }
@@ -1214,19 +1895,10 @@ function buildOpeningPlacementCandidates(state, profile, context) {
   const candidates = [];
 
   for (const tile of tiles) {
-    for (const coordinate of getPlacementCoordinateCandidates(state, tile, context)) {
-      const action = {
-        type: TILE_ACTION_TYPES.PLACE_TILE,
-        tileId: tile.tile_id,
-        coordinate,
-        orientation: HEX_DIRECTIONS[0].id
-      };
-      const validation = validatePlaceTile(state, action, context);
+    const ranked = buildRankedPlacementCandidatesForTile(state, tile, context, { coordinateLimit: 72 });
 
-      if (validation.valid) {
-        candidates.push(action);
-        break;
-      }
+    if (ranked.length > 0) {
+      candidates.push(ranked[0].action);
     }
   }
 
@@ -1238,7 +1910,16 @@ function buildUpgradeCandidates(state, profile, context) {
   const candidates = [];
   const maxCandidates = profile.maxUpgradeCandidates ?? 8;
 
-  for (const placedTile of sortTilesForProfile(profile.id, tileIndex, state.map.placedTiles)) {
+  const upgradeTargets = state.map.placedTiles
+    .map((placedTile, index) => ({
+      placedTile,
+      index,
+      value: getUpgradeCandidateValue(placedTile, tileIndex, context)
+    }))
+    .sort((left, right) => right.value - left.value || left.index - right.index)
+    .map(({ placedTile }) => placedTile);
+
+  for (const placedTile of upgradeTargets) {
     const tile = tileIndex.get(placedTile.tileId);
     const upgradeTile = findUpgradeTile(tile, tileIndex);
 
@@ -1268,9 +1949,16 @@ function buildActionCandidates(state, profile, context, priority) {
   const builders = {
     complete_arrival: buildCompleteArrivalCandidates,
     resolve_burden: (currentState) => buildResolveBurdenCandidates(currentState, profile, context),
+    burden_utility: (currentState) =>
+      buildUtilityActivationCandidates(currentState, profile, context, { allowedTypes: ["resolve_active_burden"] }),
+    arrival_utility: (currentState) =>
+      buildUtilityActivationCandidates(currentState, profile, context, { allowedTypes: ["add_arrival_timer"] }),
     remove_strain: (currentState) => buildRemoveStrainCandidates(currentState, profile, context),
     produce: (currentState) => buildProductionCandidates(currentState, profile, context),
-    utility: (currentState) => buildUtilityActivationCandidates(currentState, profile, context),
+    utility: (currentState) =>
+      buildUtilityActivationCandidates(currentState, profile, context, {
+        allowedTypes: ["resource_exchange", "flexible_resource_exchange"]
+      }),
     place: (currentState) => buildPlacementCandidates(currentState, profile, context),
     upgrade: (currentState) => buildUpgradeCandidates(currentState, profile, context)
   };
@@ -1353,11 +2041,14 @@ function estimateScoreCandidateValue(state, action, context, candidateIndex) {
 
   if (action.type === TILE_ACTION_TYPES.PLACE_TILE) {
     const tile = context.tileIndex.get(action.tileId);
+    const validation = validatePlaceTile(state, action, context);
+    const positionValue = validation.valid ? getPlacementPositionValue(state, action, validation, context) : 0;
 
     return getScoreBotTileValue(tile) * 100 +
       getProductionPotentialValue(tile, context) -
       sumCost(parseResourceCost(tile?.place_cost)) * 25 -
-      candidateIndex / 1000;
+      candidateIndex / 1000 +
+      positionValue * 1.35;
   }
 
   if (action.type === TILE_ACTION_TYPES.UPGRADE_TILE) {
@@ -1571,6 +2262,7 @@ export function runAutomatedGame({
   summary.final_renown = finalScore.renown;
   summary.final_strain_tokens = finalScore.strainTokens;
   summary.final_active_burdens = finalScore.activeBurdenCount;
+  applyFinalSimulationTelemetry(summary, state, context, finalScore);
 
   return {
     game: summary,
@@ -1580,7 +2272,7 @@ export function runAutomatedGame({
 }
 
 export function runSimulationBatch({
-  gamesPerCombination = 100,
+  gamesPerCombination = 10,
   playerCounts = [1, 2, 3, 4],
   botProfiles = Object.keys(SIMULATION_BOT_PROFILES),
   seedPrefix = "quiet-vale-simulation",

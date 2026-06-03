@@ -20,8 +20,9 @@ function safePathname(url) {
   const pathname = decodeURIComponent(new URL(url, `http://${host}`).pathname);
   const requested = pathname === "/" ? "/index.html" : pathname;
   const resolved = path.resolve(root, `.${requested}`);
+  const relativePath = path.relative(root, resolved);
 
-  if (!resolved.startsWith(root)) {
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
     return null;
   }
 

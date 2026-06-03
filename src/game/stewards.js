@@ -106,6 +106,33 @@ export function isStewardHouseTileUnlockedForRoles(tileId, roleIds = []) {
   return getUnlockedStewardHouseTileIds(roleIds).includes(tileId);
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function getStewardHouseRole(tile) {
+  if (tile?.subtype !== "Steward House") {
+    return null;
+  }
+
+  return (
+    STEWARD_ROLES.find((role) => tile.tile_id === role.houseTileId) ??
+    STEWARD_ROLES.find((role) =>
+      new RegExp(`\\b${escapeRegExp(role.name)}\\s+only\\b`, "i").test(tile.placement_rules ?? "")
+    ) ??
+    STEWARD_ROLES.find((role) =>
+      new RegExp(`\\b${escapeRegExp(role.name)}\\b`, "i").test(tile.tile_name ?? "")
+    ) ??
+    null
+  );
+}
+
+export function isStewardHouseTileForPlayer(tile, player) {
+  const role = getStewardHouseRole(tile);
+
+  return Boolean(role && player?.stewardRoleId === role.id);
+}
+
 export function getPendingOpeningResourcePlacement(state, playerId = state.activePlayerId) {
   if (
     state.openingResourcePlacementRequired !== true ||
@@ -232,8 +259,10 @@ export function markStewardPowerUsed(placedTile, season) {
   };
 }
 
-export function getAvailableStewardPowerProviders(state, context, type, predicate = () => true) {
+export function getAvailableStewardPowerProviders(state, context = {}, type, predicate = () => true) {
   const tileIndex = context.tileIndex ?? createTileIndex(context.tiles ?? []);
+  const playerId = context.playerId ?? state.activePlayerId;
+  const player = state.players.find((candidate) => candidate.id === playerId);
 
   return state.map.placedTiles
     .map((placedTile) => {
@@ -249,13 +278,14 @@ export function getAvailableStewardPowerProviders(state, context, type, predicat
     .filter(
       (provider) =>
         provider.details?.type === type &&
+        isStewardHouseTileForPlayer(provider.tile, player) &&
         !isOverstrainedPlacedTile(provider.placedTile) &&
         !isStewardPowerUsedThisSeason(provider.placedTile, state.season) &&
         predicate(provider)
     );
 }
 
-export function getRequestedStewardPowerProvider(state, context, placedTileId, type, predicate = () => true) {
+export function getRequestedStewardPowerProvider(state, context = {}, placedTileId, type, predicate = () => true) {
   if (!placedTileId) {
     return {
       valid: true,

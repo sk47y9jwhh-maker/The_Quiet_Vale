@@ -1,9 +1,9 @@
 [
   {
     "Field": "Approved Map",
-    "Value": "Redesigned Basic Map v0.1",
+    "Value": "Redesigned Basic Map v0.2",
     "Status": "Approved",
-    "Notes": "Default locked v2.0 map"
+    "Notes": "Default locked playtest map promoted after K7/L6 river and row 9 terrain revision"
   },
   {
     "Field": "Approval Date",
@@ -61,9 +61,9 @@
   },
   {
     "Field": "Ruins Placement",
-    "Value": "Seven Ruins hexes",
+    "Value": "Six Ruins hexes",
     "Status": "Pass",
-    "Notes": "Ruins at F4, F5, G5, I9, J9, M9, N9"
+    "Notes": "Ruins at F4, F5, G5, J9, K9, L9"
   },
   {
     "Field": "Arable Land Placement",

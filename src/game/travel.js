@@ -28,6 +28,13 @@ function isDocksTileDefinition(tile) {
   );
 }
 
+function isStablesTileDefinition(tile) {
+  return (
+    tile?.tile_name === "Stables" ||
+    /placed Stables connect their connected settlement networks to each other/i.test(tile?.benefit ?? "")
+  );
+}
+
 export function isActiveTravelTile(placedTile, tileIndex) {
   const definition = tileIndex.get(placedTile.tileId);
   return isTravelTileDefinition(definition) && !isOverstrainedPlacedTile(placedTile);
@@ -61,6 +68,7 @@ function buildSettlementAdjacency(state, tileIndex) {
   const adjacency = new Map(activeNetworkTiles.map((placedTile) => [placedTile.id, new Set()]));
   const waterLinkedDocks = [];
   const waterLinkedTiles = [];
+  const activeStables = [];
 
   for (const placedTile of activeNetworkTiles) {
     const definition = tileIndex.get(placedTile.tileId);
@@ -78,6 +86,10 @@ function buildSettlementAdjacency(state, tileIndex) {
 
     if (isDocksTileDefinition(definition) && waterLinked) {
       waterLinkedDocks.push(placedTile);
+    }
+
+    if (isStablesTileDefinition(definition)) {
+      activeStables.push(placedTile);
     }
 
     for (const coordinate of getPlacedTileCoordinates(placedTile)) {
@@ -99,6 +111,16 @@ function buildSettlementAdjacency(state, tileIndex) {
         adjacency.get(docks.id).add(waterLinkedTile.id);
         adjacency.get(waterLinkedTile.id)?.add(docks.id);
       }
+    }
+  }
+
+  for (let leftIndex = 0; leftIndex < activeStables.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < activeStables.length; rightIndex += 1) {
+      const left = activeStables[leftIndex];
+      const right = activeStables[rightIndex];
+
+      adjacency.get(left.id).add(right.id);
+      adjacency.get(right.id).add(left.id);
     }
   }
 
@@ -282,13 +304,18 @@ export function isPlacedTileConnectedToTravelNetwork(state, placedTile, context)
   return Boolean(anchorNetwork?.tileIds.includes(placedTile.id));
 }
 
-export function calculatePlacementActionCost(state, footprintCoordinates, context) {
+export function calculatePlacementActionCost(state, footprintCoordinates, context = {}) {
   const connected = isPlacementConnectedToTravelNetwork(state, footprintCoordinates, context);
+  const disconnectedTravelIgnored = Boolean(context.ignoreDisconnectedTravel);
   const placeActionCost = 1;
-  const disconnectedTravelActionCost = connected ? 0 : 1;
+  const disconnectedTravelActionCost = connected || disconnectedTravelIgnored ? 0 : 1;
 
   return {
     connected,
+    disconnectedTravelIgnored: disconnectedTravelIgnored && !connected,
+    disconnectedTravelIgnoreReason: disconnectedTravelIgnored && !connected
+      ? context.ignoreDisconnectedTravelReason ?? "ignored"
+      : null,
     placeActionCost,
     disconnectedTravelActionCost,
     total: placeActionCost + disconnectedTravelActionCost

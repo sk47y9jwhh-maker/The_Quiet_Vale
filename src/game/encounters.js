@@ -96,6 +96,382 @@ const QUIET_FRACTURES_OVERSTRAINED_SPREAD =
 const STEWARD_TOKEN_BURDEN_STRAIN_PLACEMENT =
   /^Choose each tile occupied by one or more Steward Tokens with fewer than 3 Strain\. Place 1 Strain on each chosen tile(?:\. Then choose 1 Steward House with fewer than 3 Strain\. Place 1 Strain on it)?\.$/i;
 
+function normalizeV26GainText(gainText) {
+  return String(gainText ?? "").replace(/\+(\d+) ([A-Za-z]+)/g, "$1 additional $2");
+}
+
+function pluralizeProductionSource(sourceName) {
+  if (sourceName === "Wildlands") {
+    return "Wildlands";
+  }
+
+  return sourceName.endsWith("s") ? sourceName : `${sourceName}s`;
+}
+
+function normalizeV26CountText(countText) {
+  return countText === "2" ? "two" : countText;
+}
+
+function normalizeBoonEffectText(effectText) {
+  const text = String(effectText ?? "").trim();
+  let match = null;
+
+  match = /^(.+?) Production this round: gain \+(\d+) ([A-Za-z]+) each time\.$/i.exec(text);
+  if (match) {
+    return `Each time this round a ${match[1]} is activated for its Resource production, gain ${match[2]} additional ${match[3]}.`;
+  }
+
+  match = /^First 2 (.+?) Productions this round: gain (.+) each time\.$/i.exec(text);
+  if (match) {
+    return `The first two times this round ${pluralizeProductionSource(match[1])} are activated for Resource production, gain ${normalizeV26GainText(match[2])}.`;
+  }
+
+  match = /^Next (.+?) Production this round: gain (.+)\.$/i.exec(text);
+  if (match) {
+    return `The next time this round a ${match[1]} is activated for Resource production, gain ${normalizeV26GainText(match[2])}.`;
+  }
+
+  match = /^(.+?) Production this round: gain \+(\d+) resources each time; choose ([A-Za-z]+) or ([A-Za-z]+)\.$/i.exec(
+    text
+  );
+  if (match) {
+    return `Each time this round a ${match[1]} is activated for its Resource production, gain ${match[2]} additional resources; choose ${match[3]} or ${match[4]} each time.`;
+  }
+
+  match =
+    /^Next ([A-Za-z]+) Tile placed or upgraded this round: reduce its resource cost by (\d+) resources?(?: (of your choice|total))?\.$/i.exec(
+      text
+    );
+  if (match) {
+    const suffix = match[3] ? ` ${match[3]}` : "";
+    return `The next ${match[1]} Tile placed or upgraded this round costs ${match[2]} fewer resource${Number(match[2]) === 1 ? "" : "s"}${suffix}.`;
+  }
+
+  match =
+    /^One ([A-Za-z]+) Tile placed or upgraded this round: reduce its resource cost to 0\. It still costs its normal Action\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `One ${match[1]} Tile placed or upgraded this round costs 0 Resources; it still costs its normal action.`;
+  }
+
+  match =
+    /^Next ([A-Za-z]+) Tile placed this round: reduce its ([A-Za-z]+) and\/or ([A-Za-z]+) cost by (\d+) total\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `The next ${match[1]} Tile placed this round costs ${match[4]} fewer ${match[2]} or ${match[3]}.`;
+  }
+
+  match =
+    /^Next ([A-Za-z]+) Tile placed this round: reduce its resource cost to 0\. It still costs its normal Action\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `The next ${match[1]} Tile placed this round costs 0 Resources.`;
+  }
+
+  match =
+    /^Next(?: (\d+))? tiles? placed this round: (?:each )?reduces? its resource cost by (\d+) resources?(?: (of your choice|total))?\.$/i.exec(
+      text
+    );
+  if (match) {
+    const count = match[1] ? normalizeV26CountText(match[1]) : null;
+    const suffix = match[3] ? ` ${match[3]}` : "";
+    return `The next ${count ? `${count} tiles` : "tile"} placed this round ${count ? "each " : ""}costs ${match[2]} fewer resource${Number(match[2]) === 1 ? "" : "s"}${suffix}.`;
+  }
+
+  match =
+    /^Next(?: (\d+))? tiles? placed or upgraded this round: (?:each )?reduces? its resource cost by (\d+) resources?(?: (of your choice|total))?\.$/i.exec(
+      text
+    );
+  if (match) {
+    const count = match[1] ? normalizeV26CountText(match[1]) : null;
+    const suffix = match[3] ? ` ${match[3]}` : "";
+    return `The next ${count ? `${count} tiles` : "tile"} placed or upgraded this round ${count ? "each " : ""}costs ${match[2]} fewer resource${Number(match[2]) === 1 ? "" : "s"}${suffix}.`;
+  }
+
+  match =
+    /^Next (?:(.+?) Tile|tile) placed this round: spend 0 Actions to place it\. Pay costs and follow (?:placement rules|normal rules)\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `The next ${match[1] ? `${match[1]} Tile` : "tile"} placed this round may be placed by spending 0 Actions. Pay costs and follow all normal placement requirements.`;
+  }
+
+  match =
+    /^Next(?: (\d+))? Travel Tiles? placed(?: or upgraded)? this round: (?:each costs 0 Actions|spend 0 Actions to place(?: or upgrade)? it)\. Pay costs and follow (?:placement rules|normal rules)\.$/i.exec(
+      text
+    );
+  if (match) {
+    const count = match[1] ? normalizeV26CountText(match[1]) : null;
+    const placedOrUpgraded = /or upgraded/i.test(text) ? " or upgraded" : "";
+    return `The next ${count ? `${count} ` : ""}Travel Tile${count ? "s" : ""} placed${placedOrUpgraded} this round cost${count ? "" : "s"} 0 Actions.`;
+  }
+
+  match = /^You may pay (\d+) ([A-Za-z]+) to remove 1 Strain from 1 placed tile\.$/i.exec(text);
+  if (match) {
+    return `You may spend ${match[1]} ${match[2]} to remove 1 Strain`;
+  }
+
+  match = /^You may pay (\d+) ([A-Za-z]+) to remove up to (\d+) Strain from 1(?: (.+?))? tile\.$/i.exec(text);
+  if (match) {
+    const target = match[4] && match[4] !== "placed" ? ` ${match[4]}` : "";
+    return `You may spend ${match[1]} ${match[2]} to remove up to ${match[3]} Strain from one${target} tile`;
+  }
+
+  match =
+    /^You may pay (\d+) ([A-Za-z]+) to remove up to (\d+) Strain from up to (\d+)(?: (.+?))? tiles\.$/i.exec(
+      text
+    );
+  if (match) {
+    const target = match[5] && match[5] !== "placed" ? ` ${match[5]}` : "";
+    return `You may spend ${match[1]} ${match[2]} to remove up to ${match[3]} Strain split across up to ${match[4]}${target} tiles`;
+  }
+
+  match = /^Look at the top (\d+) cards of the Encounter Deck\. Return them in the same order\.$/i.exec(text);
+  if (match) {
+    return `Look at the top ${match[1]} cards of the Encounter Deck, then return them in the same order.`;
+  }
+
+  match =
+    /^Look at the top (\d+) cards of the Encounter Deck\. Return them in any order(?:\. Then you may move the bottom card of that group to the top)?\.$/i.exec(
+      text
+    );
+  if (match) {
+    const canMoveBottom = /move the bottom card/i.test(text);
+    return `Look at the top ${match[1]} cards of the Encounter Deck, then return them in any order${canMoveBottom ? ", then you may place the bottom one on top" : ""}.`;
+  }
+
+  match = /^Add 1 timer token to 1 active Arrival\. No Arrival may exceed (\d+) timer tokens\.$/i.exec(text);
+  if (match) {
+    return `Add 1 timer token to 1 active Arrival, up to the normal maximum of ${match[1]} timer tokens.`;
+  }
+
+  match = /^Add up to (\d+) timer tokens among active Arrivals\. No Arrival may exceed (\d+) timer tokens\.$/i.exec(
+    text
+  );
+  if (match) {
+    return `Add up to ${match[1]} timer tokens divided among active Arrivals, up to the normal maximum of ${match[2]} timer tokens on each Arrival.`;
+  }
+
+  match = /^Next active Burden resolved: reduce its resource cost by (\d+) resources? of your choice\.$/i.exec(text);
+  if (match) {
+    return `Keep this card face-up. The next time players resolve an active Burden, reduce its resource cost by ${match[1]} resources of your choice. Then discard this card.`;
+  }
+
+  match = /^Next Core Tile upgraded: reduce its upgrade resource cost by (\d+) resources? of your choice\.$/i.exec(text);
+  if (match) {
+    return `Keep this card face-up. The next time players upgrade a Core Tile, reduce that upgrade's resource cost by ${match[1]} resources of your choice. Then discard this card.`;
+  }
+
+  match = /^Next Arrival completed: reduce its resource Requirement by (\d+) resources? of your choice\.$/i.exec(text);
+  if (match) {
+    return `Keep this card face-up. The next time players complete an Arrival, reduce its resource Requirement by ${match[1]} resources of your choice. Then discard this card.`;
+  }
+
+  match = /^Exchange up to (\d+) Warehouse resources for the same number of resources of any type\.$/i.exec(text);
+  if (match) {
+    return `Exchange up to ${match[1]} resources in the Warehouse for the same number of resources of any type.`;
+  }
+
+  match =
+    /^Each tile with one or more Steward Tokens: remove 1 Strain\. If it had no Strain, gain (\d+) resources? of your choice instead, max (\d+) total\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose each tile occupied by one or more Steward Tokens. For each chosen tile, remove 1 Strain from it. For each chosen tile that had no Strain, gain ${match[1]} resources of your choice instead. Gain no more than ${match[2]} total resources this way.`;
+  }
+
+  match =
+    /^Remove up to 2 Strain from (?:each of up to (\d+)|(\d+)) Overstrained tiles?\. If you removed no Strain this way, remove 1 Strain from (?:(\d+) placed tile|up to (\d+) placed tiles) instead\.$/i.exec(
+      text
+    );
+  if (match) {
+    const overstrainedTargets = match[1] ? `up to ${match[1]}` : match[2];
+    const fallback = match[3] ? `${match[3]} placed tile` : `up to ${match[4]} placed tiles`;
+    return `Remove up to 2 Strain from ${overstrainedTargets} Overstrained tile${match[2] === "1" ? "" : "s"}. If no Strain was removed this way, remove 1 Strain from ${fallback} instead.`;
+  }
+
+  return text;
+}
+
+function normalizeBurdenEffectText(effectText) {
+  const text = String(effectText ?? "").trim();
+  let match = null;
+
+  match =
+    /^Choose (\d+) ([A-Za-z]+) Tiles? with fewer than 3 Strain that (?:is|are each) adjacent to a ([A-Za-z]+) Tile\. Place 1 Strain on (?:it|each chosen tile)\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose ${match[1]} ${match[2]} Tile${Number(match[1]) === 1 ? "" : "s"} adjacent to a ${match[3]} Tile, ${Number(match[1]) === 1 ? "" : "each "}with fewer than 3 Strain. Place 1 Strain on ${Number(match[1]) === 1 ? "it" : "each chosen tile"}.`;
+  }
+
+  match =
+    /^Choose (\d+) ([A-Za-z]+) Tiles? with fewer than 3 Strain that (?:is|are each) adjacent to a ([A-Za-z]+) Tile with 1 or more Strain\. Place 1 Strain on (?:it|each chosen tile)\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose ${match[1]} ${match[2]} Tile${Number(match[1]) === 1 ? "" : "s"} adjacent to a ${match[3]} Tile with 1 or more Strain, ${Number(match[1]) === 1 ? "" : "each "}with fewer than 3 Strain. Place 1 Strain on ${Number(match[1]) === 1 ? "it" : "each chosen tile"}.`;
+  }
+
+  match =
+    /^Choose (\d+) ([A-Za-z]+) Tiles? with fewer than 3 Strain that (?:is|are) not adjacent to any ([A-Za-z]+) Tile\. Place 1 Strain on (?:it|each chosen tile)\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose ${match[1]} ${match[2]} Tile${Number(match[1]) === 1 ? "" : "s"} not adjacent to a ${match[3]} Tile, ${Number(match[1]) === 1 ? "" : "each "}with fewer than 3 Strain. Place 1 Strain on ${Number(match[1]) === 1 ? "it" : "each chosen tile"}.`;
+  }
+
+  match =
+    /^Choose 1 Merchant Tile or Crafting Tile with fewer than 3 Strain that is adjacent to the other category\. Place 1 Strain on it\.$/i.exec(
+      text
+    );
+  if (match) {
+    return "Choose 1 Merchant Tile or Crafting Tile, adjacent to the other category, with fewer than 3 Strain. Place 1 Strain on it.";
+  }
+
+  match =
+    /^Choose (\d+) Merchant Tiles? and (\d+) Crafting Tiles? with fewer than 3 Strain that are each adjacent to at least one tile of the other category\. Place 1 Strain on each chosen tile\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose ${match[1]} Merchant Tile${Number(match[1]) === 1 ? "" : "s"} and ${match[2]} Crafting Tile${Number(match[2]) === 1 ? "" : "s"}, each adjacent to the other category, with fewer than 3 Strain. Place 1 Strain on each chosen tile.`;
+  }
+
+  match =
+    /^Choose (\d+) active Arrivals?, if any\. Pay (\d+) ([A-Za-z]+) or remove 1 timer token from it\. If there are no active Arrivals, this Burden has no effect\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose ${match[1]} active Arrival. Pay ${match[2]} ${match[3]} or remove 1 timer token from it. If there are no active Arrivals, this Burden has no effect.`;
+  }
+
+  match =
+    /^Choose up to (\d+) active Arrivals?, choosing as many as possible\. For each chosen Arrival, pay (\d+) ([A-Za-z]+) or remove 1 timer token from it\. If there are no active Arrivals, this Burden has no effect\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose ${match[1]} active Arrivals. For each chosen Arrival, pay ${match[2]} ${match[3]} or remove 1 timer token from it. If there are no active Arrivals, this Burden has no effect.`;
+  }
+
+  match =
+    /^Choose (.+?)\. If the Warehouse has at least (\d+) of that resource, lose \d+ of it\. Otherwise, choose (\d+) Resource Tiles? with fewer than 3 Strain and place 1 Strain on (?:it|each chosen tile)\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose ${match[1]}. Lose ${match[2]} of that resource, or choose ${match[3]} Resource Tile${Number(match[3]) === 1 ? "" : "s"} with fewer than 3 Strain and place 1 Strain on ${Number(match[3]) === 1 ? "it" : "each chosen tile"}.`;
+  }
+
+  match =
+    /^Identify the resource type with the most markers in the Warehouse\. If tied, players choose one tied type\. Lose as much as possible of that resource, up to (\d+)\. If none is lost this way, choose (\d+) placed tiles? with fewer than 3 Strain and place 1 Strain on (?:it|each chosen tile)\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Identify the resource type with the most markers in the Warehouse. Lose ${match[1]} of that resource, or choose ${match[2]} placed tile${Number(match[2]) === 1 ? "" : "s"} with fewer than 3 Strain. Place 1 Strain on ${Number(match[2]) === 1 ? "it" : "each chosen tile"}.`;
+  }
+
+  match =
+    /^Choose (\d+) ([A-Za-z]+) Tiles? and\/or ([A-Za-z]+) Tiles? with fewer than 3 Strain\. Place 1 Strain on each chosen tile(?:\. Then lose 1 ([A-Za-z]+) if able)?\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose ${match[1]} ${match[2]} Tiles or ${match[3]} Tiles with fewer than 3 Strain. Place 1 Strain on each chosen tile${match[4] ? `. Then lose 1 ${match[4]} if able` : ""}.`;
+  }
+
+  match =
+    /^Choose (\d+) ([A-Za-z]+) Tiles? and\/or ([A-Za-z]+) Tiles? with fewer than 3 Strain\. Pay (\d+) ([A-Za-z]+) total or place 1 Strain on each chosen tile\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose ${match[1]} ${match[2]} Tiles or ${match[3]} Tiles with fewer than 3 Strain. Pay ${match[4]} ${match[5]} or place 1 Strain on each chosen tile.`;
+  }
+
+  match =
+    /^Choose 1 (Farm|Forest|Mine|Wildlands|Dig Site) with fewer than 3 Strain\. Place (\d+) Strain on it\. Then choose 1 adjacent (Travel|Resource|Housing) or (Travel|Resource|Housing) Tile with fewer than 3 Strain\. Place 1 Strain on it\.$/i.exec(
+      text
+    );
+  if (match) {
+    return `Choose 1 ${match[1]} with fewer than 3 Strain. Place ${match[2]} Strain on it. Then choose 1 adjacent ${match[3]} Tile or ${match[4]} Tile with fewer than 3 Strain. Place 1 Strain on it.`;
+  }
+
+  match =
+    /^Choose 1 Overstrained tile\. Then choose 2 placed tiles with 0 Strain adjacent to it\. Place 1 Strain on each chosen tile\. If there are no Overstrained tiles, apply the Season II effect instead\.$/i.exec(
+      text
+    );
+  if (match) {
+    return "Choose 1 Overstrained tile. Then choose 2 adjacent placed tiles with 0 Strain. Place 1 Strain on each chosen tile. If there are no Overstrained tiles, resolve the Season II effect instead.";
+  }
+
+  match =
+    /^Choose each tile occupied by one or more Steward Tokens with fewer than 3 Strain\. Place 1 Strain on each chosen tile\. Then choose 1 Steward House with fewer than 3 Strain, if any\. Place 1 Strain on it\.$/i.exec(
+      text
+    );
+  if (match) {
+    return "Choose each tile occupied by one or more Steward Tokens with fewer than 3 Strain. Place 1 Strain on each chosen tile. Then choose 1 Steward House with fewer than 3 Strain. Place 1 Strain on it.";
+  }
+
+  return text;
+}
+
+function normalizeBurdenLifecycleText(lifecycleText) {
+  const text = String(lifecycleText ?? "").trim();
+  const match =
+    /^Place this card on the Stewards Board as an active Burden\. To resolve: Spend 1 Action and pay resources based on the current Season: Season I (\d+) (.+?); Season II (\d+) (.+?); Season III (\d+) (.+?)\. Then discard this card\.$/i.exec(
+      text
+    );
+
+  if (!match) {
+    return text;
+  }
+
+  const [, seasonIAmount, seasonIResource, seasonIIAmount, seasonIIResource, seasonIIIAmount, seasonIIIResource] =
+    match;
+  const resources = [seasonIResource, seasonIIResource, seasonIIIResource];
+
+  if (resources.every((resource) => /^resources of your choice$/i.test(resource))) {
+    return `Place this card on the Stewards Board as an active Burden. To resolve: Spend 1 Action and pay resources of your choice based on the current Season: Season I ${seasonIAmount} resources; Season II ${seasonIIAmount} resources; Season III ${seasonIIIAmount} resources. Then discard this card.`;
+  }
+
+  const setMatch = resources.map((resource) => resource.replace(/\s+and\/or\s+/i, " or "));
+  if (setMatch.every((resource) => resource === setMatch[0] && /\s+or\s+/i.test(resource))) {
+    return `Place this card on the Stewards Board as an active Burden. To resolve: Spend 1 Action and pay resources based on the current Season: Season I ${seasonIAmount} ${setMatch[0]} in any combination; Season II ${seasonIIAmount} ${setMatch[0]} in any combination; Season III ${seasonIIIAmount} ${setMatch[0]} in any combination. Then discard this card.`;
+  }
+
+  if (resources.every((resource) => resource === resources[0] && /^[A-Za-z]+$/.test(resource))) {
+    return `Place this card on the Stewards Board as an active Burden. To resolve: Spend 1 Action and pay ${resources[0]} based on the current Season: Season I ${seasonIAmount} ${resources[0]}; Season II ${seasonIIAmount} ${resources[0]}; Season III ${seasonIIIAmount} ${resources[0]}. Then discard this card.`;
+  }
+
+  return text;
+}
+
+function normalizeGoldenBoonEffectText(effectText) {
+  const text = String(effectText ?? "").trim();
+
+  if (/^When revealed, choose 3 unused Arrival Cards from the game box\./i.test(text)) {
+    return "When revealed, choose 3 Arrival Cards from the game box. Shuffle those chosen cards, reveal 1 at random, and place it on the Stewards Board as an active Arrival with 3 timer tokens. Return the other chosen Arrival Cards to the box. Then discard this card.";
+  }
+
+  if (/^When revealed, after the normal Player Turns phase this round, resolve 1 additional Player Turns phase/i.test(text)) {
+    return "When revealed, after the normal Player Turns phase this round, the group immediately resolves one additional Player Turns phase before Phase Four. Do not seed or reveal Encounter Cards, remove Arrival timers, resolve other end-of-round effects, or advance the Round Timer for this additional phase. Each player takes one additional turn with the normal action allowance for the current player count. Then discard this card.";
+  }
+
+  if (/^When revealed, choose up to 5 placed tiles\. Remove those tiles/i.test(text)) {
+    return "When revealed, choose up to 5 placed tiles. Remove those chosen tiles, then place each chosen tile into a legal empty map space. Chosen tiles may be placed into spaces vacated by other chosen tiles. Ignore adjacency and reachability restrictions for these placements, but terrain restrictions still apply. If moving a multi-hex tile, every covered hex in the new position must be empty and legal. Chosen tiles keep Strain, Supported, upgrade state, and any tokens. Recalculate connected settlement networks and Overstrained effects immediately. Then discard this card.";
+  }
+
+  if (/Golden Boons cannot be drawn this way/i.test(text)) {
+    return text.replace("Golden Boons cannot be drawn this way.", "Golden Boons may not be drawn this way.");
+  }
+
+  if (/^When revealed, keep this card face-up near the Stewards Board\./i.test(text)) {
+    return "When revealed, this effect remains for the rest of the game: once per round, during any player's turn, that player may take the Travel to a Disconnected Tile action without spending an Action. All normal destination and placement rules still apply. Then discard this card.";
+  }
+
+  return text;
+}
+
 const BOON_EFFECT_TEMPLATES = Object.freeze([
   ["core_upgrade_discount", NEXT_CORE_UPGRADE_DISCOUNT],
   ["arrival_requirement_discount", NEXT_ARRIVAL_REQUIREMENT_DISCOUNT],
@@ -148,8 +524,8 @@ export function getEncounterSeasonEffect(card, season) {
   return card?.[SEASON_EFFECT_FIELDS[season]] ?? null;
 }
 
-function getEffectTemplateSupport(effectText, templates) {
-  const text = String(effectText ?? "").trim();
+function getEffectTemplateSupport(effectText, templates, normalize = (value) => String(value ?? "").trim()) {
+  const text = normalize(effectText);
 
   if (!text) {
     return {
@@ -169,11 +545,11 @@ function getEffectTemplateSupport(effectText, templates) {
 }
 
 export function getBoonEffectSupport(effectText) {
-  return getEffectTemplateSupport(effectText, BOON_EFFECT_TEMPLATES);
+  return getEffectTemplateSupport(effectText, BOON_EFFECT_TEMPLATES, normalizeBoonEffectText);
 }
 
 export function getBurdenEffectSupport(effectText) {
-  return getEffectTemplateSupport(effectText, BURDEN_EFFECT_TEMPLATES);
+  return getEffectTemplateSupport(effectText, BURDEN_EFFECT_TEMPLATES, normalizeBurdenEffectText);
 }
 
 export function getGoldenBoonEffectSupport(effectText) {
@@ -183,7 +559,7 @@ export function getGoldenBoonEffectSupport(effectText) {
     ["golden_scroll_hand_refresh", GOLDEN_SCROLL_HAND_REFRESH],
     ["golden_signet_ring_relocate_tiles", GOLDEN_SIGNET_RING_RELOCATE_TILES],
     ["golden_vial_disconnected_travel", GOLDEN_VIAL_DISCONNECTED_TRAVEL]
-  ]);
+  ], normalizeGoldenBoonEffectText);
 }
 
 function normalizeResourceSourceName(sourceName) {
@@ -219,26 +595,27 @@ export function createBoonRoundEffect(state, card, index = 0) {
   }
 
   const effectText = getEncounterSeasonEffect(card, state.season);
-  const coreUpgradeDiscountMatch = NEXT_CORE_UPGRADE_DISCOUNT.exec(String(effectText ?? "").trim());
-  const arrivalRequirementDiscountMatch = NEXT_ARRIVAL_REQUIREMENT_DISCOUNT.exec(String(effectText ?? "").trim());
-  const burdenResolutionDiscountMatch = NEXT_BURDEN_RESOLUTION_DISCOUNT.exec(String(effectText ?? "").trim());
+  const parseText = normalizeBoonEffectText(effectText);
+  const coreUpgradeDiscountMatch = NEXT_CORE_UPGRADE_DISCOUNT.exec(parseText);
+  const arrivalRequirementDiscountMatch = NEXT_ARRIVAL_REQUIREMENT_DISCOUNT.exec(parseText);
+  const burdenResolutionDiscountMatch = NEXT_BURDEN_RESOLUTION_DISCOUNT.exec(parseText);
   const placedCategoryAllowedResourceDiscountMatch = NEXT_PLACED_CATEGORY_ALLOWED_RESOURCE_DISCOUNT.exec(
-    String(effectText ?? "").trim()
+    parseText
   );
-  const tilePlacementResourceDiscountMatch = TILE_PLACEMENT_RESOURCE_DISCOUNT.exec(String(effectText ?? "").trim());
+  const tilePlacementResourceDiscountMatch = TILE_PLACEMENT_RESOURCE_DISCOUNT.exec(parseText);
   const categoryPlacedOrUpgradedResourceDiscountMatch = CATEGORY_PLACED_OR_UPGRADED_RESOURCE_DISCOUNT.exec(
-    String(effectText ?? "").trim()
+    parseText
   );
   const tilePlacedOrUpgradedResourceDiscountMatch = TILE_PLACED_OR_UPGRADED_RESOURCE_DISCOUNT.exec(
-    String(effectText ?? "").trim()
+    parseText
   );
-  const freeNextPlacementMatch = FREE_NEXT_TILE_PLACEMENT.exec(String(effectText ?? "").trim());
-  const tilePlacementActionDiscountMatch = TILE_PLACEMENT_ACTION_DISCOUNT.exec(String(effectText ?? "").trim());
-  const travelTileActionDiscountMatch = TRAVEL_TILE_ACTION_DISCOUNT.exec(String(effectText ?? "").trim());
-  const choiceMatch = CHOICE_RESOURCE_PRODUCTION_BONUS.exec(String(effectText ?? "").trim());
-  const nextMatch = NEXT_RESOURCE_PRODUCTION_BONUS.exec(String(effectText ?? "").trim());
-  const limitedMatch = LIMITED_RESOURCE_PRODUCTION_BONUS.exec(String(effectText ?? "").trim());
-  const eachMatch = EACH_RESOURCE_PRODUCTION_BONUS.exec(String(effectText ?? "").trim());
+  const freeNextPlacementMatch = FREE_NEXT_TILE_PLACEMENT.exec(parseText);
+  const tilePlacementActionDiscountMatch = TILE_PLACEMENT_ACTION_DISCOUNT.exec(parseText);
+  const travelTileActionDiscountMatch = TRAVEL_TILE_ACTION_DISCOUNT.exec(parseText);
+  const choiceMatch = CHOICE_RESOURCE_PRODUCTION_BONUS.exec(parseText);
+  const nextMatch = NEXT_RESOURCE_PRODUCTION_BONUS.exec(parseText);
+  const limitedMatch = LIMITED_RESOURCE_PRODUCTION_BONUS.exec(parseText);
+  const eachMatch = EACH_RESOURCE_PRODUCTION_BONUS.exec(parseText);
 
   if (coreUpgradeDiscountMatch) {
     return {
@@ -506,8 +883,9 @@ function getBoonArrivalTimerEffect(state, card) {
   }
 
   const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "").trim();
-  const oneTimerMatch = ADD_ONE_TIMER_TO_ACTIVE_ARRIVAL.exec(effectText);
-  const dividedMatch = ADD_TIMERS_AMONG_ACTIVE_ARRIVALS.exec(effectText);
+  const parseText = normalizeBoonEffectText(effectText);
+  const oneTimerMatch = ADD_ONE_TIMER_TO_ACTIVE_ARRIVAL.exec(parseText);
+  const dividedMatch = ADD_TIMERS_AMONG_ACTIVE_ARRIVALS.exec(parseText);
 
   if (!oneTimerMatch && !dividedMatch) {
     return null;
@@ -532,8 +910,9 @@ function getBoonEncounterDeckPeekEffect(state, card, deck) {
   }
 
   const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "").trim();
-  const sameOrderMatch = LOOK_AT_ENCOUNTER_DECK_SAME_ORDER.exec(effectText);
-  const anyOrderMatch = LOOK_AT_ENCOUNTER_DECK_ANY_ORDER.exec(effectText);
+  const parseText = normalizeBoonEffectText(effectText);
+  const sameOrderMatch = LOOK_AT_ENCOUNTER_DECK_SAME_ORDER.exec(parseText);
+  const anyOrderMatch = LOOK_AT_ENCOUNTER_DECK_ANY_ORDER.exec(parseText);
 
   if (!sameOrderMatch && !anyOrderMatch) {
     return null;
@@ -849,7 +1228,8 @@ function getBoonSupportedStrainReliefEffect(state, card, context) {
   }
 
   const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "").trim();
-  const match = REMOVE_STRAIN_FROM_SUPPORTED_TILE.exec(effectText);
+  const parseText = normalizeBoonEffectText(effectText);
+  const match = REMOVE_STRAIN_FROM_SUPPORTED_TILE.exec(parseText);
 
   if (!match) {
     return null;
@@ -886,7 +1266,8 @@ function getBoonFromTheBrinkStrainReliefEffect(state, card, context) {
   }
 
   const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "").trim();
-  const match = FROM_THE_BRINK_STRAIN_RELIEF.exec(effectText);
+  const parseText = normalizeBoonEffectText(effectText);
+  const match = FROM_THE_BRINK_STRAIN_RELIEF.exec(parseText);
 
   if (!match) {
     return null;
@@ -932,7 +1313,8 @@ function getBoonOptionalResourceStrainReliefEffect(state, card) {
   }
 
   const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "").trim();
-  const match = OPTIONAL_RESOURCE_STRAIN_RELIEF.exec(effectText);
+  const parseText = normalizeBoonEffectText(effectText);
+  const match = OPTIONAL_RESOURCE_STRAIN_RELIEF.exec(parseText);
 
   if (!match) {
     return null;
@@ -966,7 +1348,8 @@ function getBoonOptionalResourceExchangeEffect(state, card) {
   }
 
   const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "").trim();
-  const match = OPTIONAL_RESOURCE_EXCHANGE.exec(effectText);
+  const parseText = normalizeBoonEffectText(effectText);
+  const match = OPTIONAL_RESOURCE_EXCHANGE.exec(parseText);
 
   if (!match) {
     return null;
@@ -991,7 +1374,8 @@ function getBoonStewardHelpEffect(state, card, context) {
   }
 
   const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "").trim();
-  const match = STEWARD_TOKEN_BOON_HELP.exec(effectText);
+  const parseText = normalizeBoonEffectText(effectText);
+  const match = STEWARD_TOKEN_BOON_HELP.exec(parseText);
 
   if (!match) {
     return null;
@@ -1113,7 +1497,7 @@ function resolveBurdenStrainPlacementEffect(state, card, reason, context) {
     return null;
   }
 
-  const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "").trim();
+  const effectText = normalizeBurdenEffectText(getEncounterSeasonEffect(card, state.season));
   const match = RESOURCE_BURDEN_STRAIN_PLACEMENT.exec(effectText);
 
   if (!match) {
@@ -1870,7 +2254,7 @@ function resolveBoonImmediateEffect(state, card, activeStates, deck, context = {
 }
 
 export function getBurdenResolutionCost(card, season) {
-  const lifecycle = String(card?.lifecycle_or_resolution ?? "");
+  const lifecycle = normalizeBurdenLifecycleText(card?.lifecycle_or_resolution);
   const resolveText = lifecycle.split("To resolve:")[1]?.trim();
 
   if (!resolveText) {
@@ -1976,7 +2360,8 @@ export function createBurdenApplication(state, card, reason) {
 }
 
 export function resolveBurdenSeasonEffect(state, card, reason, context = {}) {
-  const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "").trim();
+  const sourceEffectText = String(getEncounterSeasonEffect(card, state.season) ?? "").trim();
+  const effectText = normalizeBurdenEffectText(sourceEffectText);
   const strainPlacementEffect =
     resolveBurdenStrainPlacementEffect(state, card, reason, context) ??
     createBurdenPayOrStrainChoiceEffect(state, card, reason, context, effectText) ??
@@ -1997,9 +2382,15 @@ export function resolveBurdenSeasonEffect(state, card, reason, context = {}) {
     state: nextState,
     application: {
       ...createBurdenApplication(state, card, reason),
-      effect
+      effect: {
+        ...effect,
+        effectText: sourceEffectText
+      }
     },
-    effect
+    effect: {
+      ...effect,
+      effectText: sourceEffectText
+    }
   };
 }
 
@@ -2101,8 +2492,9 @@ function resolveGoldenBoonImmediateEffect(state, card, activeStates, encounterCa
   }
 
   const effectText = String(card.effect ?? "").trim();
+  const parseText = normalizeGoldenBoonEffectText(effectText);
 
-  if (GOLDEN_SCROLL_HAND_REFRESH.test(effectText)) {
+  if (GOLDEN_SCROLL_HAND_REFRESH.test(parseText)) {
     const effect = createGoldenScrollEffect(state, card);
     const activeState = createActiveEncounterState(
       {
@@ -2124,7 +2516,7 @@ function resolveGoldenBoonImmediateEffect(state, card, activeStates, encounterCa
     };
   }
 
-  if (GOLDEN_SIGNET_RING_RELOCATE_TILES.test(effectText)) {
+  if (GOLDEN_SIGNET_RING_RELOCATE_TILES.test(parseText)) {
     const effect = createGoldenSignetRingEffect(state, card);
     const activeState = createActiveEncounterState(
       {
@@ -2146,7 +2538,7 @@ function resolveGoldenBoonImmediateEffect(state, card, activeStates, encounterCa
     };
   }
 
-  if (!GOLDEN_BELL_ACTIVE_ARRIVAL.test(effectText)) {
+  if (!GOLDEN_BELL_ACTIVE_ARRIVAL.test(parseText)) {
     return {
       valid: true,
       state,
@@ -2220,8 +2612,9 @@ function createGoldenBoonRoundEffect(state, card, index = 0) {
   }
 
   const effectText = String(card.effect ?? "").trim();
+  const parseText = normalizeGoldenBoonEffectText(effectText);
 
-  if (GOLDEN_EYED_TRAVELER_EXTRA_TURNS.test(effectText)) {
+  if (GOLDEN_EYED_TRAVELER_EXTRA_TURNS.test(parseText)) {
     return {
       id: `golden-eyed-traveler-r${String(state.round).padStart(2, "0")}-${String(index + 1).padStart(2, "0")}`,
       source: "golden_boon",
@@ -2238,7 +2631,7 @@ function createGoldenBoonRoundEffect(state, card, index = 0) {
     };
   }
 
-  if (GOLDEN_VIAL_DISCONNECTED_TRAVEL.test(effectText)) {
+  if (GOLDEN_VIAL_DISCONNECTED_TRAVEL.test(parseText)) {
     return {
       id: `golden-vial-r${String(state.round).padStart(2, "0")}-${String(index + 1).padStart(2, "0")}`,
       source: "golden_boon",

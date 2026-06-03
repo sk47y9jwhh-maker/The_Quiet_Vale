@@ -56,9 +56,11 @@ import {
   STEWARD_POWER_TYPES,
   getAvailableStewardPowerProviders,
   getPendingOpeningResourcePlacement,
+  getStewardHouseRole,
   getStewardRole,
   getStewardPowerDetails,
   isOpeningResourceTileForPlayer,
+  isStewardHouseTileForPlayer,
   isStewardPowerUsedThisSeason,
   normalizeStewardRoleIds
 } from "../game/stewards.js";
@@ -76,15 +78,24 @@ import {
 const DATA_PATHS = {
   encounterCards: "./src/data/encounter_cards.json",
   tiles: "./src/data/tiles.json",
+  tileColourVariations: "./src/data/tile_colour_variations.json",
+  mapTerrainColours: "./src/data/map_terrain_colours.json",
   riverRules: "./src/data/river_rules.json",
   rulesConfig: "./src/data/rules_config.json"
 };
 
 const MAP_OPTIONS = Object.freeze([
   Object.freeze({
+    id: "redesigned-basic-map-v0-2",
+    name: "Redesigned Basic Map v0.2",
+    status: "Default locked map",
+    path: "./src/data/redesigned_basic_map_v0_2.json",
+    locked: true
+  }),
+  Object.freeze({
     id: "redesigned-basic-map-v0-1",
     name: "Redesigned Basic Map v0.1",
-    status: "Default locked map",
+    status: "Previous reference map",
     path: "./src/data/redesigned_basic_map_v0_1.json",
     locked: true
   })
@@ -100,6 +111,16 @@ const TERRAIN_LEGEND_ITEMS = Object.freeze([
   Object.freeze({ terrain: "Ruins", label: "Ruins" })
 ]);
 
+const MAP_TERRAIN_SOLID_COLOURS = Object.freeze([
+  Object.freeze({ terrain: "Grasslands", hex: "#D8CFAE" }),
+  Object.freeze({ terrain: "Woodland", hex: "#8F9B6A" }),
+  Object.freeze({ terrain: "Heaths", hex: "#A99AB2" }),
+  Object.freeze({ terrain: "Water / River", hex: "#7894A0" }),
+  Object.freeze({ terrain: "Mountains", hex: "#8B969B" }),
+  Object.freeze({ terrain: "Arable Land", hex: "#C6A96D" }),
+  Object.freeze({ terrain: "Ruins", hex: "#9A8875" })
+]);
+
 const TERRAIN_RESOURCE_TILE_IDS = Object.freeze({
   Woodland: "core_forest_basic",
   Mountains: "core_mine_basic",
@@ -107,6 +128,46 @@ const TERRAIN_RESOURCE_TILE_IDS = Object.freeze({
   "Arable Land": "core_farm_basic",
   Ruins: "core_dig_site_basic"
 });
+
+const TILE_CATEGORY_ACCENTS = Object.freeze({
+  Resource: "#61724C",
+  Housing: "#8A6B4D",
+  Crafting: "#6C7377",
+  Merchant: "#967540",
+  Social: "#7C5A52",
+  Wellbeing: "#6D8378",
+  Travel: "#5E7482",
+  Special: "#8F6B35"
+});
+
+const TILE_COLOUR_VARIATIONS = Object.freeze([
+  Object.freeze({ baseTile: "Dig Site", upgradedTile: "The Excavation", variantHex: "#746A4F" }),
+  Object.freeze({ baseTile: "Farm", upgradedTile: "Artisanal Farm", variantHex: "#7B7448" }),
+  Object.freeze({ baseTile: "Forest", upgradedTile: "Managed Woodlands", variantHex: "#667A4E" }),
+  Object.freeze({ baseTile: "Mine", upgradedTile: "Deep Mines", variantHex: "#687276" }),
+  Object.freeze({ baseTile: "Wildlands", upgradedTile: "Nurtured Wildlands", variantHex: "#6A6E50" }),
+  Object.freeze({ baseTile: "Cottage", upgradedTile: "Home", variantHex: "#8A6B4D" }),
+  Object.freeze({ baseTile: "Inn", upgradedTile: "Dawn Break Lodge", variantHex: "#8A6B4D" }),
+  Object.freeze({ baseTile: "Knight House", upgradedTile: "Knight Home", variantHex: "#8C744B" }),
+  Object.freeze({ baseTile: "Neighborhood", upgradedTile: "Housing Quarter", variantHex: "#8A6B4D" }),
+  Object.freeze({ baseTile: "Quartermaster House", upgradedTile: "Quartermaster Home", variantHex: "#8C7352" }),
+  Object.freeze({ baseTile: "Ranger House", upgradedTile: "Ranger Home", variantHex: "#80615B" }),
+  Object.freeze({ baseTile: "Sentinel House", upgradedTile: "Sentinel Home", variantHex: "#77706A" }),
+  Object.freeze({ baseTile: "Terrace", upgradedTile: "District Row", variantHex: "#8A6B4D" }),
+  Object.freeze({ baseTile: "Vanguard House", upgradedTile: "Vanguard Home", variantHex: "#7D704E" }),
+  Object.freeze({ baseTile: "Warden House", upgradedTile: "Warden Home", variantHex: "#746457" }),
+  Object.freeze({ baseTile: "Workshops", upgradedTile: "The Makers Conclave", variantHex: "#6C7377" }),
+  Object.freeze({ baseTile: "Market Stalls", upgradedTile: "The Seldes", variantHex: "#967540" }),
+  Object.freeze({ baseTile: "Eatery", upgradedTile: "The Crock and Ladle", variantHex: "#7C5A52" }),
+  Object.freeze({ baseTile: "Tavern", upgradedTile: "The Steward’s Arms", variantHex: "#9A6946" }),
+  Object.freeze({ baseTile: "Apothecary", upgradedTile: "Amaryllis Bloom", variantHex: "#6D8378" }),
+  Object.freeze({ baseTile: "The Vaults", upgradedTile: "Archaeologists’ Archives", variantHex: "#6D8378" }),
+  Object.freeze({ baseTile: "Washhouse", upgradedTile: "Sweet Flag Bathhouse", variantHex: "#6D8378" }),
+  Object.freeze({ baseTile: "Bridge", upgradedTile: "Stone Bridge", variantHex: "#5B7786" }),
+  Object.freeze({ baseTile: "Common Land", upgradedTile: "The Pleasence", variantHex: "#5E7482" }),
+  Object.freeze({ baseTile: "Gravel Path", upgradedTile: "Paved Path", variantHex: "#5E7482" }),
+  Object.freeze({ baseTile: "Gravel Track", upgradedTile: "Paved Road", variantHex: "#5E7482" })
+]);
 
 const BURDEN_REVEAL_CHOICE_TYPES = Object.freeze([
   "pay_or_strain_choice",
@@ -126,6 +187,9 @@ const PLAY_SESSION_LABELS = Object.freeze({
   [PLAY_SESSION_STATES.ENDED]: "Ended"
 });
 
+const LOCAL_SAVE_KEY = "the-quiet-vale-playtest-state-v1";
+const LOCAL_SAVE_VERSION = 3;
+
 const root = document.querySelector("#app");
 const state = {
   data: null,
@@ -133,13 +197,14 @@ const state = {
   game: null,
   playSessionState: PLAY_SESSION_STATES.SETUP,
   selectedCoordinate: "C7",
-  selectedMapId: "redesigned-basic-map-v0-1",
+  selectedMapId: "redesigned-basic-map-v0-2",
   selectedTileId: null,
   selectedOrientation: HEX_DIRECTIONS[0].id,
   playerCount: 1,
   setupSeed: "quiet-vale-m2",
   showDebugLabels: false,
   revealHiddenSetup: false,
+  blindTestMode: true,
   stewardRoleIds: normalizeStewardRoleIds(1),
   debugSeedSelections: {},
   debugSeedPosition: SEED_PACKET_POSITIONS.TOP,
@@ -167,7 +232,9 @@ const state = {
   stewardExchangeGains: {},
   stewardExchangeAmounts: {},
   tileFacePreviewSides: {},
+  tileTrayScrollTop: 0,
   pendingPlacementPreview: null,
+  pendingPairedPlacement: null,
   simulation: {
     botProfile: "balanced",
     playerCount: "current",
@@ -178,6 +245,205 @@ const state = {
   seedContextMenu: null,
   lastActionResult: null
 };
+
+function cloneForLocalSave(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+function getLocalSaveStorage() {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getLocalDataSignature() {
+  if (!state.data) {
+    return null;
+  }
+
+  return {
+    encounterCardCount: state.data.encounterCards?.length ?? 0,
+    mapOptionIds: (state.data.mapOptions ?? []).map((option) => `${option.id}:${option.hexes?.length ?? 0}`),
+    tileCount: state.data.tiles?.length ?? 0
+  };
+}
+
+function getLocalSaveSnapshot() {
+  return {
+    activationExchangeAmounts: state.activationExchangeAmounts,
+    activationGains: state.activationGains,
+    activationPayments: state.activationPayments,
+    activationTargets: state.activationTargets,
+    arrivalRequirementDiscounts: state.arrivalRequirementDiscounts,
+    boonExchangeAmounts: state.boonExchangeAmounts,
+    boonExchangeGains: state.boonExchangeGains,
+    boonExchangePayments: state.boonExchangePayments,
+    boonStewardHelpGains: state.boonStewardHelpGains,
+    boonStrainReliefTargets: state.boonStrainReliefTargets,
+    blindTestMode: state.blindTestMode,
+    burdenChoiceDecisions: state.burdenChoiceDecisions,
+    burdenPayments: state.burdenPayments,
+    burdenResolutionDiscounts: state.burdenResolutionDiscounts,
+    debugSeedPosition: state.debugSeedPosition,
+    debugSeedSelections: state.debugSeedSelections,
+    game: state.game,
+    goldenScrollDiscards: state.goldenScrollDiscards,
+    goldenSignetMoves: state.goldenSignetMoves,
+    lastActionResult: state.lastActionResult,
+    pendingPlacementPreview: state.pendingPlacementPreview,
+    placementCostDiscounts: state.placementCostDiscounts,
+    playerCount: state.playerCount,
+    playSessionState: state.playSessionState,
+    revealHiddenSetup: state.revealHiddenSetup,
+    selectedCoordinate: state.selectedCoordinate,
+    selectedMapId: state.selectedMapId,
+    selectedOrientation: state.selectedOrientation,
+    selectedTileId: state.selectedTileId,
+    setupSeed: state.setupSeed,
+    showDebugLabels: state.showDebugLabels,
+    simulation: {
+      botProfile: state.simulation.botProfile,
+      message: state.simulation.message,
+      playerCount: state.simulation.playerCount,
+      result: null
+    },
+    stewardBurdenPowerIds: state.stewardBurdenPowerIds,
+    stewardExchangeAmounts: state.stewardExchangeAmounts,
+    stewardExchangeGains: state.stewardExchangeGains,
+    stewardExchangePayments: state.stewardExchangePayments,
+    stewardPlacementPowerId: state.stewardPlacementPowerId,
+    stewardRoleIds: state.stewardRoleIds,
+    stewardUpgradePowerId: state.stewardUpgradePowerId,
+    tileFacePreviewSides: state.tileFacePreviewSides,
+    upgradeCostDiscounts: state.upgradeCostDiscounts
+  };
+}
+
+function saveLocalPlaytestState() {
+  if (!state.data || !state.game) {
+    return;
+  }
+
+  const storage = getLocalSaveStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.setItem(
+      LOCAL_SAVE_KEY,
+      JSON.stringify({
+        version: LOCAL_SAVE_VERSION,
+        savedAt: new Date().toISOString(),
+        dataSignature: getLocalDataSignature(),
+        state: getLocalSaveSnapshot()
+      })
+    );
+  } catch (error) {
+    console.warn("The Quiet Vale local save could not be written.", error);
+  }
+}
+
+function clearLocalPlaytestState() {
+  const storage = getLocalSaveStorage();
+
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.removeItem(LOCAL_SAVE_KEY);
+  } catch (error) {
+    console.warn("The Quiet Vale local save could not be cleared.", error);
+  }
+}
+
+function isValidSavedPlaytestState(savedState) {
+  return Boolean(
+    savedState &&
+      savedState.game?.map &&
+      savedState.game?.encounter &&
+      Array.isArray(savedState.game?.players) &&
+      Object.values(PLAY_SESSION_STATES).includes(savedState.playSessionState)
+  );
+}
+
+function restoreCurrentScoringRules(savedState) {
+  const restoredState = cloneForLocalSave(savedState);
+
+  if (restoredState.game?.rules) {
+    restoredState.game.rules = {
+      ...restoredState.game.rules,
+      activeBurdenPenaltyRenown: STANDARD_RULES.activeBurdenPenaltyRenown
+    };
+  }
+
+  return restoredState;
+}
+
+function restoreLocalPlaytestState() {
+  const storage = getLocalSaveStorage();
+
+  if (!storage) {
+    return false;
+  }
+
+  try {
+    const raw = storage.getItem(LOCAL_SAVE_KEY);
+
+    if (!raw) {
+      return false;
+    }
+
+    const saved = JSON.parse(raw);
+    const currentDataSignature = getLocalDataSignature();
+
+    if (
+      saved?.version !== LOCAL_SAVE_VERSION ||
+      JSON.stringify(saved.dataSignature) !== JSON.stringify(currentDataSignature) ||
+      !isValidSavedPlaytestState(saved.state)
+    ) {
+      clearLocalPlaytestState();
+      return false;
+    }
+
+    Object.assign(state, restoreCurrentScoringRules(saved.state), {
+      contextMenu: null,
+      data: state.data,
+      error: null,
+      seedContextMenu: null,
+      simulation: {
+        ...state.simulation,
+        ...(saved.state.simulation ?? {}),
+        result: null
+      }
+    });
+
+    if (!state.data.mapOptions?.some((option) => option.id === state.selectedMapId)) {
+      state.selectedMapId = state.data.mapOptions?.[0]?.id ?? state.selectedMapId;
+    }
+
+    refreshActiveMapData();
+    syncSelectedCoordinate();
+    syncStewardRoleIds();
+    syncSelectedTile();
+
+    state.lastActionResult = {
+      ok: true,
+      action: "RESTORE_GAME",
+      message: "Restored the saved table on this device."
+    };
+
+    return true;
+  } catch (error) {
+    clearLocalPlaytestState();
+    console.warn("The Quiet Vale local save could not be restored.", error);
+    return false;
+  }
+}
 
 async function loadJson(path) {
   const response = await fetch(path);
@@ -225,6 +491,167 @@ function escapeHtml(value) {
 
 function slug(value) {
   return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function normalizeTerrainColourName(value) {
+  const normalized = String(value ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+
+  if (normalized === "water / river" || normalized === "river") {
+    return "water";
+  }
+
+  return normalized;
+}
+
+function getMapTerrainColourRows() {
+  return Array.isArray(state.data?.mapTerrainColours) && state.data.mapTerrainColours.length
+    ? state.data.mapTerrainColours
+    : MAP_TERRAIN_SOLID_COLOURS;
+}
+
+function getTerrainColourHex(terrain) {
+  const normalizedTerrain = normalizeTerrainColourName(terrain);
+  const row = getMapTerrainColourRows().find(
+    (candidate) => normalizeTerrainColourName(candidate?.terrain) === normalizedTerrain
+  );
+
+  return row?.hex ?? "";
+}
+
+function getTerrainFillStyle(terrain) {
+  const terrainHex = getTerrainColourHex(terrain);
+
+  return terrainHex ? `--terrain-fill: ${terrainHex};` : "";
+}
+
+function normalizeTileColourName(value) {
+  return String(value ?? "").replaceAll("’", "'").toLowerCase().trim();
+}
+
+function getTileColourVariationRows() {
+  return Array.isArray(state.data?.tileColourVariations) && state.data.tileColourVariations.length
+    ? state.data.tileColourVariations
+    : TILE_COLOUR_VARIATIONS;
+}
+
+function getTileVariationBaseName(row) {
+  return row?.base_tile ?? row?.baseTile ?? "";
+}
+
+function getTileVariationUpgradedName(row) {
+  return row?.upgraded_tile ?? row?.upgradedTile ?? "";
+}
+
+function getTileVariationType(row) {
+  return row?.tile_type ?? row?.tileType ?? "";
+}
+
+function getTileVariationTypeBaseHex(row) {
+  return row?.type_base_hex ?? row?.typeBaseHex ?? "";
+}
+
+function getTileVariationVariantHex(row) {
+  return row?.tile_variant_hex ?? row?.variantHex ?? "";
+}
+
+function getTileVariationHexForName(tileName) {
+  const normalizedName = normalizeTileColourName(tileName);
+
+  if (!normalizedName) {
+    return null;
+  }
+
+  for (const row of getTileColourVariationRows()) {
+    if (
+      normalizeTileColourName(getTileVariationBaseName(row)) === normalizedName ||
+      normalizeTileColourName(getTileVariationUpgradedName(row)) === normalizedName
+    ) {
+      return getTileVariationVariantHex(row) || null;
+    }
+  }
+
+  return null;
+}
+
+function parseHexColour(hex) {
+  const match = /^#?([0-9a-f]{6})$/i.exec(String(hex ?? ""));
+
+  if (!match) {
+    return { r: 143, g: 107, b: 53 };
+  }
+
+  const value = Number.parseInt(match[1], 16);
+
+  return {
+    r: (value >> 16) & 255,
+    g: (value >> 8) & 255,
+    b: value & 255
+  };
+}
+
+function toHexChannel(value) {
+  return clampNumber(Math.round(value), 0, 255).toString(16).padStart(2, "0");
+}
+
+function mixHexColour(sourceHex, targetHex, targetWeight = 0.5) {
+  const source = parseHexColour(sourceHex);
+  const target = parseHexColour(targetHex);
+  const weight = clampNumber(targetWeight, 0, 1);
+  const sourceWeight = 1 - weight;
+
+  return `#${toHexChannel(source.r * sourceWeight + target.r * weight)}${toHexChannel(source.g * sourceWeight + target.g * weight)}${toHexChannel(source.b * sourceWeight + target.b * weight)}`;
+}
+
+function hexToRgba(hex, alpha = 1) {
+  const { r, g, b } = parseHexColour(hex);
+
+  return `rgba(${r}, ${g}, ${b}, ${clampNumber(alpha, 0, 1)})`;
+}
+
+function getTileCategoryAccent(tile) {
+  const category = tile?.tile_category;
+  const sourceRow = getTileColourVariationRows().find((row) => getTileVariationType(row) === category);
+
+  return getTileVariationTypeBaseHex(sourceRow) || TILE_CATEGORY_ACCENTS[category] || TILE_CATEGORY_ACCENTS.Special;
+}
+
+function getTileVariantAccent(tile) {
+  return (
+    getTileVariationHexForName(tile?.tile_name) ??
+    getTileVariationHexForName(tile?.base_tile) ??
+    getTileCategoryAccent(tile)
+  );
+}
+
+function getTileAccentTokens(tile) {
+  const categoryAccent = getTileCategoryAccent(tile);
+  const variantAccent = getTileVariantAccent(tile);
+
+  return {
+    categoryAccent,
+    variantAccent,
+    cardBackground: mixHexColour(categoryAccent, "#f0e4cc", 0.8),
+    cardWash: hexToRgba(variantAccent, 0.18),
+    mapFill: mixHexColour(variantAccent, "#efe1c7", 0.56)
+  };
+}
+
+function getTileFaceAccentStyle(tile) {
+  const { categoryAccent, variantAccent } = getTileAccentTokens(tile);
+
+  return `--tile-accent: ${categoryAccent}; --tile-variant-accent: ${variantAccent};`;
+}
+
+function getTileCardAccentStyle(tile) {
+  const { categoryAccent, variantAccent, cardBackground, cardWash } = getTileAccentTokens(tile);
+
+  return `--tile-accent: ${categoryAccent}; --tile-variant-accent: ${variantAccent}; --tile-card-bg: ${cardBackground}; --tile-card-wash: ${cardWash}; border-left-color: ${variantAccent};`;
+}
+
+function getMapPlacedTileStyle(tile) {
+  const { variantAccent, mapFill } = getTileAccentTokens(tile);
+
+  return `--map-tile-accent: ${variantAccent}; --map-tile-fill: ${mapFill};`;
 }
 
 function clampNumber(value, min, max) {
@@ -296,6 +723,7 @@ function resetLocalTestingControls() {
   state.stewardExchangeGains = {};
   state.stewardExchangeAmounts = {};
   state.pendingPlacementPreview = null;
+  state.pendingPairedPlacement = null;
   state.contextMenu = null;
   state.seedContextMenu = null;
 }
@@ -406,6 +834,7 @@ function startPlaySession() {
   state.contextMenu = null;
   state.seedContextMenu = null;
   state.pendingPlacementPreview = null;
+  state.pendingPairedPlacement = null;
   state.lastActionResult = {
     ok: true,
     action: "START_GAME",
@@ -433,6 +862,7 @@ function endPlaySession() {
   state.contextMenu = null;
   state.seedContextMenu = null;
   state.pendingPlacementPreview = null;
+  state.pendingPairedPlacement = null;
   state.lastActionResult = {
     ok: true,
     action: "END_GAME",
@@ -452,11 +882,13 @@ function resetPlaySession() {
     return;
   }
 
+  clearLocalPlaytestState();
   state.playSessionState = PLAY_SESSION_STATES.SETUP;
   createGame();
   state.contextMenu = null;
   state.seedContextMenu = null;
   state.pendingPlacementPreview = null;
+  state.pendingPairedPlacement = null;
   state.lastActionResult = {
     ok: true,
     action: "RESET_GAME",
@@ -707,6 +1139,19 @@ function renderStrainMapMarker(placedTile, center) {
   `;
 }
 
+function renderSupportMapMarker(center) {
+  return `
+    <g
+      class="support-map-marker"
+      transform="translate(${(center.x - 18).toFixed(2)} ${(center.y - 17).toFixed(2)})"
+      aria-label="Supported tile"
+    >
+      <circle r="7"></circle>
+      <text y="3">S</text>
+    </g>
+  `;
+}
+
 function getInteractionActionLabel(type) {
   return (
     {
@@ -759,11 +1204,21 @@ function renderHexMap(mapHexes, game, tileIndex) {
       const placedTile = placedByCoordinate.get(hex.Coordinate);
       const placedTileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
       const isPlacedTileAnchor = placedTile && hex.Coordinate === getPlacedTileAnchorCoordinate(placedTile);
+      const supportDetails = placedTile
+        ? getEffectiveSupportDetails(game, placedTile.id, { tileIndex })
+        : null;
       const markerPlayers =
         isPlacedTileAnchor
           ? (playersByLastInteraction.get(placedTile.id) ?? [])
           : [];
       const strain = Number(placedTile?.strain ?? 0);
+      const hexStyle = [
+        getTerrainFillStyle(hex.Terrain),
+        placedTileDefinition ? getMapPlacedTileStyle(placedTileDefinition) : ""
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const hexStyleAttribute = hexStyle ? ` style="${escapeHtml(hexStyle)}"` : "";
       const classes = [
         "hex",
         `terrain-${slug(hex.Terrain)}`,
@@ -771,6 +1226,8 @@ function renderHexMap(mapHexes, game, tileIndex) {
         hex.Bridge_Candidate ? "bridge-candidate" : "",
         previewSet.has(hex.Coordinate) ? "is-footprint-preview" : "",
         placedTile ? "has-placed-tile" : "",
+        placedTileDefinition ? `placed-type-${slug(placedTileDefinition.tile_category)}` : "",
+        supportDetails?.supported ? "is-supported-tile" : "",
         strain > 0 ? "has-strain-tile" : "",
         markerPlayers.length ? "has-player-marker" : "",
         placedTile && isOverstrainedPlacedTile(placedTile) ? "is-overstrained-tile" : "",
@@ -780,7 +1237,7 @@ function renderHexMap(mapHexes, game, tileIndex) {
         .join(" ");
 
       return `
-        <g class="${classes}" data-coordinate="${escapeHtml(hex.Coordinate)}" tabindex="0" role="button" aria-label="${escapeHtml(`${hex.Coordinate} ${hex.Terrain} ${hex.Feature}`)}">
+        <g class="${classes}"${hexStyleAttribute} data-coordinate="${escapeHtml(hex.Coordinate)}" tabindex="0" role="button" aria-label="${escapeHtml(`${hex.Coordinate} ${hex.Terrain} ${hex.Feature}`)}">
           <polygon points="${hexPoints(center, size)}"></polygon>
           ${
             state.showDebugLabels
@@ -789,11 +1246,14 @@ function renderHexMap(mapHexes, game, tileIndex) {
           }
           ${
             placedTileDefinition
-              ? renderWrappedMapLabel(placedTileDefinition.tile_name, "hex-tile", center.x, center.y + 9)
+              ? isPlacedTileAnchor
+                ? renderWrappedMapLabel(placedTileDefinition.tile_name, "hex-tile", center.x, center.y + 9)
+                : ""
               : label
                 ? renderWrappedMapLabel(label, "hex-feature", center.x, center.y + 10, 10, 2)
                 : ""
           }
+          ${isPlacedTileAnchor && supportDetails?.supported ? renderSupportMapMarker(center) : ""}
           ${isPlacedTileAnchor ? renderStrainMapMarker(placedTile, center) : ""}
           ${renderPlayerMapMarkers(markerPlayers, center)}
         </g>
@@ -814,7 +1274,7 @@ function renderMapKey() {
       ${TERRAIN_LEGEND_ITEMS.map(
         ({ terrain, label }) => `
           <span class="map-key-item">
-            <span class="map-key-swatch terrain-${slug(terrain)}" aria-hidden="true"></span>
+            <span class="map-key-swatch terrain-${slug(terrain)}" style="${escapeHtml(getTerrainFillStyle(terrain))}" aria-hidden="true"></span>
             <span>${escapeHtml(label)}</span>
           </span>
         `
@@ -822,6 +1282,10 @@ function renderMapKey() {
       <span class="map-key-item">
         <span class="map-key-marker strain" aria-hidden="true">1</span>
         <span>Strain</span>
+      </span>
+      <span class="map-key-item">
+        <span class="map-key-marker supported" aria-hidden="true">S</span>
+        <span>Supported</span>
       </span>
       <span class="map-key-item">
         <span class="map-key-marker overstrained" aria-hidden="true">!</span>
@@ -847,6 +1311,21 @@ function getNextOrientation(orientationId) {
 
 function getSelectedPlacementTile(tileIndex) {
   return state.selectedTileId ? tileIndex.get(state.selectedTileId) : null;
+}
+
+function isStablesTile(tile) {
+  return tile?.tile_name === "Stables";
+}
+
+function createStablesPairActionCostForUi() {
+  return {
+    connected: true,
+    disconnectedTravelIgnored: true,
+    disconnectedTravelIgnoreReason: "stables_pair_placement",
+    placeActionCost: 1,
+    disconnectedTravelActionCost: 0,
+    total: 1
+  };
 }
 
 function selectedPlacementTileCanRotate(tileIndex) {
@@ -878,8 +1357,27 @@ function getAutomaticPlacementCostDiscountResources(game, tile, cost) {
   return choices;
 }
 
-function getPlacementActionCostForMenu(game, tile, footprintCoordinates, tileIndex) {
-  const baseActionCost = calculatePlacementActionCost(game, footprintCoordinates, { tileIndex });
+function shouldIgnoreDisconnectedTravelForOpeningPlacement(game, tile) {
+  const openingRequirement = getOpeningPlacementRequirementForActivePlayer(game);
+
+  return Boolean(openingRequirement && isOpeningResourceTileForPlayer(openingRequirement.player, tile?.tile_id));
+}
+
+function calculateBasePlacementActionCostForUi(game, tile, footprintCoordinates, tileIndex) {
+  if (isStablesTile(tile)) {
+    return createStablesPairActionCostForUi();
+  }
+
+  return calculatePlacementActionCost(game, footprintCoordinates, {
+    tileIndex,
+    playerId: game.activePlayerId,
+    ignoreDisconnectedTravel: shouldIgnoreDisconnectedTravelForOpeningPlacement(game, tile),
+    ignoreDisconnectedTravelReason: "opening_placement"
+  });
+}
+
+function calculatePlacementActionCostForUi(game, tile, footprintCoordinates, tileIndex) {
+  const baseActionCost = calculateBasePlacementActionCostForUi(game, tile, footprintCoordinates, tileIndex);
   const tileActionDiscount = getDiscountedTileActionCost(game, tile, "placement", baseActionCost);
   const travelActionDiscount = getDiscountedDisconnectedTravelActionCost(
     game,
@@ -888,6 +1386,10 @@ function getPlacementActionCostForMenu(game, tile, footprintCoordinates, tileInd
   );
 
   return travelActionDiscount.actionCost;
+}
+
+function getPlacementActionCostForMenu(game, tile, footprintCoordinates, tileIndex) {
+  return calculatePlacementActionCostForUi(game, tile, footprintCoordinates, tileIndex);
 }
 
 function getTerrainMatchedResourceTileId(game, coordinate) {
@@ -963,8 +1465,10 @@ function getLegalPlacementOptionsForCoordinate(game, tileIndex, coordinate) {
           }
 
           const actionCost = getPlacementActionCostForMenu(game, tile, validation.footprintCoordinates, tileIndex);
-          const blockedReason =
-            activePlayer.actionsRemaining < actionCost.total
+          const pairedStockBlocked = isStablesTile(tile) && (supply?.available ?? 0) < 2;
+          const blockedReason = pairedStockBlocked
+            ? "Needs both Stables copies available"
+            : activePlayer.actionsRemaining < actionCost.total
               ? `Needs ${actionCost.total} Actions; ${activePlayer.name} has ${activePlayer.actionsRemaining}`
               : "";
 
@@ -1009,17 +1513,21 @@ function getPreferredContextPlacementOption(options) {
 
 function renderContextPlacementOptionDetails(option, { travelPreview = false } = {}) {
   const isMultihex = Number(option.tile.size_hexes ?? 1) > 1;
+  const pairedStables = isStablesTile(option.tile);
+  const useTravelPreview = travelPreview && !pairedStables;
   const orientationText = isMultihex ? ` · ${getOrientationLabel(option.orientation)}` : "";
   const footprintText = isMultihex ? ` · ${renderFootprint(option.footprintCoordinates)}` : "";
   const discountText = option.placementCostReductionResources.length > 0 ? " · discount applied" : "";
   const blockedText = option.blockedReason ? ` · ${option.blockedReason}` : "";
   const terrainMatchText = option.isTerrainMatchedResource ? "Terrain match · " : "";
-  const summaryText = travelPreview
+  const summaryText = useTravelPreview
     ? `${terrainMatchText}Select preview, rotate if needed, then left-click to place${blockedText}`
+    : pairedStables
+      ? `${terrainMatchText}${option.supply?.available ?? 0}/${option.supply?.stock ?? 0} left · choose 2 sites · 1 Action${blockedText}`
     : `${terrainMatchText}${option.supply?.available ?? 0}/${option.supply?.stock ?? 0} left · ${renderActionCost(option.actionCost)} Action · ${renderCost(option.cost)}${orientationText}${footprintText}${discountText}${blockedText}`;
   const disabledAttribute = option.blockedReason ? "disabled" : "";
   const titleAttribute = option.blockedReason ? `title="${escapeHtml(option.blockedReason)}"` : "";
-  const actionButton = travelPreview
+  const actionButton = useTravelPreview
     ? `<button
         class="map-context-action${option.blockedReason ? " is-blocked" : ""}"
         data-context-select-tile-id="${escapeHtml(option.tile.tile_id)}"
@@ -1044,11 +1552,11 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
         ${disabledAttribute}
         ${titleAttribute}
       >
-        ${option.blockedReason ? "Needs More Actions" : `Place ${escapeHtml(option.tile.tile_name)}`}
+        ${option.blockedReason ? "Needs More Actions" : pairedStables ? "Choose First Stables Site" : `Place ${escapeHtml(option.tile.tile_name)}`}
       </button>`;
 
   return `
-    <details class="context-placement-tile type-${slug(option.tile.tile_category)}">
+    <details class="context-placement-tile type-${slug(option.tile.tile_category)}" style="${escapeHtml(getTileCardAccentStyle(option.tile))}">
       <summary>
         <strong>${escapeHtml(option.tile.tile_name)}</strong>
         <small>${escapeHtml(summaryText)}</small>
@@ -1145,7 +1653,7 @@ function renderMapUpgradePreview(upgradeTile) {
   const upgradeCost = renderSourceResourceCost(upgradeTile.upgrade_cost) || "0";
 
   return `
-    <section class="map-upgrade-preview type-${slug(upgradeTile.tile_category)}" aria-label="Upgrade side preview">
+    <section class="map-upgrade-preview type-${slug(upgradeTile.tile_category)}" style="${escapeHtml(getTileCardAccentStyle(upgradeTile))}" aria-label="Upgrade side preview">
       <header>
         <span>Upgrade Preview</span>
         <strong>${escapeHtml(upgradeTile.tile_name)}</strong>
@@ -1193,7 +1701,7 @@ function renderMapCurrentTileSection(tileDefinition) {
         <span>View Tile Face</span>
         <strong>${escapeHtml(tileDefinition.tile_name)}</strong>
       </summary>
-      <section class="map-tile-face-preview type-${slug(tileDefinition.tile_category)}" aria-label="Current tile face preview">
+      <section class="map-tile-face-preview type-${slug(tileDefinition.tile_category)}" style="${escapeHtml(getTileCardAccentStyle(tileDefinition))}" aria-label="Current tile face preview">
         ${renderTileFaceSvg(tileDefinition)}
       </section>
     </details>
@@ -1233,8 +1741,39 @@ function isPendingTravelPlacementPreview(tile, coordinate) {
 function renderPendingTravelPlacementMenu(tile) {
   return `
     <p class="context-empty-note">
-      ${escapeHtml(`${tile.tile_name} is selected for preview. Right-click Rotate if needed, then left-click this hex to place it.`)}
+      ${escapeHtml(`${tile.tile_name} is selected for preview. Use the Current Action panel to rotate or cancel, then left-click this hex to place it.`)}
     </p>
+  `;
+}
+
+function renderPendingPairedPlacementMenu(game, tile, coordinate) {
+  const pending = state.pendingPairedPlacement;
+  const validation = validatePlaceTile(
+    game,
+    {
+      type: TILE_ACTION_TYPES.PLACE_TILE,
+      tileId: pending.tileId,
+      coordinate,
+      orientation: HEX_DIRECTIONS[0].id
+    },
+    { tiles: state.data.tiles }
+  );
+  const blockedReason = coordinate === pending.coordinate
+    ? "Choose a different hex for the second Stables."
+    : validation.valid
+      ? ""
+      : validation.errors[0];
+
+  return `
+    <p class="context-empty-note">
+      ${escapeHtml(`${tile?.tile_name ?? "Stables"} first site is ${pending.coordinate}. Choose the second site to place both for one action.`)}
+    </p>
+    <button class="map-context-action${blockedReason ? " is-blocked" : ""}" data-context-action="place-paired-stables" type="button" role="menuitem" ${blockedReason ? "disabled" : ""}>
+      ${escapeHtml(blockedReason || `Place both Stables: ${pending.coordinate} + ${coordinate}`)}
+    </button>
+    <button class="map-context-action" data-context-action="cancel-preview" type="button" role="menuitem">
+      Cancel Stables
+    </button>
   `;
 }
 
@@ -1271,6 +1810,7 @@ function renderMapContextLayer(game, tileIndex) {
     placementCostDiscountReady;
   const canRotatePreview = isPlaySessionPlaying() && !placedTile && selectedPlacementTileCanRotate(tileIndex);
   const pendingTravelPreview = !placedTile && isPendingTravelPlacementPreview(selectedPlacementTile, coordinate);
+  const pendingPairedPlacement = !placedTile && state.pendingPairedPlacement;
   const activationActionStatus = placedTile
     ? getMapActivationActionStatus(game, placedTile, tileDefinition, tileIndex, activation)
     : { blockedReason: "" };
@@ -1299,9 +1839,15 @@ function renderMapContextLayer(game, tileIndex) {
             ${renderMapUpgradeSection(upgradeTile, upgradeActionStatus)}
           `
           : `
-            ${pendingTravelPreview ? renderPendingTravelPlacementMenu(selectedPlacementTile) : renderLegalPlacementMenu(game, tileIndex, coordinate)}
             ${
-              pendingTravelPreview
+              pendingPairedPlacement
+                ? renderPendingPairedPlacementMenu(game, selectedPlacementTile, coordinate)
+                : pendingTravelPreview
+                  ? renderPendingTravelPlacementMenu(selectedPlacementTile)
+                  : renderLegalPlacementMenu(game, tileIndex, coordinate)
+            }
+            ${
+              pendingTravelPreview || pendingPairedPlacement
                 ? ""
                 : `<button class="map-context-action" data-context-action="place" type="button" role="menuitem" ${canAttemptPlacement ? "" : "disabled"}>
                     Place Selected Tile
@@ -2053,7 +2599,7 @@ function renderTileFaceSvg(tile) {
   const renown = Number(tile.renown ?? 0);
 
   return `
-    <svg class="tile-face-svg" viewBox="0 0 744 860" role="img" aria-label="${escapeHtml(tile.tile_name)} tile face">
+    <svg class="tile-face-svg" style="${escapeHtml(getTileFaceAccentStyle(tile))}" viewBox="0 0 744 860" role="img" aria-label="${escapeHtml(tile.tile_name)} tile face">
       <path class="tile-face-outer" d="M 712,430 L 542,724.4 L 202,724.4 L 32,430 L 202,135.6 L 542,135.6 Z"></path>
       <path class="tile-face-inner" d="M 692,430 L 532,707.1 L 212,707.1 L 52,430 L 212,152.9 L 532,152.9 Z"></path>
       <rect class="tile-face-panel" x="110" y="124" width="524" height="${isUpgraded ? 96 : 82}" rx="6"></rect>
@@ -2109,6 +2655,22 @@ function getTileFacePreviewSide(tileId) {
   return state.tileFacePreviewSides[tileId] ?? "front";
 }
 
+function rememberTileTrayScroll() {
+  const tray = root.querySelector(".tile-tray");
+
+  if (tray) {
+    state.tileTrayScrollTop = tray.scrollTop;
+  }
+}
+
+function restoreTileTrayScroll() {
+  const tray = root.querySelector(".tile-tray");
+
+  if (tray) {
+    tray.scrollTop = state.tileTrayScrollTop;
+  }
+}
+
 function getTileFacePreviewTile(tile, upgradeTile, previewSide = "front") {
   return previewSide === "upgrade" && upgradeTile ? upgradeTile : tile;
 }
@@ -2162,7 +2724,7 @@ function renderTileWireframeCard(tile, options = {}) {
   const unavailableText = disabled ? `<span class="tile-wire-unavailable">Unavailable</span>` : "";
 
   return `
-    <article class="tile-wire-card type-${slug(category)} ${selected ? "is-selected" : ""} ${disabled ? "is-unavailable" : ""}">
+    <article class="tile-wire-card type-${slug(category)} ${selected ? "is-selected" : ""} ${disabled ? "is-unavailable" : ""}" style="${escapeHtml(getTileCardAccentStyle(previewTile))}">
       <div class="tile-wire-topline">
         <span>${escapeHtml(title)}</span>
         <div class="tile-wire-tools">
@@ -2204,7 +2766,7 @@ function renderTileSourceText(tile, title = "Tile Says") {
   ].filter(Boolean);
 
   return `
-    <article class="tile-reference-card type-${slug(tile.tile_category)}">
+    <article class="tile-reference-card type-${slug(tile.tile_category)}" style="${escapeHtml(getTileCardAccentStyle(tile))}">
       <header>
         <span>${escapeHtml(title)}</span>
         <strong>${escapeHtml(tile.tile_name)}</strong>
@@ -2822,9 +3384,55 @@ function getPlacementCostDiscountChoices(tileId, cost, discountEffect) {
   });
 }
 
+function getCostAfterSelectedResourceDiscount(cost, discountEffect, selectedResources) {
+  if (!discountEffect) {
+    return cost;
+  }
+
+  if (discountEffect.freeResourceCost) {
+    return [];
+  }
+
+  if (selectedResources.some((resource) => !resource)) {
+    return cost;
+  }
+
+  const reductions = summarizeResourceCostEntries(
+    selectedResources.map((resource) => ({
+      resource,
+      amount: 1
+    }))
+  );
+
+  return cost
+    .map((entry) => {
+      const reduction = reductions.find((candidate) => candidate.resource === entry.resource);
+
+      return reduction
+        ? {
+            ...entry,
+            amount: Math.max(0, entry.amount - reduction.amount)
+          }
+        : entry;
+    })
+    .filter((entry) => entry.amount > 0);
+}
+
 function renderPlacementCostDiscountChoices(tile, cost, discountEffect) {
   if (!tile || !discountEffect) {
     return "";
+  }
+
+  if (discountEffect.freeResourceCost) {
+    return `
+      <div class="placement-choice-panel is-ready">
+        <header>
+          <span>Available discount</span>
+          <strong>${escapeHtml(discountEffect.cardName ?? "Boon")}</strong>
+        </header>
+        <p>${escapeHtml(`${tile.tile_name}'s resource cost will be reduced to 0.`)}</p>
+      </div>
+    `;
   }
 
   const selectedResources = getPlacementCostDiscountChoices(tile.tile_id, cost, discountEffect);
@@ -2834,24 +3442,32 @@ function renderPlacementCostDiscountChoices(tile, cost, discountEffect) {
 
   const eligibleCost = getPlacementDiscountEligibleCost(cost, discountEffect);
   const allowedResources = [...new Set(eligibleCost.map((entry) => entry.resource))];
+  const ready = selectedResources.every(Boolean);
 
   return `
-    <div class="burden-payment-grid" aria-label="Placement cost reduction resources">
-      ${selectedResources
-        .map(
-          (selectedResource, index) => `
-            <select class="placement-cost-discount-resource" data-tile-id="${escapeHtml(tile.tile_id)}" data-discount-index="${index}" aria-label="Placement reduction resource ${index + 1}">
-              <option value="">Reduce...</option>
-              ${allowedResources
-                .map(
-                  (resource) =>
-                    `<option value="${escapeHtml(resource)}" ${resource === selectedResource ? "selected" : ""}>${escapeHtml(resource)}</option>`
-                )
-                .join("")}
-            </select>
-          `
-        )
-        .join("")}
+    <div class="placement-choice-panel ${ready ? "is-ready" : "needs-choice"}" aria-label="Placement cost reduction resources">
+      <header>
+        <span>${ready ? "Discount ready" : "Choose before placing"}</span>
+        <strong>${escapeHtml(discountEffect.cardName ?? "Boon discount")}</strong>
+      </header>
+      <p>${escapeHtml(`Choose ${selectedResources.length} resource${selectedResources.length === 1 ? "" : "s"} to reduce for this ${tile.tile_name} placement.`)}</p>
+      <div class="burden-payment-grid">
+        ${selectedResources
+          .map(
+            (selectedResource, index) => `
+              <select class="placement-cost-discount-resource" data-tile-id="${escapeHtml(tile.tile_id)}" data-discount-index="${index}" aria-label="Placement reduction resource ${index + 1}">
+                <option value="">Choose resource...</option>
+                ${allowedResources
+                  .map(
+                    (resource) =>
+                      `<option value="${escapeHtml(resource)}" ${resource === selectedResource ? "selected" : ""}>${escapeHtml(resource)}</option>`
+                  )
+                  .join("")}
+              </select>
+            `
+          )
+          .join("")}
+      </div>
     </div>
   `;
 }
@@ -2999,6 +3615,13 @@ function formatStewardPowerStatus(placedTile, tileDefinition, game) {
 
   if (!details) {
     return "None";
+  }
+
+  const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
+  const stewardRole = getStewardHouseRole(tileDefinition);
+
+  if (!isStewardHouseTileForPlayer(tileDefinition, activePlayer)) {
+    return `${details.label} (${stewardRole?.name ?? "matching Steward"} only)`;
   }
 
   if (isOverstrainedPlacedTile(placedTile)) {
@@ -3745,7 +4368,7 @@ function renderSetupControls() {
             </label>`
           : `<div class="setup-static-row">
               <span>Map</span>
-              <strong>${escapeHtml(mapOptions[0]?.name ?? "Redesigned Basic Map v0.1")}</strong>
+              <strong>${escapeHtml(mapOptions[0]?.name ?? "Redesigned Basic Map v0.2")}</strong>
             </div>`
       }
       <label class="stacked-field">
@@ -3776,6 +4399,10 @@ function renderSetupControls() {
       ${ended ? `<p class="setup-session-note">The board is frozen for review until you reset.</p>` : ""}
       <details class="table-options">
         <summary>Table options</summary>
+        <label class="toggle-row">
+          <input id="blind-test-mode" type="checkbox" ${state.blindTestMode ? "checked" : ""} />
+          <span>Blind Test Mode</span>
+        </label>
         <label class="toggle-row">
           <input id="reveal-hidden-setup" type="checkbox" ${state.revealHiddenSetup ? "checked" : ""} />
           <span>Reveal hidden Encounter cards</span>
@@ -4223,6 +4850,213 @@ function getGuideContent(game, tileIndex, encounterIndex) {
   };
 }
 
+function getCurrentActionState(game, tileIndex, encounterIndex) {
+  const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
+  const seeded = game.encounter.seededRounds.includes(game.round);
+  const revealed = game.encounter.revealedRounds.includes(game.round);
+  const selectedSeedCount = Object.keys(getDebugSeedSelectionsForAction(game)).length;
+  const pendingChoice = getActivePendingBurdenChoice(game, encounterIndex);
+  const selectedPlacementTile = getSelectedPlacementTile(tileIndex);
+
+  if (isPlaySessionSetup()) {
+    return {
+      tone: "setup",
+      label: "Setup",
+      title: "Prepare the table",
+      detail: "Choose player count and Stewards, then start the playthrough.",
+      quickAction: "start-game",
+      quickLabel: "Start Game"
+    };
+  }
+
+  if (isPlaySessionEnded()) {
+    return {
+      tone: "review",
+      label: "Review",
+      title: "Playthrough ended",
+      detail: "Review the final board and score, then reset when the next group is ready.",
+      quickAction: "reset-game",
+      quickLabel: "Reset Game"
+    };
+  }
+
+  if (state.pendingPairedPlacement && selectedPlacementTile) {
+    return {
+      tone: "active",
+      label: "Placement",
+      title: `${selectedPlacementTile.tile_name}: choose second site`,
+      detail: `First site is ${state.pendingPairedPlacement.coordinate}. Click or right-click the second land hex to place both Stables for one action.`,
+      actions: [
+        { action: "cancel-placement-preview", label: "Cancel Stables", style: "secondary" }
+      ]
+    };
+  }
+
+  if (state.pendingPlacementPreview && selectedPlacementTile) {
+    const canRotate = selectedPlacementTileCanRotate(tileIndex);
+
+    return {
+      tone: "active",
+      label: "Placement",
+      title: `${selectedPlacementTile.tile_name} preview active`,
+      detail: canRotate
+        ? "Right-click the preview hex or use Rotate. Left-click the preview hex to place it, or cancel if the player changes their mind."
+        : "Left-click the preview hex to place it, or cancel if the player changes their mind.",
+      actions: [
+        canRotate
+          ? { action: "rotate-placement-preview", label: "Rotate", style: "secondary" }
+          : null,
+        { action: "cancel-placement-preview", label: "Cancel Preview", style: "secondary" }
+      ].filter(Boolean)
+    };
+  }
+
+  if (game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded) {
+    const ready = selectedSeedCount === game.playerCount;
+
+    return {
+      tone: ready ? "ready" : "normal",
+      label: "Seed Cards",
+      title: ready ? "Seed cards are selected" : "Choose cards to seed",
+      detail: ready
+        ? "Press Seed to place the chosen cards into the Encounter Deck."
+        : `${selectedSeedCount}/${game.playerCount} players have chosen a card. Right-click a card in each player hand to seed it.`,
+      quickAction: ready ? "seed" : "",
+      quickLabel: "Seed"
+    };
+  }
+
+  if (game.phase === GAME_PHASES.REVEAL_ENCOUNTERS && !revealed) {
+    return {
+      tone: "ready",
+      label: "Reveal",
+      title: "Reveal Encounter cards",
+      detail: "Reveal the round, then read the Stewards Board before taking player actions.",
+      quickAction: "reveal",
+      quickLabel: "Reveal"
+    };
+  }
+
+  if (game.phase === GAME_PHASES.END_ROUND) {
+    return {
+      tone: "ready",
+      label: "Round End",
+      title: "Resolve end of round",
+      detail: "Advance timers, clear round effects, and prepare the next round.",
+      quickAction: "end-round",
+      quickLabel: "End Round"
+    };
+  }
+
+  if (game.phase === GAME_PHASES.COMPLETE) {
+    return {
+      tone: "review",
+      label: "Complete",
+      title: "Game complete",
+      detail: "Review score, unresolved Burdens, Strain, and the final settlement shape."
+    };
+  }
+
+  if (game.phase !== GAME_PHASES.PLAYER_TURNS || !activePlayer) {
+    return {
+      tone: "normal",
+      label: "Waiting",
+      title: "Waiting for player turns",
+      detail: "The guide will update when a Steward is ready to act."
+    };
+  }
+
+  const openingText = formatPendingOpeningPlacement(game, activePlayer);
+  if (openingText) {
+    return {
+      tone: "urgent",
+      label: "Opening",
+      title: `${formatPlayerName(activePlayer)} must place their opening Resource tile`,
+      detail: `${openingText}. Right-click a matching terrain hex to see the legal tile.`
+    };
+  }
+
+  if (pendingChoice) {
+    const card = encounterIndex.get(pendingChoice.cardId);
+
+    return {
+      tone: "urgent",
+      label: "Required",
+      title: `${card?.card_name ?? "A Burden"} needs a choice`,
+      detail: "Use the highlighted Required Burden Choice on the Stewards Board before taking normal actions."
+    };
+  }
+
+  if (activePlayer.actionsRemaining <= 0) {
+    return {
+      tone: "ready",
+      label: "Turn",
+      title: `${formatPlayerName(activePlayer)} is out of Actions`,
+      detail: "End the turn so the next Steward can act.",
+      quickAction: "end-turn",
+      quickLabel: "End Turn"
+    };
+  }
+
+  const affordableBurdenNames = getAffordableBurdenNames(game, encounterIndex);
+  if (affordableBurdenNames.length > 0) {
+    return {
+      tone: "warning",
+      label: "Burden",
+      title: "A Burden looks affordable",
+      detail: `${affordableBurdenNames[0]} may be worth resolving before building further. Use its Resolve button on the Stewards Board.`
+    };
+  }
+
+  return {
+    tone: "normal",
+    label: "Player Turn",
+    title: `${formatPlayerName(activePlayer)} has ${activePlayer.actionsRemaining} Action${activePlayer.actionsRemaining === 1 ? "" : "s"}`,
+    detail: "Place a tile from the tray, right-click a placed tile to use or upgrade it, or interact with an Encounter card."
+  };
+}
+
+function renderCurrentActionButtons(actionState) {
+  const actions = actionState.actions ?? (
+    actionState.quickAction
+      ? [{ action: actionState.quickAction, label: actionState.quickLabel, style: "primary" }]
+      : []
+  );
+
+  if (actions.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="current-action-buttons">
+      ${actions
+        .map(
+          (action) => `
+            <button class="testing-action ${escapeHtml(action.style ?? "primary")}" data-current-action="${escapeHtml(action.action)}" type="button">
+              ${escapeHtml(action.label)}
+            </button>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function renderCurrentActionPanel(game, tileIndex, encounterIndex) {
+  const actionState = getCurrentActionState(game, tileIndex, encounterIndex);
+
+  return `
+    <section class="current-action-panel is-${escapeHtml(actionState.tone)}" aria-label="Current action">
+      <div>
+        <span>${escapeHtml(actionState.label)}</span>
+        <strong>${escapeHtml(actionState.title)}</strong>
+        <p>${escapeHtml(actionState.detail)}</p>
+      </div>
+      ${renderCurrentActionButtons(actionState)}
+    </section>
+  `;
+}
+
 function renderTestingGuide(game, tileIndex, encounterIndex) {
   const guide = getGuideContent(game, tileIndex, encounterIndex);
 
@@ -4258,7 +5092,6 @@ function renderTestingBar(game, tileIndex, encounterIndex) {
   const canEndTurn = playing && game.phase === GAME_PHASES.PLAYER_TURNS && Boolean(activePlayer);
   const canEndRound = playing && game.phase === GAME_PHASES.END_ROUND;
   const stewardText = activePlayer ? formatPlayerLastInteraction(game, tileIndex, activePlayer) : "No active steward";
-  const openingText = activePlayer ? formatPendingOpeningPlacement(game, activePlayer) : "";
   const sessionClass = `session-${state.playSessionState}`;
   const actionButtons = isPlaySessionSetup()
     ? renderTestingBarAction("start-game", "Start Game", true, "primary")
@@ -4275,22 +5108,15 @@ function renderTestingBar(game, tileIndex, encounterIndex) {
   return `
     <section class="testing-bar" aria-label="Play controls">
       <div class="testing-status">
-        <span class="session-status ${escapeHtml(sessionClass)}">Table <b>${escapeHtml(getPlaySessionLabel())}</b></span>
-        <span><b>${escapeHtml(formatPhase(game.phase))}</b></span>
-        <span>Round <b>${game.round}/${game.rules.totalRounds}</b></span>
-        <span>${escapeHtml(activePlayer ? formatPlayerName(activePlayer) : "No active player")} <b>${activePlayer ? `${activePlayer.actionsRemaining}/${game.rules.actionsPerPlayer}` : "0/0"}</b></span>
-        <span>Selected <b>${escapeHtml(`${selectedTileName} at ${state.selectedCoordinate}`)}</b></span>
-        <span>Steward <b>${escapeHtml(stewardText)}</b></span>
-        ${openingText ? `<span class="opening-status">Opening <b>${escapeHtml(openingText)}</b></span>` : ""}
+        <span class="status-chip session-status ${escapeHtml(sessionClass)}">Table <b>${escapeHtml(getPlaySessionLabel())}</b></span>
+        <span class="status-chip save-status">Local Save <b>${getLocalSaveStorage() ? "On" : "Off"}</b></span>
+        <span class="status-chip phase-status"><b>${escapeHtml(formatPhase(game.phase))}</b></span>
+        <span class="status-chip round-status">Round <b>${game.round}/${game.rules.totalRounds}</b></span>
+        <span class="status-chip player-status">${escapeHtml(activePlayer ? formatPlayerName(activePlayer) : "No active player")} <b>${activePlayer ? `${activePlayer.actionsRemaining}/${game.rules.actionsPerPlayer}` : "0/0"}</b></span>
+        <span class="status-chip selected-status">Selected <b>${escapeHtml(`${selectedTileName} at ${state.selectedCoordinate}`)}</b></span>
+        <span class="status-chip steward-status">Steward <b>${escapeHtml(stewardText)}</b></span>
       </div>
       ${renderTestingGuide(game, tileIndex, encounterIndex)}
-      <nav class="testing-jumps" aria-label="Prototype panel shortcuts">
-        <a href="#map-panel">Map</a>
-        <a href="#encounter-panel">Encounters</a>
-        <a href="#placement-panel">Tiles</a>
-        <a href="#warehouse-panel">Warehouse</a>
-        <a href="#table-review-panel">Review</a>
-      </nav>
       <div class="testing-actions">
         ${renderSetupMenu()}
         ${actionButtons}
@@ -4687,9 +5513,13 @@ function renderEncounterPanel(game, encounterIndex) {
   `;
 }
 
-function renderWarehousePanel(game) {
+function renderWarehousePanel(game, options = {}) {
+  const compact = options.compact === true;
+  const wrapperTag = compact ? "aside" : "section";
+  const wrapperClass = compact ? "warehouse-panel warehouse-strip-panel" : "state-panel warehouse-panel";
+
   return `
-    <section id="warehouse-panel" class="state-panel warehouse-panel">
+    <${wrapperTag} id="warehouse-panel" class="${wrapperClass}" aria-label="Warehouse resources">
       <h2>Warehouse</h2>
       <ul class="warehouse-grid">
         ${Object.entries(game.warehouse.resources)
@@ -4710,7 +5540,7 @@ function renderWarehousePanel(game) {
           })
           .join("")}
       </ul>
-    </section>
+    </${wrapperTag}>
   `;
 }
 
@@ -4728,6 +5558,31 @@ function renderActionCost(actionCost) {
   }
 
   return String(actionCost.total);
+}
+
+function renderActionCountLabel(actionCost) {
+  if (!actionCost) {
+    return "N/A";
+  }
+
+  const total = Number(actionCost.total ?? 0);
+  return `${renderActionCost(actionCost)} Action${total === 1 ? "" : "s"}`;
+}
+
+function renderPlacementConnectionLabel(actionCost) {
+  if (!actionCost) {
+    return "N/A";
+  }
+
+  if (actionCost.disconnectedTravelIgnored) {
+    return "Opening move: no travel";
+  }
+
+  if (actionCost.connected) {
+    return "Connected";
+  }
+
+  return actionCost.disconnectedTravelActionCost > 0 ? "Disconnected: +1 travel" : "Disconnected: travel waived";
 }
 
 function parseResourceCostForDisplay(costText) {
@@ -5358,6 +6213,14 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
     ? `${upgradeTile.tile_name} (${upgradeCost?.error ? "unsupported cost" : renderCost(upgradeCost.cost)})`
     : "None";
   const selectedStewardPowerDetails = selectedTileDefinition ? getStewardPowerDetails(selectedTileDefinition) : null;
+  const selectedStewardExchangeProvider =
+    selectedPlacedTile && selectedStewardPowerDetails?.type === STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
+      ? getAvailableStewardPowerProviders(
+          game,
+          { tileIndex },
+          STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
+        ).find((provider) => provider.placedTile.id === selectedPlacedTile.id) ?? null
+      : null;
   const openingRequirement = getOpeningPlacementRequirementForActivePlayer(game);
   const normalTurnActionsOpen = !openingRequirement;
   const activation = selectedTileDefinition ? getActivationForDisplay(selectedTileDefinition) : null;
@@ -5444,9 +6307,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
     Boolean(selectedPlacedTile && game.activePlayerId) &&
     game.phase === GAME_PHASES.PLAYER_TURNS &&
     normalTurnActionsOpen &&
-    selectedStewardPowerDetails?.type === STEWARD_POWER_TYPES.RESOURCE_EXCHANGE &&
-    !isOverstrainedPlacedTile(selectedPlacedTile) &&
-    !isStewardPowerUsedThisSeason(selectedPlacedTile, game.season) &&
+    Boolean(selectedStewardExchangeProvider) &&
     stewardExchangeReady &&
     canAffordCost(game.warehouse, getResourcePaymentAction(selectedStewardExchangePayments));
   const canActivate =
@@ -5584,19 +6445,14 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
     ({ tile }) => !openingRequirement || isOpeningResourceTileForPlayer(openingRequirement.player, tile.tile_id)
   );
   const selectedTile = tileIndex.get(state.selectedTileId);
+  const selectedSupply = options.find((option) => option.tile.tile_id === selectedTile?.tile_id)?.supply ?? null;
   const cost = selectedTile ? parseResourceCost(selectedTile.place_cost) : [];
   const footprint = selectedTile
     ? getFootprintCoordinates(state.selectedCoordinate, selectedTile.size_hexes, state.selectedOrientation, game.map.hexes)
     : null;
-  const baseActionCost = footprint ? calculatePlacementActionCost(game, footprint, { tileIndex }) : null;
-  const actionCost =
-    baseActionCost && selectedTile
-      ? getDiscountedDisconnectedTravelActionCost(
-          game,
-          "placement",
-          getDiscountedTileActionCost(game, selectedTile, "placement", baseActionCost).actionCost
-        ).actionCost
-      : null;
+  const actionCost = footprint && selectedTile
+    ? calculatePlacementActionCostForUi(game, selectedTile, footprint, tileIndex)
+    : null;
   const placementStewardPowerProviders = getPlacementStewardPowerProviders(
     game,
     selectedTile,
@@ -5617,17 +6473,38 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
     ? getPlacementCostDiscountChoices(selectedTile.tile_id, cost, placementResourceDiscount)
     : [];
   const placementCostDiscountReady = placementCostDiscountChoices.every((resource) => Boolean(resource));
+  const hasEnoughActions = Boolean(activePlayer && displayedActionCost && activePlayer.actionsRemaining >= displayedActionCost.total);
+  const hasEnoughStockForPlacement = !isStablesTile(selectedTile) || (selectedSupply?.available ?? 0) >= 2;
+  const placementBlockedReason = !selectedTile
+    ? "Choose a tile"
+    : !tileMatchesActiveOpeningRequirement(game, selectedTile)
+      ? "Opening tile required"
+      : !hasEnoughStockForPlacement
+        ? "Needs both Stables copies"
+      : !placementCostDiscountReady
+        ? "Choose discount resource"
+        : !hasEnoughActions
+          ? `Needs ${displayedActionCost?.total ?? 0} Actions`
+          : "";
   const canPlace =
     isPlaySessionPlaying() &&
-    Boolean(selectedTile && activePlayer && game.phase === GAME_PHASES.PLAYER_TURNS) &&
+    Boolean(selectedTile && activePlayer && actionCost && game.phase === GAME_PHASES.PLAYER_TURNS) &&
+    hasEnoughStockForPlacement &&
     placementCostDiscountReady &&
+    hasEnoughActions &&
     tileMatchesActiveOpeningRequirement(game, selectedTile);
   const selectedPlacementControls = renderSelectedTilePlacementControls({
     selectedTile,
     footprint,
     actionCost,
     displayedActionCost,
-    canPlace
+    canPlace,
+    blockedReason: placementBlockedReason,
+    cost,
+    placementResourceDiscount,
+    placementCostDiscountChoices,
+    placementStewardPowerProviders,
+    selectedPlacementStewardPowerId
   });
 
   return `
@@ -5641,13 +6518,6 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
         selectedTileId: state.selectedTileId,
         selectedPlacementControls
       })}
-      ${renderStewardPowerSelect({
-        id: "steward-placement-power",
-        label: "Placement Steward Power",
-        providers: placementStewardPowerProviders,
-        selectedId: selectedPlacementStewardPowerId
-      })}
-      ${renderPlacementCostDiscountChoices(selectedTile, cost, placementResourceDiscount)}
       <details class="table-assist-details">
         <summary>Table Assist</summary>
         <p class="mini-copy">Use only if a facilitator needs to correct the table during a test.</p>
@@ -5662,38 +6532,101 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
   `;
 }
 
-function renderSelectedTilePlacementControls({ selectedTile, footprint, actionCost, displayedActionCost, canPlace }) {
+function renderSelectedTilePlacementControls({
+  selectedTile,
+  footprint,
+  actionCost,
+  displayedActionCost,
+  canPlace,
+  blockedReason,
+  cost,
+  placementResourceDiscount,
+  placementCostDiscountChoices,
+  placementStewardPowerProviders,
+  selectedPlacementStewardPowerId
+}) {
   if (!selectedTile) {
     return "";
   }
 
   const selectedTileSize = Number(selectedTile.size_hexes ?? 1);
+  const isMultihex = selectedTileSize > 1;
+  const pendingPreview =
+    state.pendingPlacementPreview?.tileId === selectedTile.tile_id &&
+    state.pendingPlacementPreview?.coordinate === state.selectedCoordinate;
+  const pendingPair =
+    state.pendingPairedPlacement?.tileId === selectedTile.tile_id;
+  const stablesTile = isStablesTile(selectedTile);
+  const previewCost = getCostAfterSelectedResourceDiscount(
+    cost,
+    placementResourceDiscount,
+    placementCostDiscountChoices
+  );
+  const discountReady = placementCostDiscountChoices.every(Boolean);
+  const placeButtonLabel = !discountReady
+    ? "Choose discount resource to continue"
+    : blockedReason && !canPlace
+      ? blockedReason
+      : stablesTile
+        ? pendingPair
+          ? `Place both Stables for ${renderActionCountLabel(displayedActionCost)}`
+          : "Choose first Stables site"
+        : `Place for ${renderActionCountLabel(displayedActionCost)}, pay ${renderCost(previewCost)}`;
+  const stewardPowerControls = renderStewardPowerSelect({
+    id: "steward-placement-power",
+    label: "Optional Steward Power",
+    providers: placementStewardPowerProviders,
+    selectedId: selectedPlacementStewardPowerId
+  });
+  const discountControls = renderPlacementCostDiscountChoices(selectedTile, cost, placementResourceDiscount);
 
   return `
     <div class="tile-wire-placement-panel">
       <header>
-        <span>Placement Preview</span>
-        <strong>${escapeHtml(state.selectedCoordinate)}</strong>
+        <span>Current Action</span>
+        <strong>${escapeHtml(`${selectedTile.tile_name} at ${state.selectedCoordinate}`)}</strong>
       </header>
       ${
-        selectedTileSize > 1
-          ? `<label class="stacked-field compact-field">
-              <span>Rotation</span>
-              <select id="tile-orientation" aria-label="Tile rotation">
-                ${HEX_DIRECTIONS.map(
-                  (direction) =>
-                    `<option value="${escapeHtml(direction.id)}" ${direction.id === state.selectedOrientation ? "selected" : ""}>${escapeHtml(direction.label)}</option>`
-                ).join("")}
-              </select>
-            </label>`
+        pendingPair
+          ? `<p class="placement-guidance">First Stables site is ${escapeHtml(state.pendingPairedPlacement.coordinate)}. Select the second land hex, then place both for one action.</p>`
+          : pendingPreview
+          ? `<p class="placement-guidance">Preview armed on the map. Rotate here if needed, then left-click the preview hex or press the place button.</p>`
+          : stablesTile
+            ? `<p class="placement-guidance">Stables place as two single-hex tiles in one action. Choose the first site, then the second site.</p>`
+            : `<p class="placement-guidance">Select a map hex, or right-click a legal hex to preview this tile there.</p>`
+      }
+      ${
+        isMultihex
+          ? `<div class="placement-rotation-row">
+              <label class="stacked-field compact-field">
+                <span>Rotation</span>
+                <select id="tile-orientation" aria-label="Tile rotation">
+                  ${HEX_DIRECTIONS.map(
+                    (direction) =>
+                      `<option value="${escapeHtml(direction.id)}" ${direction.id === state.selectedOrientation ? "selected" : ""}>${escapeHtml(direction.label)}</option>`
+                  ).join("")}
+                </select>
+              </label>
+              <button id="rotate-placement-preview" class="secondary-button compact-action" type="button">Rotate</button>
+              ${
+                pendingPreview
+                  ? `<button id="cancel-placement-preview" class="secondary-button compact-action" type="button">Cancel</button>`
+                  : ""
+              }
+            </div>`
           : ""
       }
       <dl class="detail-list compact-details">
         <div><dt>Footprint</dt><dd>${escapeHtml(renderFootprint(footprint))}</dd></div>
-        <div><dt>Connection</dt><dd>${actionCost ? (actionCost.connected ? "Connected" : "Disconnected") : "N/A"}</dd></div>
-        <div><dt>Action Cost</dt><dd>${escapeHtml(renderActionCost(displayedActionCost))}</dd></div>
+        <div><dt>Connection</dt><dd>${escapeHtml(renderPlacementConnectionLabel(actionCost))}</dd></div>
+        <div><dt>Actions</dt><dd>${escapeHtml(renderActionCountLabel(displayedActionCost))}</dd></div>
+        <div><dt>Resources</dt><dd>${escapeHtml(renderCost(previewCost))}</dd></div>
       </dl>
-      <button id="place-tile" class="primary-button" type="button" ${canPlace ? "" : "disabled"}>Place on Selected Hex</button>
+      ${stewardPowerControls}
+      ${discountControls}
+      <button id="place-tile" class="primary-button placement-submit-button" type="button" ${canPlace ? "" : "disabled"}>
+        ${escapeHtml(placeButtonLabel)}
+      </button>
     </div>
   `;
 }
@@ -5834,9 +6767,7 @@ function renderCategoryChips(categories) {
 }
 
 function getSimulationBotProfiles() {
-  return state.simulation.botProfile === "all"
-    ? Object.keys(SIMULATION_BOT_PROFILES)
-    : [state.simulation.botProfile];
+  return ["balanced"];
 }
 
 function getSimulationPlayerCounts() {
@@ -5852,7 +6783,7 @@ function getSimulationPlayerCounts() {
 }
 
 function getSimulationRunSize() {
-  return getSimulationBotProfiles().length * getSimulationPlayerCounts().length * 100;
+  return getSimulationBotProfiles().length * getSimulationPlayerCounts().length * 10;
 }
 
 function getSimulationAverages(result) {
@@ -5861,6 +6792,9 @@ function getSimulationAverages(result) {
   if (rows.length === 0) {
     return {
       finalScore: 0,
+      upgradedTiles: 0,
+      upgradeActions: 0,
+      warehouseTotal: 0,
       strainPlaced: 0,
       strainRemoved: 0,
       overstrainedRounds: 0
@@ -5871,6 +6805,9 @@ function getSimulationAverages(result) {
 
   return {
     finalScore: average("final_score"),
+    upgradedTiles: average("final_upgraded_tiles"),
+    upgradeActions: average("total_upgrade_actions"),
+    warehouseTotal: average("final_warehouse_total"),
     strainPlaced: average("total_strain_placed"),
     strainRemoved: average("total_strain_removed"),
     overstrainedRounds: average("rounds_with_at_least_one_overstrained_tile")
@@ -5890,16 +6827,10 @@ function renderSimulationPanel() {
         <strong>Automated simulations</strong>
       </summary>
       <div class="simulation-controls">
-        <label class="stacked-field">
+        <div class="setup-static-row">
           <span>Bot profile</span>
-          <select id="simulation-bot-profile">
-            <option value="balanced" ${state.simulation.botProfile === "balanced" ? "selected" : ""}>Balanced Bot</option>
-            <option value="builder" ${state.simulation.botProfile === "builder" ? "selected" : ""}>Builder Bot</option>
-            <option value="careful" ${state.simulation.botProfile === "careful" ? "selected" : ""}>Careful Bot</option>
-            <option value="score" ${state.simulation.botProfile === "score" ? "selected" : ""}>Score Bot</option>
-            <option value="all" ${state.simulation.botProfile === "all" ? "selected" : ""}>All profiles</option>
-          </select>
-        </label>
+          <strong>${escapeHtml(SIMULATION_BOT_PROFILES.balanced.label)}</strong>
+        </div>
         <label class="stacked-field">
           <span>Player count</span>
           <select id="simulation-player-count">
@@ -5913,7 +6844,7 @@ function renderSimulationPanel() {
         </label>
       </div>
       <div class="button-row simulation-actions">
-        <button id="run-simulations" class="primary-button" type="button">Run 100 simulations</button>
+        <button id="run-simulations" class="primary-button" type="button">Run 10 simulations</button>
         <button id="export-simulation-csv" class="secondary-button" type="button" ${result ? "" : "disabled"}>Export CSV</button>
         <button id="export-simulation-json" class="secondary-button" type="button" ${result ? "" : "disabled"}>Export JSON</button>
       </div>
@@ -5928,6 +6859,9 @@ function renderSimulationPanel() {
           ? `<ul class="metric-list simulation-summary">
               <li><span>Games</span><strong>${result.game_rows.length}</strong></li>
               <li><span>Avg Score</span><strong>${averages.finalScore.toFixed(1)}</strong></li>
+              <li><span>Avg Upgraded Tiles</span><strong>${averages.upgradedTiles.toFixed(1)}</strong></li>
+              <li><span>Avg Upgrade Actions</span><strong>${averages.upgradeActions.toFixed(1)}</strong></li>
+              <li><span>Avg End Warehouse</span><strong>${averages.warehouseTotal.toFixed(1)}</strong></li>
               <li><span>Avg Strain Placed</span><strong>${averages.strainPlaced.toFixed(1)}</strong></li>
               <li><span>Avg Strain Removed</span><strong>${averages.strainRemoved.toFixed(1)}</strong></li>
               <li><span>Avg Overstrained Rounds</span><strong>${averages.overstrainedRounds.toFixed(1)}</strong></li>
@@ -5957,6 +6891,8 @@ function runAutomatedSimulationsFromUi() {
     return;
   }
 
+  const seedPrefix = `quiet-vale-simulation-${Date.now().toString(36)}`;
+
   state.simulation = {
     ...state.simulation,
     result: null,
@@ -5967,9 +6903,10 @@ function runAutomatedSimulationsFromUi() {
   setTimeout(() => {
     try {
       const result = runSimulationBatch({
-        gamesPerCombination: 100,
+        gamesPerCombination: 10,
         playerCounts: getSimulationPlayerCounts(),
         botProfiles: getSimulationBotProfiles(),
+        seedPrefix,
         encounterCards: state.data.encounterCards,
         tiles: state.data.tiles,
         mapHexes: getSelectedMapHexes()
@@ -6099,39 +7036,44 @@ function renderApp() {
   const tileIndex = createTileIndex(state.data.tiles);
 
   root.innerHTML = `
-    <main class="app-shell">
+    <main class="app-shell ${state.blindTestMode ? "is-blind-test" : "is-table-tools"}">
       <header class="app-header">
-        <div>
+        <div class="app-title-lockup">
+          <span class="title-signet" aria-hidden="true"></span>
           <p class="eyebrow">Local Prototype</p>
           <h1>The Quiet Vale</h1>
+          <p class="app-subtitle">Seasons of Settlement</p>
         </div>
         <div class="approval-pill">
           <span>${escapeHtml(selectedMapOption?.status ?? "Default prototype map")}</span>
-          <strong>${escapeHtml(selectedMapOption?.name ?? "Redesigned Basic Map v0.1")}</strong>
+          <strong>${escapeHtml(selectedMapOption?.name ?? "Redesigned Basic Map v0.2")}</strong>
         </div>
       </header>
       ${renderTestingBar(state.game, tileIndex, encounterIndex)}
+      ${renderCurrentActionPanel(state.game, tileIndex, encounterIndex)}
       <section class="play-layout">
+        ${renderWarehousePanel(state.game, { compact: true })}
         <section class="play-top-grid">
-          <section class="play-main-column" aria-label="Map and Encounter area">
-            <section id="map-panel" class="map-panel" aria-label="Map panel">
-              <header class="map-panel-header">
-                <h2>Map</h2>
-                ${renderMapKey()}
-              </header>
-              ${renderHexMap(state.data.mapHexes, state.game, tileIndex)}
-            </section>
-            ${renderEncounterPanel(state.game, encounterIndex)}
+          <section id="map-panel" class="map-panel" aria-label="Map panel">
+            <header class="map-panel-header">
+              <h2>Map</h2>
+              ${renderMapKey()}
+            </header>
+            ${renderHexMap(state.data.mapHexes, state.game, tileIndex)}
           </section>
           <aside class="play-side-rail" aria-label="Primary play controls">
-            ${renderWarehousePanel(state.game)}
             ${renderTilePlacementPanel(state.game, tileIndex, encounterIndex)}
           </aside>
         </section>
+        ${renderEncounterPanel(state.game, encounterIndex)}
         ${renderGameDashboard(state.game, encounterIndex)}
-        <section class="play-bottom-tools" aria-label="Automated analysis tools">
-          ${renderSimulationPanel()}
-        </section>
+        ${
+          state.blindTestMode
+            ? ""
+            : `<section class="play-bottom-tools" aria-label="Automated analysis tools">
+                ${renderSimulationPanel()}
+              </section>`
+        }
       </section>
       ${renderMapContextLayer(state.game, tileIndex)}
       ${renderSeedCardContextLayer(encounterIndex)}
@@ -6139,9 +7081,16 @@ function renderApp() {
   `;
 
   bindEvents();
+  restoreTileTrayScroll();
+  saveLocalPlaytestState();
 }
 
 function selectCoordinate(coordinate, options = {}) {
+  if (options.placePending === true && state.pendingPairedPlacement) {
+    completePendingPairedPlacement(coordinate);
+    return;
+  }
+
   const shouldPlacePendingPreview =
     options.placePending === true &&
     state.pendingPlacementPreview?.tileId === state.selectedTileId &&
@@ -6193,8 +7142,21 @@ function rotateSelectedPlacementTileAt(coordinate) {
 
 function openMapContextMenu(event, coordinate) {
   const placedTile = getPlacedTileAt(state.game, coordinate);
+  const tileIndex = createTileIndex(state.data.tiles);
+  const selectedTile = getSelectedPlacementTile(tileIndex);
+  const shouldRotatePendingPreview =
+    !placedTile &&
+    state.pendingPlacementPreview?.coordinate === coordinate &&
+    state.pendingPlacementPreview?.tileId === selectedTile?.tile_id &&
+    selectedPlacementTileCanRotate(tileIndex);
 
   event.preventDefault();
+
+  if (shouldRotatePendingPreview) {
+    rotateSelectedPlacementTileAt(coordinate);
+    return;
+  }
+
   state.selectedCoordinate = coordinate;
   state.seedContextMenu = null;
 
@@ -6241,7 +7203,33 @@ function closeSeedContextMenu() {
   renderApp();
 }
 
+function hasTransientActionState() {
+  return Boolean(state.pendingPlacementPreview || state.pendingPairedPlacement || state.contextMenu || state.seedContextMenu);
+}
+
+function clearTransientActionState({ quiet = false, message = "Cancelled current action." } = {}) {
+  if (!hasTransientActionState()) {
+    return false;
+  }
+
+  state.pendingPlacementPreview = null;
+  state.pendingPairedPlacement = null;
+  state.contextMenu = null;
+  state.seedContextMenu = null;
+
+  if (!quiet) {
+    state.lastActionResult = {
+      ok: true,
+      action: "CANCEL_CURRENT_ACTION",
+      message
+    };
+  }
+
+  return true;
+}
+
 function toggleTileFacePreview(tileId) {
+  rememberTileTrayScroll();
   state.tileFacePreviewSides = {
     ...state.tileFacePreviewSides,
     [tileId]: getTileFacePreviewSide(tileId) === "upgrade" ? "front" : "upgrade"
@@ -6445,6 +7433,104 @@ function activatePlacedTile(placedTileId) {
   renderApp();
 }
 
+function startPendingPairedPlacement(tileId, coordinate, orientation, placementCostReductionResources = []) {
+  if (!isPlaySessionPlaying()) {
+    setBlockedPlaySessionResult("PLACE_TILE");
+    state.contextMenu = null;
+    renderApp();
+    return;
+  }
+
+  const tile = state.data.tiles.find((candidate) => candidate.tile_id === tileId);
+  const action = {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId,
+    coordinate,
+    orientation: orientation || HEX_DIRECTIONS[0].id,
+    placementCostReductionResources
+  };
+  const validation = validatePlaceTile(state.game, action, { tiles: state.data.tiles });
+
+  state.selectedTileId = tileId;
+  state.selectedCoordinate = coordinate;
+  state.selectedOrientation = orientation || HEX_DIRECTIONS[0].id;
+  state.contextMenu = null;
+  state.seedContextMenu = null;
+  state.pendingPlacementPreview = null;
+
+  if (!validation.valid) {
+    state.lastActionResult = {
+      ok: false,
+      action: TILE_ACTION_TYPES.PLACE_TILE,
+      errors: validation.errors
+    };
+    renderApp();
+    return;
+  }
+
+  state.pendingPairedPlacement = {
+    tileId,
+    coordinate,
+    orientation: orientation || HEX_DIRECTIONS[0].id,
+    placementCostReductionResources
+  };
+  state.lastActionResult = {
+    ok: true,
+    action: "SELECT_PAIRED_PLACEMENT",
+    message: `${tile?.tile_name ?? "Stables"} first site selected at ${coordinate}. Choose the second site to place both for one action.`
+  };
+  renderApp();
+}
+
+function completePendingPairedPlacement(coordinate) {
+  const pending = state.pendingPairedPlacement;
+
+  if (!pending) {
+    return false;
+  }
+
+  if (!isPlaySessionPlaying()) {
+    setBlockedPlaySessionResult("PLACE_TILE");
+    state.contextMenu = null;
+    renderApp();
+    return false;
+  }
+
+  const { state: nextGame, result } = dispatchGameAction(
+    state.game,
+    {
+      type: TILE_ACTION_TYPES.PLACE_TILE,
+      tileId: pending.tileId,
+      coordinate: pending.coordinate,
+      pairedCoordinate: coordinate,
+      orientation: pending.orientation,
+      pairedOrientation: HEX_DIRECTIONS[0].id,
+      stewardPowerPlacedTileId: state.stewardPlacementPowerId,
+      placementCostReductionResources: pending.placementCostReductionResources ?? []
+    },
+    { tiles: state.data.tiles }
+  );
+
+  state.game = nextGame;
+  state.lastActionResult = result;
+  state.contextMenu = null;
+  state.seedContextMenu = null;
+  state.selectedTileId = pending.tileId;
+  state.selectedCoordinate = coordinate;
+  state.selectedOrientation = pending.orientation;
+
+  if (result.ok) {
+    delete state.placementCostDiscounts[pending.tileId];
+    state.stewardPlacementPowerId = "";
+    state.pendingPairedPlacement = null;
+    state.pendingPlacementPreview = null;
+  }
+
+  syncSelectedTile();
+  renderApp();
+  return result.ok;
+}
+
 function placeSelectedTile() {
   if (!isPlaySessionPlaying()) {
     setBlockedPlaySessionResult("PLACE_TILE");
@@ -6454,13 +7540,34 @@ function placeSelectedTile() {
   }
 
   const tile = state.data.tiles.find((candidate) => candidate.tile_id === state.selectedTileId);
+
+  if (isStablesTile(tile)) {
+    if (state.pendingPairedPlacement?.tileId === tile.tile_id) {
+      completePendingPairedPlacement(state.selectedCoordinate);
+    } else {
+      startPendingPairedPlacement(
+        tile.tile_id,
+        state.selectedCoordinate,
+        HEX_DIRECTIONS[0].id,
+        getPlacementCostDiscountAction(
+          tile.tile_id,
+          parseResourceCost(tile.place_cost),
+          getPendingPlacementResourceDiscount(state.game, tile)
+        )
+      );
+    }
+    return;
+  }
+
   const cost = tile ? parseResourceCost(tile.place_cost) : [];
   const placementResourceDiscount = getPendingPlacementResourceDiscount(state.game, tile);
   const tileIndex = createTileIndex(state.data.tiles);
   const footprint = tile
     ? getFootprintCoordinates(state.selectedCoordinate, tile.size_hexes, state.selectedOrientation, state.game.map.hexes)
     : null;
-  const baseActionCost = footprint ? calculatePlacementActionCost(state.game, footprint, { tileIndex }) : null;
+  const baseActionCost = footprint
+    ? calculateBasePlacementActionCostForUi(state.game, tile, footprint, tileIndex)
+    : null;
   const actionCost =
     baseActionCost && tile
       ? getDiscountedDisconnectedTravelActionCost(
@@ -6511,6 +7618,7 @@ function placeSelectedTile() {
 }
 
 function placeTileFromContext(tileId, coordinate, orientation, placementCostReductionResources = []) {
+  const tile = state.data.tiles.find((candidate) => candidate.tile_id === tileId);
   const placementCostDiscounts = { ...state.placementCostDiscounts };
 
   state.selectedTileId = tileId;
@@ -6525,6 +7633,12 @@ function placeTileFromContext(tileId, coordinate, orientation, placementCostRedu
   }
 
   state.placementCostDiscounts = placementCostDiscounts;
+
+  if (isStablesTile(tile)) {
+    startPendingPairedPlacement(tileId, coordinate, HEX_DIRECTIONS[0].id, placementCostReductionResources);
+    return;
+  }
+
   placeSelectedTile();
 }
 
@@ -6550,23 +7664,55 @@ function selectTilePreviewFromContext(tileId, coordinate, orientation, placement
   }
 
   state.placementCostDiscounts = placementCostDiscounts;
+
+  if (isStablesTile(tile)) {
+    startPendingPairedPlacement(tileId, coordinate, HEX_DIRECTIONS[0].id, placementCostReductionResources);
+    return;
+  }
+
   state.lastActionResult = {
     ok: true,
     action: "SELECT_TILE_PREVIEW",
-    message: `${tile?.tile_name ?? "Tile"} preview selected at ${coordinate}. Right-click to rotate if needed, then left-click this hex to place it.`
+    message: `${tile?.tile_name ?? "Tile"} preview selected at ${coordinate}. Rotate or cancel in the Current Action panel, then left-click the preview hex or press Place.`
   };
   renderApp();
 }
 
 function cancelPendingPlacementPreview() {
-  state.pendingPlacementPreview = null;
-  state.contextMenu = null;
-  state.lastActionResult = {
-    ok: true,
-    action: "CANCEL_TILE_PREVIEW",
-    message: "Tile placement preview cancelled."
-  };
+  const message = state.pendingPairedPlacement ? "Stables placement cancelled." : "Tile placement preview cancelled.";
+
+  if (clearTransientActionState({ message })) {
+    renderApp();
+  }
+}
+
+function handleGlobalEscape(event) {
+  if (event.key !== "Escape" || !hasTransientActionState()) {
+    return;
+  }
+
+  event.preventDefault();
+  clearTransientActionState();
   renderApp();
+}
+
+function handleRootClickAwayFromPlacementPreview(event) {
+  if (!state.pendingPlacementPreview) {
+    return;
+  }
+
+  const target = event.target;
+
+  if (
+    !(target instanceof Element) ||
+    target.closest("#map-panel, #placement-panel, .map-context-menu")
+  ) {
+    return;
+  }
+
+  if (clearTransientActionState({ quiet: true })) {
+    renderApp();
+  }
 }
 
 function runMapContextAction(actionName) {
@@ -6584,6 +7730,11 @@ function runMapContextAction(actionName) {
 
   if (actionName === "cancel-preview") {
     cancelPendingPlacementPreview();
+    return;
+  }
+
+  if (actionName === "place-paired-stables") {
+    completePendingPairedPlacement(state.contextMenu?.coordinate ?? state.selectedCoordinate);
     return;
   }
 
@@ -6686,6 +7837,20 @@ function runQuickAction(actionName) {
   renderApp();
 }
 
+function runCurrentAction(actionName) {
+  if (actionName === "rotate-placement-preview") {
+    rotateSelectedPlacementTileAt(state.selectedCoordinate);
+    return;
+  }
+
+  if (actionName === "cancel-placement-preview") {
+    cancelPendingPlacementPreview();
+    return;
+  }
+
+  runQuickAction(actionName);
+}
+
 function bindEvents() {
   root.querySelectorAll("[data-coordinate]").forEach((element) => {
     const placePending = element.classList.contains("hex");
@@ -6756,6 +7921,10 @@ function bindEvents() {
 
   root.querySelectorAll("[data-quick-action]").forEach((button) => {
     button.addEventListener("click", () => runQuickAction(button.dataset.quickAction));
+  });
+
+  root.querySelectorAll("[data-current-action]").forEach((button) => {
+    button.addEventListener("click", () => runCurrentAction(button.dataset.currentAction));
   });
 
   root.querySelector("#simulation-bot-profile")?.addEventListener("change", (event) => {
@@ -6854,15 +8023,27 @@ function bindEvents() {
     renderApp();
   });
 
+  root.querySelector("#rotate-placement-preview")?.addEventListener("click", () => {
+    rotateSelectedPlacementTileAt(state.selectedCoordinate);
+  });
+
+  root.querySelector("#cancel-placement-preview")?.addEventListener("click", cancelPendingPlacementPreview);
+
   root.querySelector("#place-tile")?.addEventListener("click", placeSelectedTile);
 
   root.querySelectorAll(".tile-wire-select").forEach((button) => {
     button.addEventListener("click", () => {
+      rememberTileTrayScroll();
       state.selectedTileId = button.dataset.tileChoiceId;
       state.pendingPlacementPreview = null;
+      state.pendingPairedPlacement = null;
       state.lastActionResult = null;
       renderApp();
     });
+  });
+
+  root.querySelector(".tile-tray")?.addEventListener("scroll", (event) => {
+    state.tileTrayScrollTop = event.currentTarget.scrollTop;
   });
 
   root.querySelectorAll("[data-tile-flip-id]").forEach((button) => {
@@ -7475,6 +8656,7 @@ function bindEvents() {
 
   root.querySelectorAll(".placement-cost-discount-resource").forEach((select) => {
     select.addEventListener("change", () => {
+      rememberTileTrayScroll();
       const tileId = select.dataset.tileId;
       const index = Number(select.dataset.discountIndex);
       const choices = [...(state.placementCostDiscounts[tileId] ?? [])];
@@ -7791,6 +8973,15 @@ function bindEvents() {
     renderApp();
   });
 
+  root.querySelector("#blind-test-mode")?.addEventListener("change", (event) => {
+    state.blindTestMode = event.target.checked;
+    state.simulation = {
+      ...state.simulation,
+      message: event.target.checked ? "" : state.simulation.message
+    };
+    renderApp();
+  });
+
   root.querySelector("#show-debug-labels")?.addEventListener("change", (event) => {
     state.showDebugLabels = event.target.checked;
     renderApp();
@@ -7820,12 +9011,17 @@ function bindEvents() {
   });
 }
 
+document.addEventListener("keydown", handleGlobalEscape);
+root.addEventListener("click", handleRootClickAwayFromPlacementPreview);
+
 renderApp();
 
 loadData()
   .then((data) => {
     state.data = data;
-    createGame();
+    if (!restoreLocalPlaytestState()) {
+      createGame();
+    }
     renderApp();
   })
   .catch((error) => {
