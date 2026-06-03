@@ -3247,114 +3247,130 @@ textarea {
 
 .tile-face-svg {
   display: block;
-  width: min(100%, 330px);
+  width: min(100%, 360px);
   height: auto;
   margin: 0 auto;
   transition: filter 140ms ease, transform 140ms ease;
 }
 
-.tile-face-outer {
-  fill: #e4d3ae;
-  stroke: var(--tile-variant-accent, var(--tile-accent));
-  stroke-width: 8;
-}
-
-.tile-face-inner {
+.tile-face-accent-edge {
   fill: none;
-  opacity: 0.35;
+  opacity: 0.28;
   stroke: var(--tile-variant-accent, var(--tile-accent));
+  stroke-linejoin: round;
+  stroke-width: 11;
+}
+
+.tile-face-outer {
+  fill: #fffdf7;
+  stroke: #161816;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.tile-face-major-divider,
+.tile-face-minor-divider {
+  stroke: #161816;
+  stroke-width: 2.2;
+}
+
+.tile-face-minor-divider {
   stroke-width: 2;
 }
 
-.tile-face-panel,
-.tile-face-cost-row,
-.tile-face-effect-box {
-  fill: #f0e5ce;
-  stroke: var(--tile-variant-accent, var(--tile-accent));
-  stroke-width: 2;
-}
-
-.tile-face-art {
-  fill: #cbb98f;
-  fill: color-mix(in srgb, var(--tile-variant-accent, var(--tile-accent)) 22%, #d8c99f);
-  opacity: 0.74;
-  stroke: var(--tile-variant-accent, var(--tile-accent));
-  stroke-width: 2;
-}
-
-.tile-face-art-text {
-  fill: #5b513d;
-  fill: color-mix(in srgb, var(--tile-variant-accent, var(--tile-accent)) 42%, #5b513d);
-  font-family: Arial, sans-serif;
-  font-size: 22px;
+.tile-face-guide {
+  stroke: rgba(85, 89, 85, 0.58);
+  stroke-dasharray: 8 10;
+  stroke-width: 1.6;
 }
 
 .tile-face-icon,
-.tile-face-effect-icon {
-  fill: none;
-  stroke: var(--tile-accent);
-  stroke-width: 3;
-}
-
-.tile-face-divider {
-  opacity: 0.5;
-  stroke: var(--tile-variant-accent, var(--tile-accent));
-  stroke-width: 1;
+.tile-face-effect-icon,
+.tile-face-score circle {
+  fill: #f0eadc;
+  stroke: none;
 }
 
 .tile-face-icon-text,
 .tile-face-req-text,
 .tile-face-effect-icon-text {
-  fill: var(--tile-accent);
+  fill: var(--tile-variant-accent, var(--tile-accent));
   font-family: Arial, sans-serif;
-  font-size: 21px;
+  font-size: 23px;
   font-weight: 900;
 }
 
 .tile-face-req-text {
-  font-size: 19px;
+  font-size: 20px;
 }
 
 .tile-face-effect-icon-text {
-  font-size: 17px;
+  font-size: 20px;
 }
 
-.tile-face-title,
-.tile-face-effect-text {
-  fill: #222;
-  font-family: Georgia, serif;
-  font-size: 29px;
+.tile-face-title {
+  fill: #161816;
+  font-family: Arial, sans-serif;
+  font-size: 34px;
+  font-weight: 800;
+}
+
+.tile-face-side-text,
+.tile-face-small-label,
+.tile-face-micro {
+  fill: #555955;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+.tile-face-art-text {
+  fill: #555955;
+  font-family: Arial, sans-serif;
+  font-size: 24px;
   font-weight: 800;
 }
 
 .tile-face-row-label,
 .tile-face-lineage,
-.tile-face-cost {
-  fill: #222;
+.tile-face-cost,
+.tile-face-effect-heading,
+.tile-face-effect-text {
+  fill: #161816;
   font-family: Arial, sans-serif;
-  font-size: 22px;
+}
+
+.tile-face-row-label {
+  font-size: 28px;
   font-weight: 900;
 }
 
 .tile-face-cost {
-  font-weight: 750;
+  font-size: 21px;
+  font-weight: 900;
 }
 
 .tile-face-lineage {
-  font-size: 24px;
+  font-size: 32px;
+  font-weight: 900;
 }
 
-.tile-face-score circle,
-.tile-face-score path {
-  fill: #f0e5ce;
-  stroke: var(--tile-variant-accent, var(--tile-accent));
-  stroke-width: 3;
+.tile-face-effect-heading {
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.tile-face-effect-text {
+  font-size: 18px;
+}
+
+.tile-face-micro {
+  font-size: 11px;
 }
 
 .tile-face-score text {
-  fill: #222;
+  fill: #161816;
   font-family: Arial, sans-serif;
-  font-size: 23px;
+  font-size: 34px;
   font-weight: 900;
 }
 
