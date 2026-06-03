@@ -7040,9 +7040,9 @@ function renderApp() {
       <header class="app-header">
         <div class="app-title-lockup">
           <span class="title-signet" aria-hidden="true"></span>
-          <p class="eyebrow">Local Prototype</p>
           <h1>The Quiet Vale</h1>
           <p class="app-subtitle">Seasons of Settlement</p>
+          <a class="playtest-contact" href="mailto:robert@thequietvalegame.com">Playtest feedback: robert@thequietvalegame.com</a>
         </div>
         <div class="approval-pill">
           <span>${escapeHtml(selectedMapOption?.status ?? "Default prototype map")}</span>

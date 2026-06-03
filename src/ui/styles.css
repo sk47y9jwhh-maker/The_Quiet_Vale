@@ -157,6 +157,20 @@ textarea {
   background: linear-gradient(90deg, rgba(185, 147, 79, 0.86), transparent);
 }
 
+.playtest-contact {
+  margin-top: 8px;
+  color: #d8cfae;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.playtest-contact:hover,
+.playtest-contact:focus-visible {
+  color: var(--brass);
+  text-decoration: underline;
+}
+
 .eyebrow {
   margin: 0 0 2px;
   color: var(--muted);
