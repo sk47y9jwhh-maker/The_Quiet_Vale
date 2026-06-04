@@ -1517,7 +1517,7 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
   const pairedStables = isStablesTile(option.tile);
   const useTravelPreview = travelPreview && !pairedStables;
   const optionTileIndex = state.data?.tiles ? createTileIndex(state.data.tiles) : null;
-  const upgradeTile = optionTileIndex ? findUpgradeTile(optionTileIndex, option.tile) : null;
+  const upgradeTile = optionTileIndex ? findUpgradeTile(option.tile, optionTileIndex) : null;
   const orientationText = isMultihex ? ` · ${getOrientationLabel(option.orientation)}` : "";
   const footprintText = isMultihex ? ` · ${renderFootprint(option.footprintCoordinates)}` : "";
   const discountText = option.placementCostReductionResources.length > 0 ? " · discount applied" : "";
@@ -1744,8 +1744,24 @@ function isPendingTravelPlacementPreview(tile, coordinate) {
 function renderPendingTravelPlacementMenu(tile) {
   return `
     <p class="context-empty-note">
-      ${escapeHtml(`${tile.tile_name} is selected for preview. Use the Current Action panel to rotate or cancel, then left-click this hex to place it.`)}
+      ${escapeHtml(`${tile.tile_name} is selected for preview. Rotate if needed, then place it here or cancel.`)}
     </p>
+  `;
+}
+
+function renderPendingTravelPlacementActions(tile, { canPlace = false, canRotate = false } = {}) {
+  return `
+    <div class="map-context-preview-actions" aria-label="${escapeHtml(`${tile?.tile_name ?? "Tile"} preview actions`)}">
+      <button class="map-context-action" data-context-action="place" type="button" role="menuitem" ${canPlace ? "" : "disabled"}>
+        Place Preview
+      </button>
+      <button class="map-context-action" data-context-action="rotate" type="button" role="menuitem" ${canRotate ? "" : "disabled"}>
+        Rotate Preview
+      </button>
+      <button class="map-context-action" data-context-action="cancel-preview" type="button" role="menuitem">
+        Cancel Preview
+      </button>
+    </div>
   `;
 }
 
@@ -1846,7 +1862,13 @@ function renderMapContextLayer(game, tileIndex) {
               pendingPairedPlacement
                 ? renderPendingPairedPlacementMenu(game, selectedPlacementTile, coordinate)
                 : pendingTravelPreview
-                  ? renderPendingTravelPlacementMenu(selectedPlacementTile)
+                  ? `
+                    ${renderPendingTravelPlacementMenu(selectedPlacementTile)}
+                    ${renderPendingTravelPlacementActions(selectedPlacementTile, {
+                      canPlace: canAttemptPlacement,
+                      canRotate: canRotatePreview
+                    })}
+                  `
                   : renderLegalPlacementMenu(game, tileIndex, coordinate)
             }
             ${
@@ -1856,13 +1878,10 @@ function renderMapContextLayer(game, tileIndex) {
                     Place Selected Tile
                   </button>`
             }
-            <button class="map-context-action" data-context-action="rotate" type="button" role="menuitem" ${canRotatePreview ? "" : "disabled"}>
-              Rotate Multihex Preview
-            </button>
             ${
-              pendingTravelPreview
-                ? `<button class="map-context-action" data-context-action="cancel-preview" type="button" role="menuitem">
-                    Cancel Preview
+              !pendingTravelPreview && canRotatePreview
+                ? `<button class="map-context-action" data-context-action="rotate" type="button" role="menuitem">
+                    Rotate Multihex Preview
                   </button>`
                 : ""
             }
@@ -1885,8 +1904,7 @@ function renderSeedCardContextLayer(encounterIndex) {
     return "";
   }
 
-  const left = Math.max(8, Math.round(Number(state.seedContextMenu.x ?? 8)));
-  const top = Math.max(8, Math.round(Number(state.seedContextMenu.y ?? 8)));
+  const { left, top } = getSeedContextMenuPosition(state.seedContextMenu);
 
   return `
     <button class="seed-context-backdrop" type="button" aria-label="Close seed menu"></button>
@@ -1913,6 +1931,19 @@ function renderSeedCardContextLayer(encounterIndex) {
         .join("")}
     </aside>
   `;
+}
+
+function getSeedContextMenuPosition(menuState) {
+  const viewportWidth = Number(globalThis.innerWidth ?? 1280);
+  const viewportHeight = Number(globalThis.innerHeight ?? 720);
+  const margin = 8;
+  const menuWidth = Math.min(260, viewportWidth - margin * 2);
+  const estimatedHeight = Math.min(290, viewportHeight - margin * 2);
+
+  return {
+    left: clampNumber(Math.round(Number(menuState?.x ?? margin)), margin, viewportWidth - menuWidth - margin),
+    top: clampNumber(Math.round(Number(menuState?.y ?? margin)), margin, viewportHeight - estimatedHeight - margin)
+  };
 }
 
 function renderBadgeList(items, className = "") {
@@ -2813,6 +2844,7 @@ function renderTileSourceText(tile, title = "Tile Says") {
     return "";
   }
 
+  const effectDetails = getTileEffectDetails(tile);
   const meta = [
     tile.tile_category,
     tile.subtype,
@@ -2835,6 +2867,10 @@ function renderTileSourceText(tile, title = "Tile Says") {
         <div><dt>Place</dt><dd>${escapeHtml(renderSourceResourceCost(tile.place_cost) || "0")}</dd></div>
         <div><dt>Upgrade</dt><dd>${escapeHtml(renderSourceResourceCost(tile.upgrade_cost) || "0")}</dd></div>
       </dl>
+      <div class="tile-reference-effect-type">
+        <span>Effect Type</span>
+        <strong>${escapeHtml(effectDetails.label)}</strong>
+      </div>
       <p class="tile-reference-benefit">${escapeHtml(tile.benefit || "No printed benefit")}</p>
       <dl class="tile-reference-notes">
         <div><dt>Placement</dt><dd>${escapeHtml(tile.placement_rules ?? "No special placement rule")}</dd></div>
@@ -2842,6 +2878,25 @@ function renderTileSourceText(tile, title = "Tile Says") {
         ${tile.upgrade_to ? `<div><dt>Upgrades to</dt><dd>${escapeHtml(tile.upgrade_to)}</dd></div>` : ""}
       </dl>
     </article>
+  `;
+}
+
+function renderPrePlacementTileEffect(tile) {
+  if (!tile) {
+    return "";
+  }
+
+  const effectDetails = getTileEffectDetails(tile);
+  const benefit = tile.benefit || "No printed benefit.";
+
+  return `
+    <section class="tile-preplace-effect" aria-label="${escapeHtml(`${tile.tile_name} pre-placement effect`)}">
+      <header>
+        <span>What this tile does</span>
+        <strong>${escapeHtml(effectDetails.label)}</strong>
+      </header>
+      <p>${escapeHtml(benefit)}</p>
+    </section>
   `;
 }
 
@@ -4850,7 +4905,7 @@ function getPlayerAidPrompt(game, tileIndex, encounterIndex) {
       return "Seed places the selected cards into the deck at the chosen packet position.";
     }
 
-    return "Right-click an Encounter card in a player's hand to choose top, upper, middle, lower, or bottom of deck.";
+    return "Click an Encounter card in each player's hand, then choose its deck position on the selected card.";
   }
 
   if (game.phase === GAME_PHASES.REVEAL_ENCOUNTERS) {
@@ -4959,9 +5014,10 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
       label: "Placement",
       title: `${selectedPlacementTile.tile_name} preview active`,
       detail: canRotate
-        ? "Right-click the preview hex or use Rotate. Left-click the preview hex to place it, or cancel if the player changes their mind."
+        ? "Use Rotate if needed, then press Place Tile or click the preview hex. Cancel clears the preview."
         : "Left-click the preview hex to place it, or cancel if the player changes their mind.",
       actions: [
+        { action: "place-placement-preview", label: "Place Tile", style: "primary" },
         canRotate
           ? { action: "rotate-placement-preview", label: "Rotate", style: "secondary" }
           : null,
@@ -4979,7 +5035,7 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
       title: ready ? "Seed cards are selected" : "Choose cards to seed",
       detail: ready
         ? "Press Seed to place the chosen cards into the Encounter Deck."
-        : `${selectedSeedCount}/${game.playerCount} players have chosen a card. Right-click a card in each player hand to seed it.`,
+        : `${selectedSeedCount}/${game.playerCount} players have chosen a card. Click a card in each player hand to select it.`,
       quickAction: ready ? "seed" : "",
       quickLabel: "Seed"
     };
@@ -5271,6 +5327,28 @@ function renderSeedHandCard(card, player, game) {
     >
       ${selected ? `<span class="seed-selected-badge">${escapeHtml(SEED_PACKET_POSITION_LABELS[state.debugSeedPosition] ?? "Selected")}</span>` : ""}
       ${renderEncounterFace(card, null, game, null, { extraClass: "seed-encounter-face" })}
+      ${
+        selected
+          ? `<div class="seed-position-toolbar" aria-label="Seed packet position">
+              <span>Place in deck</span>
+              ${Object.entries(SEED_PACKET_POSITION_LABELS)
+                .map(
+                  ([position, label]) => `
+                    <button
+                      class="seed-position-action ${position === state.debugSeedPosition ? "is-active" : ""}"
+                      data-seed-player-id="${escapeHtml(player.id)}"
+                      data-seed-card-id="${escapeHtml(card.card_id)}"
+                      data-seed-position="${escapeHtml(position)}"
+                      type="button"
+                    >
+                      ${escapeHtml(label.replace(" of deck", ""))}
+                    </button>
+                  `
+                )
+                .join("")}
+            </div>`
+          : ""
+      }
     </div>
   `;
 }
@@ -6411,7 +6489,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
   return `
     ${
       embedded
-        ? `<details id="selected-tile-panel" class="tile-selected-details" ${selectedPlacedTile ? "open" : ""}>
+        ? `<details id="selected-tile-panel" class="tile-selected-details">
             <summary>
               <span>Selected Map Tile</span>
               <strong>${escapeHtml(selectedTileSummary)}</strong>
@@ -6587,18 +6665,10 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
         <span>${escapeHtml(activePlayer ? `${activePlayer.actionsRemaining}/${game.rules.actionsPerPlayer} Actions` : "No active Steward")}</span>
       </header>
       ${openingRequirement ? `<p class="phase-note opening-note">${escapeHtml(`Opening move required: ${openingRequirement.summary}.`)}</p>` : ""}
+      ${selectedPlacementControls}
       ${renderTileChoiceButtons(options, tileIndex, {
-        selectedTileId: state.selectedTileId,
-        selectedPlacementControls
+        selectedTileId: state.selectedTileId
       })}
-      <details class="table-assist-details">
-        <summary>Table Assist</summary>
-        <p class="mini-copy">Use only if a facilitator needs to correct the table during a test.</p>
-        <div class="button-row">
-          <button id="fill-warehouse" class="secondary-button" type="button" ${isPlaySessionPlaying() ? "" : "disabled"}>Fill Warehouse</button>
-          <button id="reset-actions" class="secondary-button" type="button" ${isPlaySessionPlaying() ? "" : "disabled"}>Reset Actions</button>
-        </div>
-      </details>
       ${renderPlacementResult(state.lastActionResult)}
       ${renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded: true })}
     </section>
@@ -6663,10 +6733,12 @@ function renderSelectedTilePlacementControls({
         pendingPair
           ? `<p class="placement-guidance">First Stables site is ${escapeHtml(state.pendingPairedPlacement.coordinate)}. Select the second land hex, then place both for one action.</p>`
           : pendingPreview
-          ? `<p class="placement-guidance">Preview armed on the map. Rotate here if needed, then left-click the preview hex or press the place button.</p>`
+          ? `<p class="placement-guidance">Preview armed on the map. Rotate here if needed, then press Place Tile or click the preview hex.</p>`
           : stablesTile
             ? `<p class="placement-guidance">Stables place as two single-hex tiles in one action. Choose the first site, then the second site.</p>`
-            : `<p class="placement-guidance">Select a map hex, or right-click a legal hex to preview this tile there.</p>`
+            : isMultihex
+              ? `<p class="placement-guidance">Use Rotate, then Place Tile. You can also right-click a legal hex to preview this tile there first.</p>`
+              : `<p class="placement-guidance">Select a map hex, then Place Tile. Single-hex tiles do not need rotation.</p>`
       }
       ${
         isMultihex
@@ -6695,6 +6767,7 @@ function renderSelectedTilePlacementControls({
         <div><dt>Actions</dt><dd>${escapeHtml(renderActionCountLabel(displayedActionCost))}</dd></div>
         <div><dt>Resources</dt><dd>${escapeHtml(renderCost(previewCost))}</dd></div>
       </dl>
+      ${renderPrePlacementTileEffect(selectedTile)}
       ${stewardPowerControls}
       ${discountControls}
       <button id="place-tile" class="primary-button placement-submit-button" type="button" ${canPlace ? "" : "disabled"}>
@@ -6725,7 +6798,7 @@ function renderTileChoiceButtons(options, tileIndex, selection = {}) {
             upgradeTile,
             previewSide,
             title: selected ? "Selected Tile" : "Available Tile",
-            placementControls: selected ? selection.selectedPlacementControls : ""
+            placementControls: ""
           });
         })
         .join("")}
@@ -6946,6 +7019,22 @@ function renderSimulationPanel() {
   `;
 }
 
+function renderTableAssistPanel() {
+  return `
+    <details class="state-panel wide-panel lower-tool-details facilitator-assist-details">
+      <summary>
+        <span>Table Assist</span>
+        <strong>Facilitator tools</strong>
+      </summary>
+      <p class="mini-copy">Use only if a facilitator needs to correct the table during a test.</p>
+      <div class="button-row">
+        <button id="fill-warehouse" class="secondary-button" type="button" ${isPlaySessionPlaying() ? "" : "disabled"}>Fill Warehouse</button>
+        <button id="reset-actions" class="secondary-button" type="button" ${isPlaySessionPlaying() ? "" : "disabled"}>Reset Actions</button>
+      </div>
+    </details>
+  `;
+}
+
 function downloadTextFile(filename, contents, mimeType) {
   const blob = new Blob([contents], { type: mimeType });
   const url = URL.createObjectURL(blob);
@@ -7086,6 +7175,7 @@ function renderGameDashboard(game, encounterIndex) {
         ${renderTurnPanel(game, tileIndex)}
         ${renderScorePanel(game)}
         ${renderTileSupplyPanel(game)}
+        ${renderTableAssistPanel()}
         ${renderActionLog(game, encounterIndex, tileIndex)}
       </section>
     </details>
@@ -7119,7 +7209,6 @@ function renderApp() {
   }
 
   refreshActiveMapData();
-  const selectedMapOption = getSelectedMapOption();
   const encounterIndex = createEncounterIndex(state.data.encounterCards);
   const tileIndex = createTileIndex(state.data.tiles);
 
@@ -7130,10 +7219,6 @@ function renderApp() {
           <span class="title-signet" aria-hidden="true"></span>
           <h1>The Quiet Vale</h1>
           <p class="app-subtitle">Seasons of Settlement</p>
-        </div>
-        <div class="approval-pill">
-          <span>${escapeHtml(selectedMapOption?.status ?? "Default prototype map")}</span>
-          <strong>${escapeHtml(selectedMapOption?.name ?? "Redesigned Basic Map v0.2")}</strong>
         </div>
         <a class="header-rulebook-link" href="./rulebook.pdf" target="_blank" rel="noopener">View Rulebook</a>
       </header>
@@ -7927,6 +8012,11 @@ function runQuickAction(actionName) {
 }
 
 function runCurrentAction(actionName) {
+  if (actionName === "place-placement-preview") {
+    placeSelectedTile();
+    return;
+  }
+
   if (actionName === "rotate-placement-preview") {
     rotateSelectedPlacementTileAt(state.selectedCoordinate);
     return;
@@ -7991,21 +8081,29 @@ function bindEvents() {
   });
 
   root.querySelectorAll("[data-seed-hand-card]").forEach((cardElement) => {
+    cardElement.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.closest("[data-seed-position]")) {
+        return;
+      }
+
+      selectSeedCardPosition(cardElement.dataset.playerId, cardElement.dataset.cardId, state.debugSeedPosition);
+    });
     cardElement.addEventListener("contextmenu", (event) =>
       openSeedCardContextMenu(event, cardElement.dataset.playerId, cardElement.dataset.cardId)
     );
     cardElement.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        openSeedCardContextMenu(event, cardElement.dataset.playerId, cardElement.dataset.cardId);
+        selectSeedCardPosition(cardElement.dataset.playerId, cardElement.dataset.cardId, state.debugSeedPosition);
       }
     });
   });
 
   root.querySelectorAll("[data-seed-position]").forEach((button) => {
-    button.addEventListener("click", () =>
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
       selectSeedCardPosition(button.dataset.seedPlayerId, button.dataset.seedCardId, button.dataset.seedPosition)
-    );
+    });
   });
 
   root.querySelectorAll("[data-quick-action]").forEach((button) => {
