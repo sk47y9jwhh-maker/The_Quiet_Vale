@@ -632,14 +632,15 @@ function getTileAccentTokens(tile) {
     variantAccent,
     cardBackground: mixHexColour(categoryAccent, "#f0e4cc", 0.8),
     cardWash: hexToRgba(variantAccent, 0.18),
+    faceFill: mixHexColour(categoryAccent, "#f8f2e6", 0.88),
     mapFill: mixHexColour(variantAccent, "#efe1c7", 0.56)
   };
 }
 
 function getTileFaceAccentStyle(tile) {
-  const { categoryAccent, variantAccent } = getTileAccentTokens(tile);
+  const { categoryAccent, variantAccent, faceFill } = getTileAccentTokens(tile);
 
-  return `--tile-accent: ${categoryAccent}; --tile-variant-accent: ${variantAccent};`;
+  return `--tile-accent: ${categoryAccent}; --tile-variant-accent: ${variantAccent}; --tile-face-fill: ${faceFill};`;
 }
 
 function getTileCardAccentStyle(tile) {
