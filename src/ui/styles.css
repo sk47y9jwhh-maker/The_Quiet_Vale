@@ -938,6 +938,23 @@ h3 {
   stroke-width: 4;
 }
 
+.is-opening-site polygon {
+  stroke: #2f6254;
+  stroke-width: 3.8;
+  filter:
+    brightness(1.05)
+    drop-shadow(0 0 4px rgba(185, 147, 79, 0.38));
+}
+
+.is-opening-site:hover polygon,
+.is-opening-site:focus polygon {
+  stroke: var(--brass);
+  stroke-width: 4.6;
+  filter:
+    brightness(1.09)
+    drop-shadow(0 0 6px rgba(185, 147, 79, 0.52));
+}
+
 .hex text {
   fill: rgba(23, 32, 28, 0.9);
   font-weight: 800;
@@ -1017,6 +1034,35 @@ h3 {
 
 .strain-map-marker.is-overstrained text {
   font-size: 11px;
+}
+
+.opening-site-marker {
+  pointer-events: none;
+}
+
+.opening-site-marker rect {
+  fill: rgba(247, 241, 229, 0.9);
+  stroke: #2f6254;
+  stroke-width: 1.25;
+  filter: drop-shadow(0 1px 1px rgba(29, 37, 33, 0.18));
+}
+
+.opening-site-marker text {
+  fill: #244a3f;
+  paint-order: stroke;
+  stroke: rgba(247, 241, 229, 0.86);
+  stroke-linejoin: round;
+}
+
+.opening-site-main {
+  font-size: 7px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.opening-site-tile {
+  font-size: 5.5px;
+  font-weight: 850;
 }
 
 .map-context-backdrop,
@@ -3674,6 +3720,56 @@ textarea {
 
 .tile-effect-preview .tile-face-svg {
   width: min(100%, 220px);
+}
+
+.steward-house-preview {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid rgba(151, 117, 64, 0.24);
+  border-left: 4px solid var(--tile-variant-accent, var(--brass));
+  border-radius: 7px;
+  background:
+    linear-gradient(135deg, rgba(216, 189, 103, 0.18), transparent 56%),
+    linear-gradient(135deg, var(--tile-card-wash, rgba(151, 117, 64, 0.12)), transparent 70%),
+    var(--tile-card-bg, #f3ead8);
+}
+
+.steward-house-preview.compact {
+  margin-top: 6px;
+}
+
+.steward-house-preview header {
+  display: grid;
+  gap: 2px;
+}
+
+.steward-house-preview header span {
+  color: #7a6533;
+  font-size: 0.62rem;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.steward-house-preview header strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+
+.steward-house-preview header small {
+  color: #5a5040;
+  font-size: 0.68rem;
+  font-weight: 850;
+}
+
+.steward-house-preview p {
+  margin: 0;
+  color: #3f382b;
+  font-size: 0.76rem;
+  font-weight: 780;
+  line-height: 1.34;
 }
 
 .arrival-unlocked-tile-note {

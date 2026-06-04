@@ -1153,6 +1153,23 @@ function renderSupportMapMarker(center) {
   `;
 }
 
+function renderOpeningSiteMarker(center, option) {
+  const tileName = option?.tile?.tile_name ?? "Tile";
+  const tileLabel = normalizeMapTileName(tileName).split(/\s+/)[0] ?? tileName;
+
+  return `
+    <g
+      class="opening-site-marker"
+      transform="translate(${center.x.toFixed(2)} ${(center.y + 12).toFixed(2)})"
+      aria-label="${escapeHtml(`Opening site for ${tileName}`)}"
+    >
+      <rect x="-22" y="-12" width="44" height="24" rx="8"></rect>
+      <text class="opening-site-main" y="-2">Start</text>
+      <text class="opening-site-tile" y="8">${escapeHtml(tileLabel)}</text>
+    </g>
+  `;
+}
+
 function getInteractionActionLabel(type) {
   return (
     {
@@ -1196,6 +1213,19 @@ function renderHexMap(mapHexes, game, tileIndex) {
     ? getFootprintCoordinates(selectedCoordinate, selectedTile.size_hexes, state.selectedOrientation, mapHexes)
     : null;
   const previewSet = new Set(previewFootprint ?? []);
+  const openingRequirement = getOpeningPlacementRequirementForActivePlayer(game);
+  const openingOptionsByCoordinate = openingRequirement
+    ? new Map(
+        mapHexes
+          .map((hex) => [
+            hex.Coordinate,
+            getOpeningPlacementOptionsForCoordinate(game, tileIndex, hex.Coordinate).find(
+              (option) => !option.blockedReason
+            )
+          ])
+          .filter(([, option]) => Boolean(option))
+      )
+    : new Map();
 
   const hexMarkup = [...mapHexes]
     .sort((left, right) => compareCoordinates(left.Coordinate, right.Coordinate, mapHexes))
@@ -1203,6 +1233,7 @@ function renderHexMap(mapHexes, game, tileIndex) {
       const center = hexCenter(hex, size, mapHexes);
       const label = featureLabel(hex);
       const placedTile = placedByCoordinate.get(hex.Coordinate);
+      const openingOption = openingOptionsByCoordinate.get(hex.Coordinate);
       const placedTileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
       const isPlacedTileAnchor = placedTile && hex.Coordinate === getPlacedTileAnchorCoordinate(placedTile);
       const supportDetails = placedTile
@@ -1229,6 +1260,7 @@ function renderHexMap(mapHexes, game, tileIndex) {
         placedTile ? "has-placed-tile" : "",
         placedTileDefinition ? `placed-type-${slug(placedTileDefinition.tile_category)}` : "",
         supportDetails?.supported ? "is-supported-tile" : "",
+        openingOption ? "is-opening-site" : "",
         strain > 0 ? "has-strain-tile" : "",
         markerPlayers.length ? "has-player-marker" : "",
         placedTile && isOverstrainedPlacedTile(placedTile) ? "is-overstrained-tile" : "",
@@ -1256,6 +1288,7 @@ function renderHexMap(mapHexes, game, tileIndex) {
           }
           ${isPlacedTileAnchor && supportDetails?.supported ? renderSupportMapMarker(center) : ""}
           ${isPlacedTileAnchor ? renderStrainMapMarker(placedTile, center) : ""}
+          ${openingOption && !placedTile ? renderOpeningSiteMarker(center, openingOption) : ""}
           ${renderPlayerMapMarkers(markerPlayers, center)}
         </g>
       `;
@@ -1492,6 +1525,18 @@ function getLegalPlacementOptionsForCoordinate(game, tileIndex, coordinate) {
   );
 }
 
+function getOpeningPlacementOptionsForCoordinate(game, tileIndex, coordinate) {
+  const openingRequirement = getOpeningPlacementRequirementForActivePlayer(game);
+
+  if (!openingRequirement) {
+    return [];
+  }
+
+  return getLegalPlacementOptionsForCoordinate(game, tileIndex, coordinate).filter(
+    (option) => isOpeningResourceTileForPlayer(openingRequirement.player, option.tile.tile_id)
+  );
+}
+
 function groupPlacementOptionsByCategory(options) {
   const groups = new Map();
 
@@ -1575,6 +1620,7 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
             { label: "Resources", value: resourceCostText }
           ]
         })}
+        ${renderStewardHouseUpgradePreview(option.tile, optionTileIndex, { compact: true })}
         ${actionButton}
         ${renderTileFaceSvg(option.tile, { upgradeTile })}
       </div>
@@ -1621,7 +1667,7 @@ function renderLegalPlacementMenu(game, tileIndex, coordinate) {
   if (options.length === 0) {
     return `<p class="context-empty-note">${escapeHtml(
       openingRequirement
-        ? `Opening move required: ${openingRequirement.summary}. Choose a matching terrain hex.`
+        ? `Opening move required: ${openingRequirement.summary}. Click a highlighted Start hex.`
         : "No legal tile placements on this hex with the current warehouse, stock, and Actions."
     )}</p>`;
   }
@@ -1663,7 +1709,7 @@ function renderMapUpgradePreview(upgradeTile) {
     return "";
   }
 
-  const upgradeCost = renderSourceResourceCost(upgradeTile.upgrade_cost) || "0";
+  const upgradeCost = renderPrintedCostText(upgradeTile.upgrade_cost);
 
   return `
     <section class="map-upgrade-preview type-${slug(upgradeTile.tile_category)}" style="${escapeHtml(getTileCardAccentStyle(upgradeTile))}" aria-label="Upgrade side preview">
@@ -1672,6 +1718,7 @@ function renderMapUpgradePreview(upgradeTile) {
         <strong>${escapeHtml(upgradeTile.tile_name)}</strong>
         <small>${escapeHtml(`Upgrade cost: ${upgradeCost}`)}</small>
       </header>
+      ${renderStewardPowerUnlockPanel(upgradeTile, { compact: true })}
       ${renderTileFaceSvg(upgradeTile)}
     </section>
   `;
@@ -2470,7 +2517,29 @@ function renderSourceResourceCost(costText) {
   }
 
   const parsed = parseResourceCostForDisplay(costText);
-  return parsed.error ? parsed.error : renderCost(parsed.cost);
+  return parsed.error ? formatRawCostText(costText) : renderCost(parsed.cost);
+}
+
+function formatRawCostText(costText) {
+  return String(costText)
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function renderPrintedCostText(costText) {
+  if (costText === null || costText === undefined || costText === "") {
+    return "0";
+  }
+
+  const parsed = parseResourceCostForDisplay(costText);
+
+  if (!parsed.error) {
+    return renderCost(parsed.cost);
+  }
+
+  return formatRawCostText(costText);
 }
 
 const TILE_FACE_RESOURCE_ORDER = Object.freeze(["Wood", "Stone", "Metal", "Food", "Herbs", "Goods"]);
@@ -2943,6 +3012,59 @@ function renderTileEffectPreview(
       }
     </section>
   `;
+}
+
+function isBasicStewardHouse(tile) {
+  return tile?.subtype === "Steward House" && tile.side === "Basic";
+}
+
+function getStewardHouseUpgrade(tile, tileIndex) {
+  return isBasicStewardHouse(tile) && tileIndex ? findUpgradeTile(tile, tileIndex) : null;
+}
+
+function getStewardPowerCopy(tile) {
+  return String(tile?.benefit ?? "")
+    .replace(/^Steward Power:\s*/i, "")
+    .trim();
+}
+
+function renderStewardPowerUnlockPanel(upgradeTile, { baseTile = null, compact = false } = {}) {
+  if (upgradeTile?.subtype !== "Steward House" || upgradeTile.side !== "Upgraded") {
+    return "";
+  }
+
+  const powerDetails = getStewardPowerDetails(upgradeTile);
+  const upgradeCost = renderPrintedCostText(upgradeTile.upgrade_cost);
+  const powerCopy = getStewardPowerCopy(upgradeTile);
+  const scoreCopy = [
+    Number(upgradeTile.population ?? 0) > 0 ? `${upgradeTile.population} Population` : "",
+    Number(upgradeTile.renown ?? 0) > 0 ? `${upgradeTile.renown} Renown` : ""
+  ].filter(Boolean).join(" + ");
+  const titleCopy = baseTile
+    ? `${baseTile.tile_name} upgrades to ${upgradeTile.tile_name}`
+    : `${upgradeTile.tile_name} unlocks this power`;
+  const labelCopy = baseTile ? "Foundation -> Steward Power" : "Steward Power";
+
+  return `
+    <section class="steward-house-preview ${compact ? "compact" : ""}" style="${escapeHtml(getTileCardAccentStyle(upgradeTile))}" aria-label="${escapeHtml(`${upgradeTile.tile_name} Steward Power preview`)}">
+      <header>
+        <span>${escapeHtml(labelCopy)}</span>
+        <strong>${escapeHtml(titleCopy)}</strong>
+        <small>${escapeHtml(powerDetails?.label ?? "Steward Power")}</small>
+      </header>
+      <dl class="tile-effect-costs">
+        <div><dt>Upgrade</dt><dd>${escapeHtml(upgradeCost)}</dd></div>
+        <div><dt>Scores</dt><dd>${escapeHtml(scoreCopy || "No score")}</dd></div>
+      </dl>
+      <p>${escapeHtml(powerCopy || "No printed Steward Power.")}</p>
+    </section>
+  `;
+}
+
+function renderStewardHouseUpgradePreview(baseTile, tileIndex, { compact = false } = {}) {
+  const upgradeTile = getStewardHouseUpgrade(baseTile, tileIndex);
+
+  return renderStewardPowerUnlockPanel(upgradeTile, { baseTile, compact });
 }
 
 function getArrivalUnlockedTiles(card, { game = null, tileIndex = null } = {}) {
@@ -4934,6 +5056,53 @@ function getWarehouseGuideHint(game) {
   return "";
 }
 
+function getStewardHouseProgress(game, tileIndex, player) {
+  const role = getStewardRole(player?.stewardRoleId);
+  const baseTile = role ? tileIndex.get(role.houseTileId) : null;
+  const upgradeTile = baseTile ? findUpgradeTile(baseTile, tileIndex) : null;
+  const placedBase = baseTile
+    ? game.map.placedTiles.find((placedTile) => placedTile.tileId === baseTile.tile_id) ?? null
+    : null;
+  const placedUpgrade = upgradeTile
+    ? game.map.placedTiles.find((placedTile) => placedTile.tileId === upgradeTile.tile_id) ?? null
+    : null;
+
+  return {
+    role,
+    baseTile,
+    upgradeTile,
+    placedBase,
+    placedUpgrade
+  };
+}
+
+function summarizeStewardPowerForGuide(upgradeTile) {
+  const powerCopy = getStewardPowerCopy(upgradeTile);
+  const sentence = powerCopy.split(".")[0]?.trim();
+
+  return sentence || "its Steward Power";
+}
+
+function getStewardHouseGuideHint(game, tileIndex, activePlayer) {
+  if (!activePlayer || activePlayer.actionsRemaining <= 0) {
+    return "";
+  }
+
+  const { role, baseTile, upgradeTile, placedBase, placedUpgrade } = getStewardHouseProgress(game, tileIndex, activePlayer);
+
+  if (!role || !baseTile || !upgradeTile || placedUpgrade) {
+    return "";
+  }
+
+  const powerSummary = summarizeStewardPowerForGuide(upgradeTile);
+
+  if (!placedBase) {
+    return `${role.name}'s House is available. Its upgraded side unlocks: ${powerSummary}.`;
+  }
+
+  return `${baseTile.tile_name} is placed. Upgrading to ${upgradeTile.tile_name} unlocks: ${powerSummary}.`;
+}
+
 function getGuideInstruction(game, tileIndex, encounterIndex) {
   const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
   const seeded = game.encounter.seededRounds.includes(game.round);
@@ -4981,7 +5150,7 @@ function getGuideInstruction(game, tileIndex, encounterIndex) {
 
   const openingText = formatPendingOpeningPlacement(game, activePlayer);
   if (openingText) {
-    return `${formatPlayerName(activePlayer)} should make the opening move now: ${openingText}.`;
+    return `${formatPlayerName(activePlayer)} should make the opening move now: ${openingText}. Click a highlighted Start hex to place it.`;
   }
 
   const pendingChoice = getActivePendingBurdenChoice(game, encounterIndex);
@@ -4995,7 +5164,7 @@ function getGuideInstruction(game, tileIndex, encounterIndex) {
   }
 
   if (game.map.placedTiles.length === 0) {
-    return "The Vale is empty. Place the required opening Resource tile on matching terrain.";
+    return "The Vale is empty. Click a highlighted Start hex to place the required opening Resource tile.";
   }
 
   return `${formatPlayerName(activePlayer)} has ${activePlayer.actionsRemaining} Action${activePlayer.actionsRemaining === 1 ? "" : "s"}. Place a tile, use a tile, upgrade, or handle an Encounter card.`;
@@ -5032,7 +5201,7 @@ function getPlayerAidPrompt(game, tileIndex, encounterIndex) {
 
   const openingText = formatPendingOpeningPlacement(game, activePlayer);
   if (openingText) {
-    return "Right-click a matching terrain hex to see the legal opening tile for that Steward.";
+    return "Highlighted Start hexes are legal opening sites. Click one to place the required Resource tile automatically.";
   }
 
   const pendingChoice = getActivePendingBurdenChoice(game, encounterIndex);
@@ -5048,6 +5217,11 @@ function getPlayerAidPrompt(game, tileIndex, encounterIndex) {
   const arrivalHint = getArrivalGuideHint(game, encounterIndex);
   if (arrivalHint) {
     return arrivalHint;
+  }
+
+  const stewardHouseHint = getStewardHouseGuideHint(game, tileIndex, activePlayer);
+  if (stewardHouseHint) {
+    return stewardHouseHint;
   }
 
   const selectedTileHint = getGuideSelectedTileHint(game, tileIndex);
@@ -5197,7 +5371,7 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
       tone: "urgent",
       label: "Opening",
       title: `${formatPlayerName(activePlayer)} must place their opening Resource tile`,
-      detail: `${openingText}. Right-click a matching terrain hex to see the legal tile.`
+      detail: `${openingText}. Click a highlighted Start hex to place it automatically.`
     };
   }
 
@@ -6615,6 +6789,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
       ${crossing.valid ? `<p class="network-note">${escapeHtml(crossing.reason)}</p>` : ""}
       ${openingRequirement ? `<p class="network-note opening-note">${escapeHtml(`Opening move required before other map actions: ${openingRequirement.summary}.`)}</p>` : ""}
       ${renderTileSourceText(selectedTileDefinition, "Selected Tile Says")}
+      ${renderStewardHouseUpgradePreview(selectedTileDefinition, tileIndex)}
       ${renderTileSourceText(upgradeTile, "Upgrade Side Says")}
       ${
         needsStrainActivationTarget
@@ -6825,6 +7000,7 @@ function renderSelectedTilePlacementControls({
     selectedId: selectedPlacementStewardPowerId
   });
   const discountControls = renderPlacementCostDiscountChoices(selectedTile, cost, placementResourceDiscount);
+  const selectedTileIndex = state.data?.tiles ? createTileIndex(state.data.tiles) : new Map();
 
   return `
     <div class="tile-wire-placement-panel">
@@ -6877,6 +7053,7 @@ function renderSelectedTilePlacementControls({
           { label: "Resources", value: renderCost(previewCost) }
         ]
       })}
+      ${renderStewardHouseUpgradePreview(selectedTile, selectedTileIndex)}
       ${stewardPowerControls}
       ${discountControls}
       <button id="place-tile" class="primary-button placement-submit-button" type="button" ${canPlace ? "" : "disabled"}>
@@ -6899,6 +7076,7 @@ function renderTileChoiceButtons(options, tileIndex, selection = {}) {
           const selected = tile.tile_id === selection.selectedTileId;
           const upgradeTile = findUpgradeTile(tile, tileIndex);
           const previewSide = getTileFacePreviewSide(tile.tile_id);
+          const stewardHousePreview = renderStewardHouseUpgradePreview(tile, tileIndex, { compact: true });
 
           return renderTileWireframeCard(tile, {
             supply,
@@ -6907,7 +7085,7 @@ function renderTileChoiceButtons(options, tileIndex, selection = {}) {
             upgradeTile,
             previewSide,
             title: selected ? "Selected Tile" : "Available Tile",
-            placementControls: ""
+            placementControls: stewardHousePreview
           });
         })
         .join("")}
@@ -7374,6 +7552,35 @@ function renderApp() {
   saveLocalPlaytestState();
 }
 
+function placeOpeningTileAtCoordinate(coordinate) {
+  if (!state.data || !state.game) {
+    return false;
+  }
+
+  const openingRequirement = getOpeningPlacementRequirementForActivePlayer(state.game);
+
+  if (!openingRequirement) {
+    return false;
+  }
+
+  const tileIndex = createTileIndex(state.data.tiles);
+  const openingOption = getOpeningPlacementOptionsForCoordinate(state.game, tileIndex, coordinate).find(
+    (option) => !option.blockedReason
+  );
+
+  if (!openingOption) {
+    return false;
+  }
+
+  placeTileFromContext(
+    openingOption.tile.tile_id,
+    coordinate,
+    openingOption.orientation,
+    openingOption.placementCostReductionResources
+  );
+  return true;
+}
+
 function selectCoordinate(coordinate, options = {}) {
   if (options.placePending === true && state.pendingPairedPlacement) {
     completePendingPairedPlacement(coordinate);
@@ -7387,6 +7594,10 @@ function selectCoordinate(coordinate, options = {}) {
 
   if (shouldPlacePendingPreview) {
     placeSelectedTile();
+    return;
+  }
+
+  if (options.placePending === true && placeOpeningTileAtCoordinate(coordinate)) {
     return;
   }
 
