@@ -36,6 +36,7 @@ jobs:
           cp index.html pages-dist/
           cp robots.txt pages-dist/
           cp CNAME pages-dist/
+          cp rulebook.pdf pages-dist/
           cp -R src pages-dist/
           find pages-dist -name .DS_Store -delete
           touch pages-dist/.nojekyll
