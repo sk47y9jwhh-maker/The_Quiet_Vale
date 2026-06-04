@@ -5493,6 +5493,13 @@ function renderEncounterPanel(game, encounterIndex) {
         </ul>
       </div>
 
+      ${renderWarehousePanel(game, {
+        compact: true,
+        id: "encounter-warehouse-panel",
+        className: "encounter-warehouse-panel",
+        ariaLabel: "Warehouse resources for Encounter card resolution"
+      })}
+
       <div class="encounter-actions stewards-actions">
         <button id="seed-encounters" class="secondary-button" type="button" ${canSeed ? "" : "disabled"}>Seed Round</button>
         <button id="reveal-encounters" class="primary-button" type="button" ${canReveal ? "" : "disabled"}>Reveal Encounters</button>
@@ -5574,10 +5581,17 @@ function renderEncounterPanel(game, encounterIndex) {
 function renderWarehousePanel(game, options = {}) {
   const compact = options.compact === true;
   const wrapperTag = compact ? "aside" : "section";
-  const wrapperClass = compact ? "warehouse-panel warehouse-strip-panel" : "state-panel warehouse-panel";
+  const wrapperId = options.id ?? "warehouse-panel";
+  const wrapperClass = [
+    compact ? "warehouse-panel warehouse-strip-panel" : "state-panel warehouse-panel",
+    options.className ?? ""
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const ariaLabel = options.ariaLabel ?? "Warehouse resources";
 
   return `
-    <${wrapperTag} id="warehouse-panel" class="${wrapperClass}" aria-label="Warehouse resources">
+    <${wrapperTag} id="${escapeHtml(wrapperId)}" class="${escapeHtml(wrapperClass)}" aria-label="${escapeHtml(ariaLabel)}">
       <h2>Warehouse</h2>
       <ul class="warehouse-grid">
         ${Object.entries(game.warehouse.resources)
