@@ -5682,13 +5682,6 @@ function renderEncounterPanel(game, encounterIndex) {
         </ul>
       </div>
 
-      ${renderWarehousePanel(game, {
-        compact: true,
-        id: "encounter-warehouse-panel",
-        className: "encounter-warehouse-panel",
-        ariaLabel: "Warehouse resources for Encounter card resolution"
-      })}
-
       <div class="encounter-actions stewards-actions">
         <button id="seed-encounters" class="secondary-button" type="button" ${canSeed ? "" : "disabled"}>Seed Round</button>
         <button id="reveal-encounters" class="primary-button" type="button" ${canReveal ? "" : "disabled"}>Reveal Encounters</button>
@@ -7341,15 +7334,21 @@ function renderApp() {
       ${renderTestingBar(state.game, tileIndex, encounterIndex)}
       ${renderCurrentActionPanel(state.game, tileIndex, encounterIndex)}
       <section class="play-layout">
-        ${renderWarehousePanel(state.game, { compact: true })}
         <section class="play-top-grid">
-          <section id="map-panel" class="map-panel" aria-label="Map panel">
-            <header class="map-panel-header">
-              <h2>Map</h2>
-              ${renderMapKey()}
-            </header>
-            ${renderHexMap(state.data.mapHexes, state.game, tileIndex)}
-          </section>
+          <div class="map-stack">
+            <section id="map-panel" class="map-panel" aria-label="Map panel">
+              <header class="map-panel-header">
+                <h2>Map</h2>
+                ${renderMapKey()}
+              </header>
+              ${renderHexMap(state.data.mapHexes, state.game, tileIndex)}
+            </section>
+            ${renderWarehousePanel(state.game, {
+              id: "warehouse-panel",
+              className: "map-warehouse-panel",
+              ariaLabel: "Warehouse resources for map and Encounter decisions"
+            })}
+          </div>
           <aside class="play-side-rail" aria-label="Primary play controls">
             ${renderTilePlacementPanel(state.game, tileIndex, encounterIndex)}
           </aside>
