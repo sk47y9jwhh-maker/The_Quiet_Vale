@@ -157,6 +157,33 @@ textarea {
   background: linear-gradient(90deg, rgba(185, 147, 79, 0.86), transparent);
 }
 
+.header-rulebook-link {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 12px;
+  border: 1px solid rgba(185, 147, 79, 0.58);
+  border-radius: 6px;
+  background:
+    linear-gradient(180deg, rgba(185, 147, 79, 0.16), rgba(29, 37, 33, 0.42)),
+    rgba(5, 5, 5, 0.46);
+  color: #f3e9d7;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-decoration: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.header-rulebook-link:hover,
+.header-rulebook-link:focus-visible {
+  border-color: var(--brass);
+  color: #fff7e8;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(185, 147, 79, 0.18);
+}
+
 .playtest-contact {
   margin-top: 8px;
   color: #d8cfae;
@@ -191,6 +218,13 @@ textarea {
   flex-wrap: wrap;
   gap: 7px 14px;
   margin: 0;
+}
+
+.footer-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
 }
 
 .site-footer .playtest-contact {

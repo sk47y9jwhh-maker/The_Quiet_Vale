@@ -7097,9 +7097,12 @@ function renderSiteFooter() {
     <footer class="site-footer" aria-label="Prototype ownership and contact">
       <p>
         <span>The Quiet Vale&trade;: Seasons of Settlement</span>
-        <span>Prototype materials &copy; Robert Little.</span>
+        <span>Prototype and rulebook materials &copy; Robert Little. All rights reserved.</span>
       </p>
-      <a class="playtest-contact" href="mailto:robert@thequietvalegame.com">robert@thequietvalegame.com</a>
+      <nav class="footer-links" aria-label="Playtest links">
+        <a class="playtest-contact" href="./rulebook.pdf" target="_blank" rel="noopener">View Rulebook</a>
+        <a class="playtest-contact" href="mailto:robert@thequietvalegame.com">robert@thequietvalegame.com</a>
+      </nav>
     </footer>
   `;
 }
@@ -7132,6 +7135,7 @@ function renderApp() {
           <span>${escapeHtml(selectedMapOption?.status ?? "Default prototype map")}</span>
           <strong>${escapeHtml(selectedMapOption?.name ?? "Redesigned Basic Map v0.2")}</strong>
         </div>
+        <a class="header-rulebook-link" href="./rulebook.pdf" target="_blank" rel="noopener">View Rulebook</a>
       </header>
       ${renderTestingBar(state.game, tileIndex, encounterIndex)}
       ${renderCurrentActionPanel(state.game, tileIndex, encounterIndex)}
