@@ -7077,6 +7077,18 @@ function renderGameDashboard(game, encounterIndex) {
   `;
 }
 
+function renderSiteFooter() {
+  return `
+    <footer class="site-footer" aria-label="Prototype ownership and contact">
+      <p>
+        <span>The Quiet Vale&trade;: Seasons of Settlement</span>
+        <span>Prototype materials &copy; Robert Little.</span>
+      </p>
+      <a class="playtest-contact" href="mailto:robert@thequietvalegame.com">robert@thequietvalegame.com</a>
+    </footer>
+  `;
+}
+
 function renderApp() {
   if (state.error) {
     root.innerHTML = `<main class="app-shell"><div class="error-card"><h1>Load Error</h1><p>${escapeHtml(state.error.message)}</p></div></main>`;
@@ -7100,7 +7112,6 @@ function renderApp() {
           <span class="title-signet" aria-hidden="true"></span>
           <h1>The Quiet Vale</h1>
           <p class="app-subtitle">Seasons of Settlement</p>
-          <a class="playtest-contact" href="mailto:robert@thequietvalegame.com">Playtest feedback: robert@thequietvalegame.com</a>
         </div>
         <div class="approval-pill">
           <span>${escapeHtml(selectedMapOption?.status ?? "Default prototype map")}</span>
@@ -7133,6 +7144,7 @@ function renderApp() {
               </section>`
         }
       </section>
+      ${renderSiteFooter()}
       ${renderMapContextLayer(state.game, tileIndex)}
       ${renderSeedCardContextLayer(encounterIndex)}
     </main>

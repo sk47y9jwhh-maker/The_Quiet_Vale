@@ -171,6 +171,34 @@ textarea {
   text-decoration: underline;
 }
 
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 18px;
+  max-width: 1480px;
+  margin: 26px auto 0;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(185, 147, 79, 0.28);
+  color: rgba(246, 237, 220, 0.74);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.site-footer p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  margin: 0;
+}
+
+.site-footer .playtest-contact {
+  margin: 0;
+  color: rgba(216, 207, 174, 0.9);
+  font-size: inherit;
+}
+
 .eyebrow {
   margin: 0 0 2px;
   color: var(--muted);
