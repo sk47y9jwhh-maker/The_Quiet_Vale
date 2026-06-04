@@ -1523,6 +1523,8 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
   const discountText = option.placementCostReductionResources.length > 0 ? " · discount applied" : "";
   const blockedText = option.blockedReason ? ` · ${option.blockedReason}` : "";
   const terrainMatchText = option.isTerrainMatchedResource ? "Terrain match · " : "";
+  const actionCostText = pairedStables ? "1 Action" : `${renderActionCost(option.actionCost)} Action`;
+  const resourceCostText = renderCost(option.cost);
   const summaryText = useTravelPreview
     ? `${terrainMatchText}Select preview, rotate if needed, then left-click to place${blockedText}`
     : pairedStables
@@ -1565,6 +1567,14 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
         <small>${escapeHtml(summaryText)}</small>
       </summary>
       <div class="context-placement-face">
+        ${renderTileEffectPreview(option.tile, {
+          label: "Cost & Effect",
+          className: "context-placement-effect",
+          costSummary: [
+            { label: "Actions", value: actionCostText },
+            { label: "Resources", value: resourceCostText }
+          ]
+        })}
         ${actionButton}
         ${renderTileFaceSvg(option.tile, { upgradeTile })}
       </div>
@@ -2319,6 +2329,7 @@ function renderArrivalMechanics(card) {
             </section>`
           : ""
       }
+      ${renderArrivalUnlockedTileNote(card)}
     </div>
   `;
 }
@@ -2881,7 +2892,16 @@ function renderTileSourceText(tile, title = "Tile Says") {
   `;
 }
 
-function renderPrePlacementTileEffect(tile) {
+function renderTileEffectPreview(
+  tile,
+  {
+    label = "Tile Effect",
+    className = "tile-preplace-effect",
+    costSummary = [],
+    includeTileFace = false,
+    detailsLabel = "View tile"
+  } = {}
+) {
   if (!tile) {
     return "";
   }
@@ -2890,13 +2910,102 @@ function renderPrePlacementTileEffect(tile) {
   const benefit = tile.benefit || "No printed benefit.";
 
   return `
-    <section class="tile-preplace-effect" aria-label="${escapeHtml(`${tile.tile_name} pre-placement effect`)}">
+    <section class="tile-effect-preview ${className}" style="${escapeHtml(getTileCardAccentStyle(tile))}" aria-label="${escapeHtml(`${tile.tile_name} tile effect preview`)}">
       <header>
-        <span>What this tile does</span>
-        <strong>${escapeHtml(effectDetails.label)}</strong>
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(tile.tile_name)}</strong>
+        <small>${escapeHtml(effectDetails.label)}</small>
       </header>
+      ${
+        costSummary.length
+          ? `<dl class="tile-effect-costs">
+              ${costSummary
+                .map(
+                  (entry) => `
+                    <div>
+                      <dt>${escapeHtml(entry.label)}</dt>
+                      <dd>${escapeHtml(entry.value)}</dd>
+                    </div>
+                  `
+                )
+                .join("")}
+            </dl>`
+          : ""
+      }
       <p>${escapeHtml(benefit)}</p>
+      ${
+        includeTileFace
+          ? `<details>
+              <summary>${escapeHtml(detailsLabel)}</summary>
+              ${renderTileFaceSvg(tile)}
+            </details>`
+          : ""
+      }
     </section>
+  `;
+}
+
+function getArrivalUnlockedTiles(card, { game = null, tileIndex = null } = {}) {
+  if (!card?.card_name) {
+    return [];
+  }
+
+  if (game?.tileSupply?.special && tileIndex) {
+    return game.tileSupply.special
+      .filter((entry) => entry.unlockedByArrival === card.card_name)
+      .map((entry) => tileIndex.get(entry.tileId))
+      .filter(Boolean);
+  }
+
+  return (state.data?.tiles ?? []).filter((tile) => tile.unlocked_by_arrival === card.card_name);
+}
+
+function renderArrivalUnlockedTileNote(card) {
+  const unlockedTiles = getArrivalUnlockedTiles(card);
+
+  if (!unlockedTiles.length) {
+    return "";
+  }
+
+  return unlockedTiles
+    .map((tile) => {
+      const effectDetails = getTileEffectDetails(tile);
+
+      return `
+        <section class="arrival-unlocked-tile-note" style="${escapeHtml(getTileCardAccentStyle(tile))}">
+          <span>Unlocked tile</span>
+          <strong>${escapeHtml(tile.tile_name)}</strong>
+          <small>${escapeHtml(effectDetails.label)}: ${escapeHtml(tile.benefit || "No printed benefit.")}</small>
+        </section>
+      `;
+    })
+    .join("");
+}
+
+function renderArrivalUnlockPreview(activeState, card, game, tileIndex) {
+  if (activeState?.encounterType !== ENCOUNTER_TYPES.ARRIVAL) {
+    return "";
+  }
+
+  const unlockedTiles = getArrivalUnlockedTiles(card, { game, tileIndex });
+
+  if (!unlockedTiles.length) {
+    return "";
+  }
+
+  return `
+    <div class="arrival-unlock-preview-list" aria-label="Arrival unlock preview">
+      ${unlockedTiles
+        .map((tile) =>
+          renderTileEffectPreview(tile, {
+            label: "Completing unlocks",
+            className: "arrival-unlock-preview",
+            includeTileFace: true,
+            detailsLabel: "View unlocked tile"
+          })
+        )
+        .join("")}
+    </div>
   `;
 }
 
@@ -4395,6 +4504,7 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
                 ${renderBurdenChoiceControls(activeState)}
                 ${renderBurdenResolutionDiscountChoices(activeState, burdenResolutionDiscountCost, burdenResolutionDiscount)}
                 ${renderArrivalRequirementDiscountChoices(activeState, card, arrivalRequirementDiscount, game)}
+                ${renderArrivalUnlockPreview(activeState, card, game, tileIndex)}
                 ${
                   burdenResolution?.supported
                     ? renderStewardPowerSelect({
@@ -6767,7 +6877,13 @@ function renderSelectedTilePlacementControls({
         <div><dt>Actions</dt><dd>${escapeHtml(renderActionCountLabel(displayedActionCost))}</dd></div>
         <div><dt>Resources</dt><dd>${escapeHtml(renderCost(previewCost))}</dd></div>
       </dl>
-      ${renderPrePlacementTileEffect(selectedTile)}
+      ${renderTileEffectPreview(selectedTile, {
+        label: "Cost & Effect",
+        costSummary: [
+          { label: "Actions", value: renderActionCountLabel(displayedActionCost) },
+          { label: "Resources", value: renderCost(previewCost) }
+        ]
+      })}
       ${stewardPowerControls}
       ${discountControls}
       <button id="place-tile" class="primary-button placement-submit-button" type="button" ${canPlace ? "" : "disabled"}>
