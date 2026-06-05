@@ -4910,14 +4910,31 @@ function renderSetupControls() {
   `;
 }
 
-function renderSetupMenu() {
+function renderHeaderTableAction() {
+  if (isPlaySessionSetup()) {
+    return `
+      <details class="header-setup-menu">
+        <summary class="header-rulebook-link header-table-action header-setup-summary">Setup</summary>
+        <div class="header-setup-popover">
+          ${renderSetupControls()}
+        </div>
+      </details>
+    `;
+  }
+
+  if (isPlaySessionEnded()) {
+    return `<button id="reset-game" class="header-rulebook-link header-table-action" type="button">Reset</button>`;
+  }
+
+  return `<button id="end-game" class="header-rulebook-link header-table-action is-danger" type="button">End Game</button>`;
+}
+
+function renderHeaderActions() {
   return `
-    <details class="setup-menu-dropdown">
-      <summary class="testing-action setup-menu-summary">Setup</summary>
-      <div class="setup-menu-popover">
-        ${renderSetupControls()}
-      </div>
-    </details>
+    <div class="header-actions">
+      <a class="header-rulebook-link" href="./rulebook.pdf" target="_blank" rel="noopener">View Rulebook</a>
+      ${renderHeaderTableAction()}
+    </div>
   `;
 }
 
@@ -5083,33 +5100,6 @@ function renderGameStatus(game, encounterIndex) {
       <h3>Deck Composition</h3>
       ${renderTypeChips(deckCounts)}
     </section>
-  `;
-}
-
-function renderTestingBarAction(action, label, enabled, className = "secondary") {
-  return `
-    <button class="testing-action ${className}" data-quick-action="${escapeHtml(action)}" type="button" ${enabled ? "" : "disabled"}>
-      ${escapeHtml(label)}
-    </button>
-  `;
-}
-
-function renderTestingBarResult(result) {
-  if (!result) {
-    return "";
-  }
-
-  const message = result.ok ? result.message : result.errors?.[0];
-
-  if (!message) {
-    return "";
-  }
-
-  return `
-    <p class="testing-result ${result.ok ? "ok" : "bad"}">
-      <b>${result.ok ? "Last action" : "Blocked"}</b>
-      <span>${escapeHtml(message)}</span>
-    </p>
   `;
 }
 
@@ -5400,13 +5390,6 @@ function getPlayerAidPrompt(game, tileIndex, encounterIndex) {
   return "";
 }
 
-function getGuideContent(game, tileIndex, encounterIndex) {
-  return {
-    instruction: getGuideInstruction(game, tileIndex, encounterIndex),
-    aid: getPlayerAidPrompt(game, tileIndex, encounterIndex)
-  };
-}
-
 function getCurrentActionState(game, tileIndex, encounterIndex) {
   const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
   const seeded = game.encounter.seededRounds.includes(game.round);
@@ -5420,9 +5403,7 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
       tone: "setup",
       label: "Setup",
       title: "Prepare the table",
-      detail: "Choose player count and Stewards, then start the playthrough.",
-      quickAction: "start-game",
-      quickLabel: "Start Game"
+      detail: "Choose player count and Stewards, then start the playthrough."
     };
   }
 
@@ -5431,9 +5412,7 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
       tone: "review",
       label: "Review",
       title: "Playthrough ended",
-      detail: "Review the final board and score, then reset when the next group is ready.",
-      quickAction: "reset-game",
-      quickLabel: "Reset Game"
+      detail: "Review the final score, Warehouse, Encounter cards, and settlement shape. Use Reset when the next group is ready."
     };
   }
 
@@ -5613,87 +5592,60 @@ function renderCurrentActionButtons(actionState) {
   `;
 }
 
+function renderCurrentActionMeta(game, tileIndex) {
+  const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
+  const selectedPlacedTile = getPlacedTileAt(game, state.selectedCoordinate);
+  const selectedTileLabel = selectedPlacedTile
+    ? getTileNameByPlacedId(game, tileIndex, selectedPlacedTile.id)
+    : "Empty hex";
+  const lastAction = state.lastActionResult
+    ? state.lastActionResult.ok
+      ? state.lastActionResult.message
+      : state.lastActionResult.errors?.[0]
+    : "None yet";
+
+  return `
+    <dl class="current-action-meta">
+      <div><dt>Round</dt><dd>${game.round}/${game.rules.totalRounds}</dd></div>
+      <div><dt>Season</dt><dd>${escapeHtml(game.season)}</dd></div>
+      <div><dt>Steward</dt><dd>${escapeHtml(activePlayer ? formatPlayerName(activePlayer) : getPlaySessionLabel())}</dd></div>
+      <div><dt>Selected</dt><dd>${escapeHtml(`${selectedTileLabel} at ${state.selectedCoordinate}`)}</dd></div>
+      <div class="last-action"><dt>Last action</dt><dd>${escapeHtml(lastAction || "None yet")}</dd></div>
+    </dl>
+  `;
+}
+
+function renderCurrentActionScoreboard(game) {
+  if (!isPlaySessionEnded() && game.phase !== GAME_PHASES.COMPLETE) {
+    return "";
+  }
+
+  const score = game.score;
+
+  return `
+    <dl class="current-scoreboard" aria-label="Final score">
+      <div class="score-total"><dt>Final Score</dt><dd>${score.total}</dd></div>
+      <div><dt>Population</dt><dd>${score.population}</dd></div>
+      <div><dt>Renown</dt><dd>${score.renown}</dd></div>
+      <div><dt>Burdens</dt><dd>-${score.activeBurdenPenalty}</dd></div>
+      <div><dt>Strain</dt><dd>-${score.strainPenalty}</dd></div>
+    </dl>
+  `;
+}
+
 function renderCurrentActionPanel(game, tileIndex, encounterIndex) {
   const actionState = getCurrentActionState(game, tileIndex, encounterIndex);
 
   return `
     <section class="current-action-panel is-${escapeHtml(actionState.tone)}" aria-label="Current action">
-      <div>
+      <div class="current-action-copy">
         <span>${escapeHtml(actionState.label)}</span>
         <strong>${escapeHtml(actionState.title)}</strong>
         <p>${escapeHtml(actionState.detail)}</p>
+        ${renderCurrentActionMeta(game, tileIndex)}
+        ${renderCurrentActionScoreboard(game)}
       </div>
       ${renderCurrentActionButtons(actionState)}
-    </section>
-  `;
-}
-
-function renderTestingGuide(game, tileIndex, encounterIndex) {
-  const guide = getGuideContent(game, tileIndex, encounterIndex);
-
-  return `
-    <aside class="testing-guide" aria-label="Table guide">
-      <div class="testing-guide-item guide-progress">
-        <b>Next Step</b>
-        <span>${escapeHtml(guide.instruction)}</span>
-      </div>
-      ${
-        guide.aid
-          ? `<div class="testing-guide-item guide-aid">
-              <b>Player Aid</b>
-              <span>${escapeHtml(guide.aid)}</span>
-            </div>`
-          : ""
-      }
-    </aside>
-  `;
-}
-
-function renderTestingBar(game, tileIndex, encounterIndex) {
-  const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
-  const selectedPlacedTile = getPlacedTileAt(game, state.selectedCoordinate);
-  const selectedTileName = selectedPlacedTile
-    ? getTileNameByPlacedId(game, tileIndex, selectedPlacedTile.id)
-    : "Empty hex";
-  const seeded = game.encounter.seededRounds.includes(game.round);
-  const revealed = game.encounter.revealedRounds.includes(game.round);
-  const playing = isPlaySessionPlaying();
-  const canSeed = playing && game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded;
-  const canReveal = playing && game.phase === GAME_PHASES.REVEAL_ENCOUNTERS && !revealed;
-  const canEndTurn = playing && game.phase === GAME_PHASES.PLAYER_TURNS && Boolean(activePlayer);
-  const canEndRound = playing && game.phase === GAME_PHASES.END_ROUND;
-  const stewardText = activePlayer ? formatPlayerLastInteraction(game, tileIndex, activePlayer) : "No active steward";
-  const sessionClass = `session-${state.playSessionState}`;
-  const phaseLabel = isPlaySessionSetup() ? "Setup" : formatPhase(game.phase);
-  const actionButtons = isPlaySessionSetup()
-    ? renderTestingBarAction("start-game", "Start Game", true, "primary")
-    : isPlaySessionEnded()
-      ? renderTestingBarAction("reset-game", "Reset Game", true, "primary")
-      : [
-          renderTestingBarAction("seed", "Seed", canSeed),
-          renderTestingBarAction("reveal", "Reveal", canReveal, "primary"),
-          renderTestingBarAction("end-turn", "End Turn", canEndTurn, "primary"),
-          renderTestingBarAction("end-round", "End Round", canEndRound),
-          renderTestingBarAction("end-game", "End Game", true, "danger")
-        ].join("");
-
-  return `
-    <section class="testing-bar" aria-label="Play controls">
-      <div class="testing-status">
-        <span class="status-chip session-status ${escapeHtml(sessionClass)}">Table <b>${escapeHtml(getPlaySessionLabel())}</b></span>
-        <span class="status-chip save-status">Local Save <b>${getLocalSaveStorage() ? "On" : "Off"}</b></span>
-        <span class="status-chip phase-status"><b>${escapeHtml(phaseLabel)}</b></span>
-        <span class="status-chip round-status">Round <b>${game.round}/${game.rules.totalRounds}</b></span>
-        <span class="status-chip player-status">${escapeHtml(activePlayer ? formatPlayerName(activePlayer) : "No active player")} <b>${activePlayer ? `${activePlayer.actionsRemaining}/${game.rules.actionsPerPlayer}` : "0/0"}</b></span>
-        <span class="status-chip selected-status">Selected <b>${escapeHtml(`${selectedTileName} at ${state.selectedCoordinate}`)}</b></span>
-        <span class="status-chip steward-status">Steward <b>${escapeHtml(stewardText)}</b></span>
-      </div>
-      ${renderTestingGuide(game, tileIndex, encounterIndex)}
-      <div class="testing-actions">
-        ${renderSetupMenu()}
-        ${actionButtons}
-      </div>
-      ${renderTestingBarResult(state.lastActionResult)}
     </section>
   `;
 }
@@ -7732,9 +7684,8 @@ function renderApp() {
           <h1>The Quiet Vale</h1>
           <p class="app-subtitle">Seasons of Settlement</p>
         </div>
-        <a class="header-rulebook-link" href="./rulebook.pdf" target="_blank" rel="noopener">View Rulebook</a>
+        ${renderHeaderActions()}
       </header>
-      ${renderTestingBar(state.game, tileIndex, encounterIndex)}
       ${renderCurrentActionPanel(state.game, tileIndex, encounterIndex)}
       <section class="play-layout">
         <section class="play-top-grid">
