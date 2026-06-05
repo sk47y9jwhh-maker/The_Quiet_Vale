@@ -14,6 +14,7 @@ This note tracks the local prototype as of the v2.0 aligned production-set pass.
 - Builds connected settlement networks from all placed, non-Overstrained tiles while keeping printed Travel Tile identity for Travel-specific effects.
 - Counts every hex in a multihex tile footprint when checking connected settlement adjacency and disconnected placement costs.
 - Handles local Encounter setup, debug seeding, reveal, active Arrivals, active Burdens, active Boons, and end-of-round/end-of-season flow.
+- Excludes Golden Boons from normal online prototype setup because they are not currently supported for blind testing.
 - Shows source text for Encounter cards and tiles so testing can compare the rule text against the implemented behavior.
 - Implements v2.2 Core Resource production values, Workshop/Makers Conclave upgrade support, Market/Seldes Goods substitution, and The Apprentice Steward as a placement Action discount rather than a resource discount.
 - Shows Encounter flavour text prominently on active Encounter cards, recent reveals, and round effects so playtests can read the settlement story while checking mechanics.
@@ -21,15 +22,11 @@ This note tracks the local prototype as of the v2.0 aligned production-set pass.
 - Provides a compact dynamic helper panel for phase, round, season, selected hex, last action, and common turn-flow actions.
 - Prioritizes the playtest layout around the map, Warehouse, tile placement, selected tile actions, and Encounter cards before lower-priority debug and feedback tools.
 - Provides prototype map shortcuts: right-click an empty hex to rotate a selected multihex placement preview, and right-click a placed tile to open quick Produce/Interact and Upgrade actions.
-- Provides debug scenario presets for focused local checks of disconnected Travel, Steward marker travel anchoring, Arrival completion, Burden resolution, Boon discounts, Supported Strain, and Golden Vial travel.
+- Provides debug scenario presets for focused local checks of disconnected Travel, Steward marker travel anchoring, Arrival completion, Burden resolution, Boon discounts, Supported Strain, and legacy Golden Vial travel.
 - Shows a Playtest Pulse panel with action mix, travel friction, Encounter pressure, board Strain, resource caps, and pacing signals for subjective playtesting.
 - Provides Playtest Notes and a generated markdown report for capturing subjective fun, pacing, tension, choice quality, friction, balance notes, and rule questions.
 - Gives previously unresolvable Burdens a Season III 4 Goods resolution opportunity where implemented, while keeping them persistent before that point.
-- Implements `The Golden Bell` as a deterministic prototype choice from eligible game-box Arrivals, revealing one as an active Arrival with 3 timer tokens.
-- Implements `The Golden Eyed Traveler` as one additional Player Turns phase before end-of-round effects.
-- Implements `The Golden Scroll` as a pending hand-refresh choice that discards selected standard hand cards and draws replacements from eligible game-box standards.
-- Implements `The Golden Signet Ring` as a pending relocation choice for up to 5 placed tiles, preserving tile state while enforcing empty final footprints and terrain/river restrictions.
-- Implements `The Golden Vial` as a rest-of-game, once-per-round discount for the disconnected Travel action cost.
+- Keeps legacy Golden Boon handling in code for isolated reference checks, but Golden Boons are not currently supported by normal online prototype setup.
 - Supports player last-interaction markers as the local stand-in for Steward Tokens.
 - Counts the acting player's last-interaction marker as the local travel anchor for disconnected Travel action costs.
 - Places each selected Steward House for free during setup; the old forced Round 1 opening Resource tile is no longer required.

@@ -25,7 +25,7 @@ const mapHexes = await readJson("codex_default_map_v0_1.json");
 const encounterIndex = createEncounterIndex(encounterCards);
 
 for (const playerCount of [1, 2, 3, 4]) {
-  test(`${playerCount}-player setup creates correct hands, deck, and Golden Boon count`, () => {
+  test(`${playerCount}-player setup creates correct hands and deck without prototype Golden Boons`, () => {
     const state = createInitialGameState({
       playerCount,
       seed: `setup-${playerCount}`,
@@ -45,8 +45,12 @@ for (const playerCount of [1, 2, 3, 4]) {
     assert.equal(state.players.every((player) => player.hand.length === 10), true);
     assert.equal(state.players.every((player) => player.lastInteraction === null), true);
     assert.equal(handCards.every((card) => card.encounter_type !== ENCOUNTER_TYPES.GOLDEN_BOON), true);
-    assert.equal(state.encounter.deck.length, 5 * playerCount + 1);
-    assert.equal(deckCards.filter((card) => card.encounter_type === ENCOUNTER_TYPES.GOLDEN_BOON).length, 1);
+    assert.equal(state.encounter.deck.length, 5 * playerCount + STANDARD_RULES.goldenBoonsPerGame);
+    assert.equal(
+      deckCards.filter((card) => card.encounter_type === ENCOUNTER_TYPES.GOLDEN_BOON).length,
+      STANDARD_RULES.goldenBoonsPerGame
+    );
+    assert.deepEqual(state.encounter.setup.selectedGoldenBoonIds, []);
     assert.equal(standardCounts[ENCOUNTER_TYPES.BOON], 5 * playerCount);
     assert.equal(standardCounts[ENCOUNTER_TYPES.BURDEN], 5 * playerCount);
     assert.equal(standardCounts[ENCOUNTER_TYPES.ARRIVAL], 5 * playerCount);

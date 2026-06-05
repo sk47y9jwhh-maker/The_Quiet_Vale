@@ -190,7 +190,7 @@ const PLAY_SESSION_LABELS = Object.freeze({
 });
 
 const LOCAL_SAVE_KEY = "the-quiet-vale-playtest-state-v1";
-const LOCAL_SAVE_VERSION = 3;
+const LOCAL_SAVE_VERSION = 4;
 
 const root = document.querySelector("#app");
 const state = {
@@ -245,11 +245,79 @@ const state = {
   },
   contextMenu: null,
   seedContextMenu: null,
-  lastActionResult: null
+  lastActionResult: null,
+  gameHistory: []
 };
+
+const MAX_UNDO_HISTORY = 30;
 
 function cloneForLocalSave(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+function clearGameHistory() {
+  state.gameHistory = [];
+}
+
+function rememberGameStateForUndo(action = "table action") {
+  if (!state.game) {
+    return;
+  }
+
+  state.gameHistory = [
+    ...state.gameHistory.slice(-(MAX_UNDO_HISTORY - 1)),
+    {
+      action,
+      game: cloneForLocalSave(state.game),
+      playSessionState: state.playSessionState,
+      selectedCoordinate: state.selectedCoordinate,
+      selectedTileId: state.selectedTileId,
+      selectedOrientation: state.selectedOrientation
+    }
+  ];
+}
+
+function applyGameOutcome(nextGame, result, action = result?.action ?? "table action") {
+  if (result?.ok) {
+    rememberGameStateForUndo(action);
+  }
+
+  state.game = nextGame;
+  state.lastActionResult = result;
+}
+
+function canUndoLastAction() {
+  return !isPlaySessionSetup() && state.gameHistory.length > 0;
+}
+
+function undoLastAction() {
+  const previous = state.gameHistory.at(-1);
+
+  if (!previous) {
+    state.lastActionResult = {
+      ok: false,
+      action: "UNDO_LAST_ACTION",
+      errors: ["No previous table action to undo."]
+    };
+    renderApp();
+    return;
+  }
+
+  state.gameHistory = state.gameHistory.slice(0, -1);
+  state.game = cloneForLocalSave(previous.game);
+  state.playSessionState = previous.playSessionState ?? state.playSessionState;
+  state.selectedCoordinate = previous.selectedCoordinate ?? state.selectedCoordinate;
+  state.selectedTileId = previous.selectedTileId ?? state.selectedTileId;
+  state.selectedOrientation = previous.selectedOrientation ?? state.selectedOrientation;
+  resetLocalTestingControls();
+  syncSelectedCoordinate();
+  syncSelectedTile();
+  state.lastActionResult = {
+    ok: true,
+    action: "UNDO_LAST_ACTION",
+    message: "Undid the last table action."
+  };
+  renderApp();
 }
 
 function getLocalSaveStorage() {
@@ -416,6 +484,7 @@ function restoreLocalPlaytestState() {
       contextMenu: null,
       data: state.data,
       error: null,
+      gameHistory: [],
       seedContextMenu: null,
       simulation: {
         ...state.simulation,
@@ -788,6 +857,7 @@ function createGame(options = {}) {
     setupStewardHousePlacement: options.setupStewardHousePlacement === true,
     enforceOpeningResourcePlacement: false
   });
+  clearGameHistory();
   state.lastActionResult = null;
   resetLocalTestingControls();
   syncSelectedTile();
@@ -869,6 +939,7 @@ function endPlaySession() {
     return;
   }
 
+  rememberGameStateForUndo("END_GAME");
   state.playSessionState = PLAY_SESSION_STATES.ENDED;
   state.contextMenu = null;
   state.seedContextMenu = null;
@@ -4875,6 +4946,7 @@ function renderSetupControls() {
       </label>
       ${renderStewardSetupControls()}
       ${renderStartingWarehouseReference()}
+      <p class="setup-session-note">Golden Boons are not currently supported by the online prototype and are excluded from setup.</p>
       <label class="stacked-field">
         <span>Seed</span>
         <input id="setup-seed" value="${escapeHtml(state.setupSeed)}" aria-label="Seed" ${inputDisabled} />
@@ -7492,6 +7564,7 @@ function renderTableAssistPanel() {
       </summary>
       <p class="mini-copy">Use only if a facilitator needs to correct the table during a test.</p>
       <div class="button-row">
+        <button id="undo-last-action" class="secondary-button" type="button" ${canUndoLastAction() ? "" : "disabled"}>Undo Last Action</button>
         <button id="fill-warehouse" class="secondary-button" type="button" ${isPlaySessionPlaying() ? "" : "disabled"}>Fill Warehouse</button>
         <button id="reset-actions" class="secondary-button" type="button" ${isPlaySessionPlaying() ? "" : "disabled"}>Reset Actions</button>
       </div>
@@ -7791,8 +7864,7 @@ function placeStewardHouseAtCoordinate(coordinate) {
     { tiles: state.data.tiles }
   );
 
-  state.game = outcome.state;
-  state.lastActionResult = outcome.result;
+  applyGameOutcome(outcome.state, outcome.result);
   state.contextMenu = null;
   state.seedContextMenu = null;
   state.selectedCoordinate = coordinate;
@@ -8027,8 +8099,7 @@ function upgradePlacedTile(placedTileId) {
     { tiles: state.data.tiles }
   );
 
-  state.game = nextGame;
-  state.lastActionResult = result;
+  applyGameOutcome(nextGame, result);
   state.contextMenu = null;
 
   if (result.ok && placedTile) {
@@ -8135,8 +8206,7 @@ function activatePlacedTile(placedTileId) {
     { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
   );
 
-  state.game = nextGame;
-  state.lastActionResult = result;
+  applyGameOutcome(nextGame, result);
   state.contextMenu = null;
 
   if (result.ok && placedTile) {
@@ -8235,8 +8305,7 @@ function completePendingPairedPlacement(coordinate) {
     { tiles: state.data.tiles }
   );
 
-  state.game = nextGame;
-  state.lastActionResult = result;
+  applyGameOutcome(nextGame, result);
   state.contextMenu = null;
   state.seedContextMenu = null;
   state.selectedTileId = pending.tileId;
@@ -8327,8 +8396,7 @@ function placeSelectedTile() {
     { tiles: state.data.tiles }
   );
 
-  state.game = nextGame;
-  state.lastActionResult = result;
+  applyGameOutcome(nextGame, result);
   state.contextMenu = null;
 
   if (result.ok) {
@@ -8555,8 +8623,7 @@ function runQuickAction(actionName) {
     return;
   }
 
-  state.game = outcome.state;
-  state.lastActionResult = outcome.result;
+  applyGameOutcome(outcome.state, outcome.result);
   syncSelectedTile();
   renderApp();
 }
@@ -8812,10 +8879,11 @@ function bindEvents() {
       },
       { tiles: state.data.tiles }
     );
-    state.game = nextGame;
-    state.lastActionResult = result;
+    applyGameOutcome(nextGame, result);
     renderApp();
   });
+
+  root.querySelector("#undo-last-action")?.addEventListener("click", undoLastAction);
 
   root.querySelector("#end-turn")?.addEventListener("click", () => {
     if (!isPlaySessionPlaying()) {
@@ -8831,8 +8899,7 @@ function bindEvents() {
       },
       { tiles: state.data.tiles }
     );
-    state.game = nextGame;
-    state.lastActionResult = result;
+    applyGameOutcome(nextGame, result);
     renderApp();
   });
 
@@ -8850,8 +8917,7 @@ function bindEvents() {
       },
       { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
     );
-    state.game = nextGame;
-    state.lastActionResult = result;
+    applyGameOutcome(nextGame, result);
     renderApp();
   });
 
@@ -8869,8 +8935,7 @@ function bindEvents() {
       },
       { tiles: state.data.tiles }
     );
-    state.game = nextGame;
-    state.lastActionResult = result;
+    applyGameOutcome(nextGame, result);
     renderApp();
   });
 
@@ -8890,8 +8955,7 @@ function bindEvents() {
       },
       { tiles: state.data.tiles }
     );
-    state.game = nextGame;
-    state.lastActionResult = result;
+    applyGameOutcome(nextGame, result);
     if (result.ok) {
       state.debugSeedSelections = {};
       state.seedContextMenu = null;
@@ -8913,8 +8977,7 @@ function bindEvents() {
       },
       { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
     );
-    state.game = nextGame;
-    state.lastActionResult = result;
+    applyGameOutcome(nextGame, result);
     renderApp();
   });
 
@@ -8935,8 +8998,7 @@ function bindEvents() {
         },
         { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
       );
-      state.game = nextGame;
-      state.lastActionResult = result;
+      applyGameOutcome(nextGame, result);
       if (result.ok) {
         delete state.arrivalRequirementDiscounts[button.dataset.activeEncounterId];
       }
@@ -8977,8 +9039,7 @@ function bindEvents() {
         },
         { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
       );
-      state.game = nextGame;
-      state.lastActionResult = result;
+      applyGameOutcome(nextGame, result);
       if (result.ok) {
         delete state.burdenChoiceDecisions[activeEncounterId];
       }
@@ -9037,8 +9098,7 @@ function bindEvents() {
         },
         { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
       );
-      state.game = nextGame;
-      state.lastActionResult = result;
+      applyGameOutcome(nextGame, result);
       if (result.ok) {
         delete state.burdenPayments[activeEncounterId];
         delete state.burdenChoiceDecisions[activeEncounterId];
@@ -9108,8 +9168,7 @@ function bindEvents() {
         },
         { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
       );
-      state.game = nextGame;
-      state.lastActionResult = result;
+      applyGameOutcome(nextGame, result);
       if (result.ok) {
         delete state.boonStrainReliefTargets[activeEncounterId];
         delete state.boonExchangePayments[activeEncounterId];
@@ -9141,8 +9200,7 @@ function bindEvents() {
         },
         { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
       );
-      state.game = nextGame;
-      state.lastActionResult = result;
+      applyGameOutcome(nextGame, result);
       if (result.ok) {
         delete state.boonStrainReliefTargets[activeEncounterId];
         delete state.boonExchangePayments[activeEncounterId];
@@ -9509,8 +9567,7 @@ function bindEvents() {
       },
       { tiles: state.data.tiles }
     );
-    state.game = nextGame;
-    state.lastActionResult = result;
+    applyGameOutcome(nextGame, result);
     if (result.ok) {
       const stewardExchangePayments = { ...state.stewardExchangePayments };
       delete stewardExchangePayments[placedTile.id];
@@ -9640,8 +9697,7 @@ function bindEvents() {
       },
       { tiles: state.data.tiles }
     );
-    state.game = nextGame;
-    state.lastActionResult = result;
+    applyGameOutcome(nextGame, result);
     renderApp();
   });
 
@@ -9662,8 +9718,7 @@ function bindEvents() {
       },
       { tiles: state.data.tiles }
     );
-    state.game = nextGame;
-    state.lastActionResult = result;
+    applyGameOutcome(nextGame, result);
     renderApp();
   });
 
@@ -9684,8 +9739,7 @@ function bindEvents() {
       },
       { tiles: state.data.tiles }
     );
-    state.game = nextGame;
-    state.lastActionResult = result;
+    applyGameOutcome(nextGame, result);
     renderApp();
   });
 
@@ -9706,8 +9760,7 @@ function bindEvents() {
       },
       { tiles: state.data.tiles }
     );
-    state.game = nextGame;
-    state.lastActionResult = result;
+    applyGameOutcome(nextGame, result);
     renderApp();
   });
 
@@ -9747,8 +9800,7 @@ function bindEvents() {
         },
         { tiles: state.data.tiles }
       );
-      state.game = nextGame;
-      state.lastActionResult = result;
+      applyGameOutcome(nextGame, result);
       renderApp();
     });
   });

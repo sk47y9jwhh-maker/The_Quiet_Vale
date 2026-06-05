@@ -51,7 +51,7 @@ Full tile and card component tables are in `docs/the_quiet_vale_component_list_t
 8. Shuffle the standard pool.
 9. Deal 10 hidden Encounter Cards to each player.
 10. Deal 5 standard Encounter Cards per player to the Encounter Deck.
-11. Add exactly 1 random Golden Boon to the Encounter Deck. Golden Boons are never dealt to player hands.
+11. Golden Boons are not currently supported by the online prototype. Do not add a Golden Boon during online prototype playtests.
 12. Each player places their Steward House for free on its setup terrain. This costs 0 Actions and 0 resources, ignores normal adjacency, and must use an empty non-River hex.
 13. Start at Round 1, Season I, Seed Encounters phase. Each player has 4 Actions available for the round. There is no forced opening Resource tile; players choose their first normal tile action.
 
@@ -82,18 +82,17 @@ A round can seed Encounter Cards only once.
 
 During Reveal Encounters, reveal standard Encounter Cards equal to the player count.
 
-Golden Boon exception:
+Golden Boon online prototype note:
 
-- A Golden Boon does not count as a standard reveal.
-- When a Golden Boon is revealed, resolve its bespoke effect.
-- Continue revealing until the required number of standard Encounter Cards has been revealed.
+- Golden Boons are not currently supported by the online prototype.
+- Reveal standard Encounter Cards only during online prototype playtests.
 
 Encounter types:
 
 - Boon: resolve the current Season effect. If the effect modifies a future action, keep it visible until used or expired by its text.
 - Burden: apply the current Season effect, then place the card as an active Burden unless the card's resolution lifecycle says otherwise.
 - Arrival: place it as an active Arrival with 3 timer tokens.
-- Golden Boon: resolve its bespoke effect as an extra reveal.
+- Golden Boon: not currently supported by the online prototype.
 
 A round can reveal Encounters only once.
 
@@ -277,9 +276,9 @@ Arrival and Special Tile links from JSON:
 
 ## Golden Boons
 
-Golden Boons are special Encounter Cards added to the deck during setup. They are not dealt to player hands and do not count as standard reveals.
+Golden Boons are special Encounter Cards in the design set, but they are not currently supported by the online prototype. Do not add them to the Encounter Deck during online prototype playtests.
 
-Implemented Golden Boon effects:
+Legacy Golden Boon implementation notes:
 
 - The Golden Bell: reveal an eligible Arrival from the game box as an active Arrival.
 - The Golden Eyed Traveler: open one additional Player Turns phase before end-of-round effects.

@@ -30,7 +30,7 @@ export const STANDARD_RULES = Object.freeze({
   actionsPerPlayer: 4,
   hiddenCardsPerPlayer: 10,
   standardDeckCardsPerPlayer: 5,
-  goldenBoonsPerGame: 1,
+  goldenBoonsPerGame: 0,
   councilVariantStartingWarehouseResources: 0,
   arrivalStartTimerTokens: 3,
   arrivalTimerMax: 3,

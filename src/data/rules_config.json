@@ -43,15 +43,15 @@
   },
   "standard_deck_cards_per_player": {
     "value": null,
-    "notes": "Initial Encounter Deck before Golden Boon."
+    "notes": "Initial Encounter Deck. Golden Boons are excluded from the online prototype."
   },
   "golden_boons_per_game": {
-    "value": null,
-    "notes": "Added to Encounter Deck; not dealt to hands."
+    "value": 0,
+    "notes": "Golden Boons are not currently supported by the online prototype."
   },
   "reveal_standard_cards_per_round": {
     "value": null,
-    "notes": "Golden Boon is extra reveal and does not count."
+    "notes": "Reveal standard Encounter Cards only in the online prototype."
   },
   "arrival_start_timer_tokens": {
     "value": null,

@@ -1,5 +1,5 @@
 The Quiet Vale playtester rulebook styled draft v0.4
-PDF: The_Quiet_Vale_Playtester_Rulebook_Styled_Draft_v0_4.pdf
+PDF: rulebook.pdf
 Source DOCX: /Users/robertlittle/Downloads/The_Quiet_Vale_Production_Rulebook_v2_3_Encounter_Balance_Tables_Left.docx
 Pages: 9
 Trim approach: table-facing rules only; opening flavour text preserved; recent Steward House setup, reachability, and scoring rules reflected.

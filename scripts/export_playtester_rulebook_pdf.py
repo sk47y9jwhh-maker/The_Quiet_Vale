@@ -185,6 +185,45 @@ def steward_house_setup_table():
     )
 
 
+def online_encounter_setup_table():
+    return manual_table(
+        [
+            ["Players", "Boons", "Burdens", "Arrivals", "Golden Boons", "Hidden Cards", "Deck Cards"],
+            ["1", "5", "5", "5", "0 - not supported online", "10", "5 standard"],
+            ["2", "10", "10", "10", "0 - not supported online", "10 each", "10 standard"],
+            ["3", "15", "15", "15", "0 - not supported online", "10 each", "15 standard"],
+            ["4", "20", "20", "20", "0 - not supported online", "10 each", "20 standard"],
+        ],
+        widths=[15 * mm, 17 * mm, 19 * mm, 19 * mm, 42 * mm, 23 * mm, 24 * mm],
+    )
+
+
+def online_round_phase_table():
+    return manual_table(
+        [
+            ["Phase", "Name", "Summary"],
+            ["1", "Seed Encounter Cards", "Each player with cards remaining in hand seeds 1 hidden Encounter Card into the Encounter Deck."],
+            ["2", "Reveal Encounters", "Reveal standard Encounter Cards equal to player count. Golden Boons are not used in the online prototype."],
+            ["3", "Player Turns", "Each player takes one turn with 4 Actions. The group chooses turn order."],
+            ["4", "End of Round", "Remove Arrival timers, expire failed Arrivals, discard applicable Boons, and advance the Round Timer."],
+        ],
+        widths=[16 * mm, 42 * mm, 101 * mm],
+    )
+
+
+def online_encounter_type_table():
+    return manual_table(
+        [
+            ["Encounter Type", "When Revealed"],
+            ["Boon", "Resolve the current Season effect. If it modifies a later action or future event, keep it face-up according to its text."],
+            ["Burden", "Apply the current Season effect. Place the card on the Stewards Board as an active Burden."],
+            ["Arrival", "Place it on the Stewards Board with 3 timer tokens. Players may complete it by fulfilling its Requirement and spending an Interact action."],
+            ["Golden Boon", "Not currently supported by the online prototype."],
+        ],
+        widths=[36 * mm, 123 * mm],
+    )
+
+
 def steward_power_table():
     return manual_table(
         [
@@ -286,7 +325,7 @@ def build_story(doc) -> list:
                 "Lay out the Game Map, Stewards Board, Warehouse Board, and Round Timer.",
                 "Each player chooses a unique Steward and takes that Steward's Player Aid and Steward House Tile.",
                 "Set the shared Warehouse using the player-count table.",
-                "Build the balanced Encounter pool, deal hidden player hands, build the Encounter Deck, and add 1 random Golden Boon.",
+                "Build the balanced Encounter pool, deal hidden player hands, and build the Encounter Deck. Golden Boons are not currently supported by the online prototype.",
                 "Each player places their Steward House for free on its setup terrain. This costs 0 Actions and 0 resources, ignores normal adjacency, and must use an empty non-River hex.",
                 "Begin Round 1 with the Seed Encounter Cards phase. There is no forced opening Resource tile; players choose their first normal tile action.",
             ]
@@ -298,12 +337,13 @@ def build_story(doc) -> list:
     story.append(steward_house_setup_table())
     story.append(compact_rule_box("Why houses matter", "A basic Steward House is a normal placed Housing tile. Its upgraded Home unlocks that Steward's once-per-Season power. Only the matching Steward may use their own Steward Power."))
     story.append(heading("Encounter Setup", 2))
-    story.append(docx_table_to_flowable(table_by_index(doc, 2)))
+    story.append(online_encounter_setup_table())
+    story.append(compact_rule_box("Online prototype note", "Golden Boons are excluded from the current online prototype and should not be added during online playtests."))
 
     story.append(heading("Round Structure"))
     story.append(body("The game lasts 15 rounds across three Seasons. Each round follows the same four phases."))
     story.append(docx_table_to_flowable(table_by_index(doc, 3)))
-    story.append(docx_table_to_flowable(table_by_index(doc, 5)))
+    story.append(online_round_phase_table())
     story.append(heading("Reveal And Actions By Player Count", 2))
     story.append(docx_table_to_flowable(table_by_index(doc, 6)))
 
@@ -355,7 +395,7 @@ def build_story(doc) -> list:
 
     story.append(heading("Encounter Cards"))
     story.append(body("Encounter Cards are seeded into and revealed from the Encounter Deck. Cards on the Stewards Board are open information. Players may inspect active cards, completed Arrivals, active Burdens, and face-up Boons."))
-    story.append(docx_table_to_flowable(table_by_index(doc, 9)))
+    story.append(online_encounter_type_table())
 
     story.append(heading("Arrivals And Special Tiles"))
     for item in [
@@ -388,9 +428,7 @@ def build_story(doc) -> list:
         "Boon effects are optional unless the card says otherwise.",
         "Most Boons resolve immediately and are discarded.",
         "Boons that affect the next or first eligible action stay face-up until used, then are discarded. If unused, discard them in Phase Four unless the card says to keep it face-up.",
-        "Each game includes exactly one Golden Boon in the Encounter Deck.",
-        "Golden Boons are extra reveals and do not count toward the number of standard Encounter Cards revealed that round.",
-        "Golden Boons use their own Effect text and may create one specific exception to normal rules.",
+        "Golden Boons are not currently supported by the online prototype, so do not add them for online blind tests.",
     ]:
         story.append(bullet(item))
 

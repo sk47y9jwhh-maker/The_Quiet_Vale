@@ -170,8 +170,10 @@ textarea {
     linear-gradient(180deg, rgba(185, 147, 79, 0.16), rgba(29, 37, 33, 0.42)),
     rgba(5, 5, 5, 0.46);
   color: #f3e9d7;
+  font-family: inherit;
   font-size: 0.78rem;
   font-weight: 900;
+  line-height: 1;
   text-decoration: none;
   text-transform: uppercase;
   white-space: nowrap;
@@ -199,7 +201,12 @@ textarea {
 
 button.header-table-action {
   appearance: none;
-  font: inherit;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .header-table-action.is-danger {
