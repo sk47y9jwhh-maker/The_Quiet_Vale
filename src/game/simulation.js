@@ -4,7 +4,11 @@ import { HEX_DIRECTIONS, createMapIndex, getFootprintCoordinates, getNeighborCoo
 import { dispatchGameAction } from "./reducer.js";
 import { calculateScore } from "./scoring.js";
 import { ENCOUNTER_TYPES, GAME_PHASES, createInitialGameState } from "./setup.js";
-import { getPendingOpeningResourcePlacement } from "./stewards.js";
+import {
+  getPendingOpeningResourcePlacement,
+  getPendingStewardHousePlacement,
+  isStewardHousePlacementTerrainForRole
+} from "./stewards.js";
 import {
   TILE_ACTION_TYPES,
   canAffordCost,
@@ -1905,6 +1909,34 @@ function buildOpeningPlacementCandidates(state, profile, context) {
   return candidates;
 }
 
+function buildStewardHouseSetupPlacementCandidates(state, context) {
+  const pending = getPendingStewardHousePlacement(state, state.activePlayerId);
+
+  if (!pending) {
+    return [];
+  }
+
+  const tile = context.tileIndex.get(pending.tileId);
+
+  if (!tile) {
+    return [];
+  }
+
+  const occupied = new Set(
+    state.map.placedTiles.flatMap((placedTile) => getPlacedTileCoordinates(placedTile))
+  );
+
+  return state.map.hexes
+    .filter((hex) => !occupied.has(hex.Coordinate))
+    .filter((hex) => hex.Terrain !== "Water")
+    .filter((hex) => isStewardHousePlacementTerrainForRole(pending.role, hex.Terrain))
+    .map((hex) => ({
+      type: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+      tileId: tile.tile_id,
+      coordinate: hex.Coordinate
+    }));
+}
+
 function buildUpgradeCandidates(state, profile, context) {
   const tileIndex = context.tileIndex;
   const candidates = [];
@@ -2193,7 +2225,8 @@ export function runAutomatedGame({
     encounterCards,
     tiles,
     mapHexes,
-    enforceOpeningResourcePlacement: true
+    setupStewardHousePlacement: true,
+    enforceOpeningResourcePlacement: false
   });
   const summary = createSimulationAccumulator(gameId, seed, playerCount, profileId);
   const rounds = [];
@@ -2209,6 +2242,16 @@ export function runAutomatedGame({
 
   while (state.phase !== GAME_PHASES.COMPLETE && guard < 2500) {
     guard += 1;
+
+    if (state.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
+      const candidates = buildStewardHouseSetupPlacementCandidates(state, context);
+      const outcome = candidates.length ? dispatchWithTelemetry(state, candidates[0], context) : null;
+      if (!outcome?.result.ok) {
+        throw new Error(outcome?.result.errors?.join(" ") ?? "No legal Steward House setup placement.");
+      }
+      state = outcome.state;
+      continue;
+    }
 
     if (state.phase === GAME_PHASES.SEED_ENCOUNTERS) {
       const outcome = dispatchWithTelemetry(state, buildScoreSeedAction(state, profile, context), context);

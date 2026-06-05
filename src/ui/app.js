@@ -56,9 +56,11 @@ import {
   STEWARD_POWER_TYPES,
   getAvailableStewardPowerProviders,
   getPendingOpeningResourcePlacement,
+  getPendingStewardHousePlacement,
   getStewardHouseRole,
   getStewardRole,
   getStewardPowerDetails,
+  isStewardHousePlacementTerrainForRole,
   isOpeningResourceTileForPlayer,
   isStewardHouseTileForPlayer,
   isStewardPowerUsedThisSeason,
@@ -661,6 +663,7 @@ function clampNumber(value, min, max) {
 
 function formatPhase(phase) {
   const labels = {
+    [GAME_PHASES.PLACE_STEWARD_HOUSES]: "Place Steward Houses",
     [GAME_PHASES.SEED_ENCOUNTERS]: "Seed Encounters",
     [GAME_PHASES.REVEAL_ENCOUNTERS]: "Reveal Encounters",
     [GAME_PHASES.PLAYER_TURNS]: "Player Turns",
@@ -677,6 +680,12 @@ function formatPlayerName(player) {
 
 function formatPendingOpeningPlacement(game, player = game.players.find((candidate) => candidate.id === game.activePlayerId)) {
   const pending = player ? getPendingOpeningResourcePlacement(game, player.id) : null;
+
+  return pending ? `${pending.role.name}: ${pending.summary}` : "";
+}
+
+function formatPendingStewardHousePlacement(game, player = game.players.find((candidate) => candidate.id === game.activePlayerId)) {
+  const pending = player ? getPendingStewardHousePlacement(game, player.id) : null;
 
   return pending ? `${pending.role.name}: ${pending.summary}` : "";
 }
@@ -760,7 +769,7 @@ function syncStewardRoleIds() {
   state.stewardRoleIds = normalizeStewardRoleIds(state.playerCount, state.stewardRoleIds);
 }
 
-function createGame() {
+function createGame(options = {}) {
   if (!state.data) {
     return;
   }
@@ -776,7 +785,8 @@ function createGame() {
     tiles: state.data.tiles,
     mapHexes: getSelectedMapHexes(),
     stewardRoles: state.stewardRoleIds,
-    enforceOpeningResourcePlacement: true
+    setupStewardHousePlacement: options.setupStewardHousePlacement === true,
+    enforceOpeningResourcePlacement: false
   });
   state.lastActionResult = null;
   resetLocalTestingControls();
@@ -830,7 +840,7 @@ function startPlaySession() {
     return;
   }
 
-  createGame();
+  createGame({ setupStewardHousePlacement: true });
   state.playSessionState = PLAY_SESSION_STATES.PLAYING;
   state.contextMenu = null;
   state.seedContextMenu = null;
@@ -839,7 +849,7 @@ function startPlaySession() {
   state.lastActionResult = {
     ok: true,
     action: "START_GAME",
-    message: "Playthrough started. Seed Encounter Cards to begin Round 1."
+    message: "Playthrough started. Place each Steward House for free, then seed Encounter Cards."
   };
   renderApp();
 }
@@ -931,8 +941,11 @@ function getPlacementOptions() {
 
 function syncSelectedTile() {
   const openingRequirement = state.game ? getOpeningPlacementRequirementForActivePlayer(state.game) : null;
+  const stewardHouseRequirement = state.game ? getStewardHousePlacementRequirementForActivePlayer(state.game) : null;
   const options = getPlacementOptions().filter(
-    ({ tile }) => !openingRequirement || isOpeningResourceTileForPlayer(openingRequirement.player, tile.tile_id)
+    ({ tile }) =>
+      (!stewardHouseRequirement || tile.tile_id === stewardHouseRequirement.tileId) &&
+      (!openingRequirement || isOpeningResourceTileForPlayer(openingRequirement.player, tile.tile_id))
   );
   const current = options.find((option) => option.tile.tile_id === state.selectedTileId && option.supply?.available > 0);
   const next = options.find((option) => option.supply?.available > 0) ?? options[0];
@@ -1090,7 +1103,7 @@ function getPlayerMarkerFill(playerId) {
   return PLAYER_MARKER_FILLS[index % PLAYER_MARKER_FILLS.length];
 }
 
-function renderPlayerMapMarkers(players, center) {
+function renderPlayerMapMarkers(players, center, game) {
   if (players.length === 0) {
     return "";
   }
@@ -1102,16 +1115,23 @@ function renderPlayerMapMarkers(players, center) {
     <g class="player-map-markers" aria-label="Last interaction markers">
       ${players
         .map(
-          (player, index) => `
+          (player, index) => {
+            const isInactive =
+              game.phase === GAME_PHASES.PLAYER_TURNS &&
+              game.activePlayerId &&
+              player.id !== game.activePlayerId;
+
+            return `
             <g
-              class="player-map-marker"
+              class="player-map-marker ${isInactive ? "is-inactive" : "is-active"}"
               transform="translate(${(center.x + startX + index * spacing).toFixed(2)} ${(center.y - 18).toFixed(2)})"
               style="--marker-fill: ${escapeHtml(getPlayerMarkerFill(player.id))}"
             >
               <circle r="7"></circle>
               <text y="3">${escapeHtml(player.id)}</text>
             </g>
-          `
+          `;
+          }
         )
         .join("")}
     </g>
@@ -1170,6 +1190,23 @@ function renderOpeningSiteMarker(center, option) {
   `;
 }
 
+function renderStewardHouseSiteMarker(center, option) {
+  const tileName = option?.tile?.tile_name ?? "House";
+  const tileLabel = normalizeMapTileName(tileName).replace(/\s+House$/i, "");
+
+  return `
+    <g
+      class="steward-house-site-marker"
+      transform="translate(${center.x.toFixed(2)} ${(center.y + 12).toFixed(2)})"
+      aria-label="${escapeHtml(`Setup site for ${tileName}`)}"
+    >
+      <rect x="-24" y="-12" width="48" height="24" rx="8"></rect>
+      <text class="opening-site-main" y="-2">House</text>
+      <text class="opening-site-tile" y="8">${escapeHtml(tileLabel)}</text>
+    </g>
+  `;
+}
+
 function getInteractionActionLabel(type) {
   return (
     {
@@ -1213,6 +1250,21 @@ function renderHexMap(mapHexes, game, tileIndex) {
     ? getFootprintCoordinates(selectedCoordinate, selectedTile.size_hexes, state.selectedOrientation, mapHexes)
     : null;
   const previewSet = new Set(previewFootprint ?? []);
+  const stewardHouseRequirement = isPlaySessionPlaying()
+    ? getStewardHousePlacementRequirementForActivePlayer(game)
+    : null;
+  const stewardHouseOptionsByCoordinate = stewardHouseRequirement
+    ? new Map(
+        mapHexes
+          .map((hex) => [
+            hex.Coordinate,
+            getStewardHousePlacementOptionsForCoordinate(game, tileIndex, hex.Coordinate).find(
+              (option) => !option.blockedReason
+            )
+          ])
+          .filter(([, option]) => Boolean(option))
+      )
+    : new Map();
   const openingRequirement = getOpeningPlacementRequirementForActivePlayer(game);
   const openingOptionsByCoordinate = openingRequirement
     ? new Map(
@@ -1233,6 +1285,7 @@ function renderHexMap(mapHexes, game, tileIndex) {
       const center = hexCenter(hex, size, mapHexes);
       const label = featureLabel(hex);
       const placedTile = placedByCoordinate.get(hex.Coordinate);
+      const stewardHouseOption = stewardHouseOptionsByCoordinate.get(hex.Coordinate);
       const openingOption = openingOptionsByCoordinate.get(hex.Coordinate);
       const placedTileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
       const isPlacedTileAnchor = placedTile && hex.Coordinate === getPlacedTileAnchorCoordinate(placedTile);
@@ -1260,6 +1313,7 @@ function renderHexMap(mapHexes, game, tileIndex) {
         placedTile ? "has-placed-tile" : "",
         placedTileDefinition ? `placed-type-${slug(placedTileDefinition.tile_category)}` : "",
         supportDetails?.supported ? "is-supported-tile" : "",
+        stewardHouseOption ? "is-steward-house-site" : "",
         openingOption ? "is-opening-site" : "",
         strain > 0 ? "has-strain-tile" : "",
         markerPlayers.length ? "has-player-marker" : "",
@@ -1288,8 +1342,9 @@ function renderHexMap(mapHexes, game, tileIndex) {
           }
           ${isPlacedTileAnchor && supportDetails?.supported ? renderSupportMapMarker(center) : ""}
           ${isPlacedTileAnchor ? renderStrainMapMarker(placedTile, center) : ""}
+          ${stewardHouseOption && !placedTile ? renderStewardHouseSiteMarker(center, stewardHouseOption) : ""}
           ${openingOption && !placedTile ? renderOpeningSiteMarker(center, openingOption) : ""}
-          ${renderPlayerMapMarkers(markerPlayers, center)}
+          ${renderPlayerMapMarkers(markerPlayers, center, game)}
         </g>
       `;
     })
@@ -1436,6 +1491,10 @@ function getOpeningPlacementRequirementForActivePlayer(game) {
   return getPendingOpeningResourcePlacement(game, game.activePlayerId);
 }
 
+function getStewardHousePlacementRequirementForActivePlayer(game) {
+  return getPendingStewardHousePlacement(game, game.activePlayerId);
+}
+
 function tileMatchesActiveOpeningRequirement(game, tile) {
   const pending = getOpeningPlacementRequirementForActivePlayer(game);
 
@@ -1535,6 +1594,41 @@ function getOpeningPlacementOptionsForCoordinate(game, tileIndex, coordinate) {
   return getLegalPlacementOptionsForCoordinate(game, tileIndex, coordinate).filter(
     (option) => isOpeningResourceTileForPlayer(openingRequirement.player, option.tile.tile_id)
   );
+}
+
+function getStewardHousePlacementOptionsForCoordinate(game, tileIndex, coordinate) {
+  const pending = getStewardHousePlacementRequirementForActivePlayer(game);
+
+  if (!pending) {
+    return [];
+  }
+
+  const tile = tileIndex.get(pending.tileId);
+  const hex = game.map.hexes.find((candidate) => candidate.Coordinate === coordinate);
+  const supply = [...game.tileSupply.core, ...game.tileSupply.special].find((entry) => entry.tileId === pending.tileId);
+
+  if (
+    !tile ||
+    !hex ||
+    getPlacedTileAt(game, coordinate) ||
+    hex.Terrain === "Water" ||
+    !isStewardHousePlacementTerrainForRole(pending.role, hex.Terrain) ||
+    !supply ||
+    supply.locked ||
+    supply.available <= 0
+  ) {
+    return [];
+  }
+
+  return [
+    {
+      tile,
+      coordinate,
+      supply,
+      pending,
+      blockedReason: ""
+    }
+  ];
 }
 
 function groupPlacementOptionsByCategory(options) {
@@ -1646,11 +1740,65 @@ function renderContextTravelPlacementOptions(options) {
     .join("");
 }
 
+function renderStewardHousePlacementMenu(game, tileIndex, coordinate) {
+  const option = getStewardHousePlacementOptionsForCoordinate(game, tileIndex, coordinate)[0] ?? null;
+  const pending = getStewardHousePlacementRequirementForActivePlayer(game);
+
+  if (!pending) {
+    return `<p class="context-empty-note">No Steward House setup placement is currently pending.</p>`;
+  }
+
+  if (!option) {
+    return `<p class="context-empty-note">${escapeHtml(`${pending.summary}. Choose a highlighted House hex.`)}</p>`;
+  }
+
+  return `
+    <div class="context-placement-groups" aria-label="Steward House setup placement">
+      <p class="context-empty-note opening-context-note">${escapeHtml(`${pending.summary}. This placement is free.`)}</p>
+      <details class="context-placement-group" open>
+        <summary>Steward House <span>1</span></summary>
+        <div class="context-placement-options">
+          <details class="context-placement-tile type-${slug(option.tile.tile_category)}" style="${escapeHtml(getTileCardAccentStyle(option.tile))}" open>
+            <summary>
+              <strong>${escapeHtml(option.tile.tile_name)}</strong>
+              <small>0 Actions · 0 Resources · ${escapeHtml(option.coordinate)}</small>
+            </summary>
+            <div class="context-placement-face">
+              ${renderTileEffectPreview(option.tile, {
+                label: "Setup Placement",
+                className: "context-placement-effect",
+                costSummary: [
+                  { label: "Actions", value: "0 Actions" },
+                  { label: "Resources", value: "0" }
+                ]
+              })}
+              ${renderStewardHouseUpgradePreview(option.tile, tileIndex, { compact: true })}
+              <button
+                class="map-context-action"
+                data-context-place-steward-house-coordinate="${escapeHtml(option.coordinate)}"
+                type="button"
+                role="menuitem"
+              >
+                Place ${escapeHtml(option.tile.tile_name)}
+              </button>
+              ${renderTileFaceSvg(option.tile, { upgradeTile: findUpgradeTile(option.tile, tileIndex) })}
+            </div>
+          </details>
+        </div>
+      </details>
+    </div>
+  `;
+}
+
 function renderLegalPlacementMenu(game, tileIndex, coordinate) {
   const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
 
   if (!isPlaySessionPlaying()) {
     return `<p class="context-empty-note">${escapeHtml(getPlaySessionBlockReason())}</p>`;
+  }
+
+  if (game.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
+    return renderStewardHousePlacementMenu(game, tileIndex, coordinate);
   }
 
   if (game.phase !== GAME_PHASES.PLAYER_TURNS) {
@@ -4415,7 +4563,7 @@ function renderStewardSetupControls() {
                 `;
               }).join("")}
             </select>
-            <small>${escapeHtml(selectedRole?.openingSummary ?? "")}</small>
+            <small>${escapeHtml(selectedRole?.housePlacementSummary ?? "")}</small>
           </label>
         `;
       }).join("")}
@@ -5120,6 +5268,13 @@ function getGuideInstruction(game, tileIndex, encounterIndex) {
     return `That action was blocked: ${state.lastActionResult.errors?.[0] ?? "check the highlighted requirement"}`;
   }
 
+  if (game.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
+    const houseText = activePlayer ? formatPendingStewardHousePlacement(game, activePlayer) : "";
+    return houseText
+      ? `${formatPlayerName(activePlayer)} places their Steward House for free: ${houseText}. Click a highlighted House hex.`
+      : "Place each Steward House for free, then seed Encounter cards.";
+  }
+
   if (game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded) {
     if (selectedSeedCount > 0 && selectedSeedCount < game.playerCount) {
       return `Choose the remaining seed cards. ${selectedSeedCount}/${game.playerCount} players have chosen.`;
@@ -5196,6 +5351,10 @@ function getPlayerAidPrompt(game, tileIndex, encounterIndex) {
   }
 
   if (game.phase !== GAME_PHASES.PLAYER_TURNS || !activePlayer) {
+    if (game.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
+      return "Highlighted House hexes are legal free setup sites for the active Steward House.";
+    }
+
     return "";
   }
 
@@ -5307,6 +5466,19 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
           : null,
         { action: "cancel-placement-preview", label: "Cancel Preview", style: "secondary" }
       ].filter(Boolean)
+    };
+  }
+
+  if (game.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
+    const houseText = activePlayer ? formatPendingStewardHousePlacement(game, activePlayer) : "";
+
+    return {
+      tone: "setup",
+      label: "Steward House",
+      title: activePlayer ? `${formatPlayerName(activePlayer)} places their House` : "Place Steward Houses",
+      detail: houseText
+        ? `${houseText}. Click a highlighted House hex to place it for 0 Actions and 0 Resources.`
+        : "Place each Steward House for free before seeding Encounter cards."
     };
   }
 
@@ -5492,6 +5664,7 @@ function renderTestingBar(game, tileIndex, encounterIndex) {
   const canEndRound = playing && game.phase === GAME_PHASES.END_ROUND;
   const stewardText = activePlayer ? formatPlayerLastInteraction(game, tileIndex, activePlayer) : "No active steward";
   const sessionClass = `session-${state.playSessionState}`;
+  const phaseLabel = isPlaySessionSetup() ? "Setup" : formatPhase(game.phase);
   const actionButtons = isPlaySessionSetup()
     ? renderTestingBarAction("start-game", "Start Game", true, "primary")
     : isPlaySessionEnded()
@@ -5509,7 +5682,7 @@ function renderTestingBar(game, tileIndex, encounterIndex) {
       <div class="testing-status">
         <span class="status-chip session-status ${escapeHtml(sessionClass)}">Table <b>${escapeHtml(getPlaySessionLabel())}</b></span>
         <span class="status-chip save-status">Local Save <b>${getLocalSaveStorage() ? "On" : "Off"}</b></span>
-        <span class="status-chip phase-status"><b>${escapeHtml(formatPhase(game.phase))}</b></span>
+        <span class="status-chip phase-status"><b>${escapeHtml(phaseLabel)}</b></span>
         <span class="status-chip round-status">Round <b>${game.round}/${game.rules.totalRounds}</b></span>
         <span class="status-chip player-status">${escapeHtml(activePlayer ? formatPlayerName(activePlayer) : "No active player")} <b>${activePlayer ? `${activePlayer.actionsRemaining}/${game.rules.actionsPerPlayer}` : "0/0"}</b></span>
         <span class="status-chip selected-status">Selected <b>${escapeHtml(`${selectedTileName} at ${state.selectedCoordinate}`)}</b></span>
@@ -5538,6 +5711,7 @@ function renderTurnPanel(game, tileIndex) {
       ? "Game Complete"
       : "Player Turns Locked";
   const phaseNote = {
+    [GAME_PHASES.PLACE_STEWARD_HOUSES]: "Place each Steward House for free before seeding Encounter Cards.",
     [GAME_PHASES.SEED_ENCOUNTERS]: "Seed Encounter Cards before turns open.",
     [GAME_PHASES.REVEAL_ENCOUNTERS]: "Reveal Encounters before turns open.",
     [GAME_PHASES.END_ROUND]: "Resolve end-of-round effects to advance.",
@@ -5957,10 +6131,13 @@ function renderWarehousePanel(game, options = {}) {
               : 0;
 
             return `
-              <li class="warehouse-resource resource-${slug(resource)}" style="--stock-level: ${percentage}%;">
+              <li class="warehouse-resource resource-${slug(resource)}" style="--stock-level: ${percentage}%;" aria-label="${escapeHtml(`${resource}: ${amount} of ${game.warehouse.cap}`)}">
                 <div class="warehouse-resource-head">
                   <span><i aria-hidden="true"></i>${escapeHtml(resource)}</span>
-                  <strong>${amount}/${game.warehouse.cap}</strong>
+                  <strong class="warehouse-count">
+                    <span class="warehouse-count-current">${amount}</span>
+                    <span class="warehouse-count-cap">/${game.warehouse.cap}</span>
+                  </strong>
                 </div>
                 <div class="warehouse-fill" aria-hidden="true"><b></b></div>
               </li>
@@ -6868,7 +7045,55 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
   `;
 }
 
+function renderStewardHouseSetupPlacementPanel(game, tileIndex, encounterIndex, pending) {
+  const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
+  const houseTile = tileIndex.get(pending.tileId);
+  const supply = [...game.tileSupply.core, ...game.tileSupply.special].find((entry) => entry.tileId === pending.tileId) ?? null;
+  const upgradeTile = houseTile ? findUpgradeTile(houseTile, tileIndex) : null;
+
+  return `
+    <section id="placement-panel" class="state-panel placement-panel tile-console-panel">
+      <header class="tile-console-header">
+        <h2>Tiles</h2>
+        <span>Setup</span>
+      </header>
+      <p class="phase-note opening-note">${escapeHtml(`${formatPlayerName(activePlayer)} places ${houseTile?.tile_name ?? "their Steward House"} for free. Click a highlighted House hex.`)}</p>
+      ${
+        houseTile
+          ? `
+            ${renderTileEffectPreview(houseTile, {
+              label: "Free Setup Placement",
+              costSummary: [
+                { label: "Actions", value: "0 Actions" },
+                { label: "Resources", value: "0" }
+              ]
+            })}
+            ${renderStewardHouseUpgradePreview(houseTile, tileIndex)}
+            ${renderTileWireframeCard(houseTile, {
+              supply,
+              selected: true,
+              disabled: false,
+              upgradeTile,
+              previewSide: getTileFacePreviewSide(houseTile.tile_id),
+              title: "Steward House"
+            })}
+          `
+          : `<p class="empty-note">No Steward House tile found for this Steward.</p>`
+      }
+      ${renderPlacementResult(state.lastActionResult)}
+      ${renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded: true })}
+    </section>
+  `;
+}
+
 function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
+  const stewardHouseRequirement = isPlaySessionPlaying()
+    ? getStewardHousePlacementRequirementForActivePlayer(game)
+    : null;
+  if (stewardHouseRequirement) {
+    return renderStewardHouseSetupPlacementPanel(game, tileIndex, encounterIndex, stewardHouseRequirement);
+  }
+
   const openingRequirement = getOpeningPlacementRequirementForActivePlayer(game);
   const options = getPlacementOptions().filter(
     ({ tile }) => !openingRequirement || isOpeningResourceTileForPlayer(openingRequirement.player, tile.tile_id)
@@ -7581,6 +7806,50 @@ function placeOpeningTileAtCoordinate(coordinate) {
   return true;
 }
 
+function placeStewardHouseAtCoordinate(coordinate) {
+  if (!state.data || !state.game) {
+    return false;
+  }
+
+  if (!isPlaySessionPlaying()) {
+    setBlockedPlaySessionResult(TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE);
+    renderApp();
+    return false;
+  }
+
+  const pending = getStewardHousePlacementRequirementForActivePlayer(state.game);
+
+  if (!pending) {
+    return false;
+  }
+
+  const tileIndex = createTileIndex(state.data.tiles);
+  const option = getStewardHousePlacementOptionsForCoordinate(state.game, tileIndex, coordinate)[0] ?? null;
+
+  if (!option) {
+    return false;
+  }
+
+  const outcome = dispatchGameAction(
+    state.game,
+    {
+      type: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+      tileId: pending.tileId,
+      coordinate
+    },
+    { tiles: state.data.tiles }
+  );
+
+  state.game = outcome.state;
+  state.lastActionResult = outcome.result;
+  state.contextMenu = null;
+  state.seedContextMenu = null;
+  state.selectedCoordinate = coordinate;
+  syncSelectedTile();
+  renderApp();
+  return outcome.result.ok;
+}
+
 function selectCoordinate(coordinate, options = {}) {
   if (options.placePending === true && state.pendingPairedPlacement) {
     completePendingPairedPlacement(coordinate);
@@ -7598,6 +7867,10 @@ function selectCoordinate(coordinate, options = {}) {
   }
 
   if (options.placePending === true && placeOpeningTileAtCoordinate(coordinate)) {
+    return;
+  }
+
+  if (options.placePending === true && placeStewardHouseAtCoordinate(coordinate)) {
     return;
   }
 
@@ -8390,6 +8663,12 @@ function bindEvents() {
         button.dataset.contextPlaceOrientation,
         discountResources
       );
+    });
+  });
+
+  root.querySelectorAll("[data-context-place-steward-house-coordinate]").forEach((button) => {
+    button.addEventListener("click", () => {
+      placeStewardHouseAtCoordinate(button.dataset.contextPlaceStewardHouseCoordinate);
     });
   });
 

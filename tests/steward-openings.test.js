@@ -23,7 +23,8 @@ function newState(options = {}) {
     encounterCards,
     tiles,
     mapHexes,
-    enforceOpeningResourcePlacement: true,
+    setupStewardHousePlacement: true,
+    enforceOpeningResourcePlacement: false,
     ...options
   });
 }
@@ -32,7 +33,7 @@ function dispatch(state, action) {
   return dispatchGameAction(state, action, { tiles, encounterCards });
 }
 
-function advanceToOpeningTurn(state) {
+function advanceToPlayerTurns(state) {
   state = dispatch(state, { type: TILE_ACTION_TYPES.SEED_ENCOUNTERS }).state;
   state = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS }).state;
   assert.equal(state.phase, GAME_PHASES.PLAYER_TURNS);
@@ -54,79 +55,108 @@ test("setup assigns Steward roles and unlocks the selected Steward House", () =>
   assert.equal(sentinelHouse.available, 1);
   assert.equal(vanguardHouse.locked, true);
   assert.equal(vanguardHouse.available, 0);
+  assert.equal(state.phase, GAME_PHASES.PLACE_STEWARD_HOUSES);
+  assert.equal(state.activePlayerId, "P1");
 });
 
-test("Round 1 opening turn blocks non-opening actions until the Steward resource is placed", () => {
-  let state = advanceToOpeningTurn(newState({ stewardRoles: ["vanguard"] }));
+test("setup places the active Steward House for free on the associated terrain", () => {
+  const state = newState({ stewardRoles: ["vanguard"] });
   const mountain = firstTerrainCoordinate(state, "Mountains");
   const woodland = firstTerrainCoordinate(state, "Woodland");
+  const beforeWood = state.warehouse.resources.Wood;
 
-  const blockedTurn = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN });
-  assert.equal(blockedTurn.result.ok, false);
-  assert.match(blockedTurn.result.errors.join(" "), /Vanguard opening move/);
-
-  const blockedPlacement = dispatch(state, {
-    type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_mine_basic",
+  const wrongTerrain = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+    tileId: "core_vanguard_house_basic",
     coordinate: mountain
   });
-  assert.equal(blockedPlacement.result.ok, false);
-  assert.match(blockedPlacement.result.errors.join(" "), /Place Forest on Woodland/);
+  assert.equal(wrongTerrain.result.ok, false);
+  assert.match(wrongTerrain.result.errors.join(" "), /Woodland/);
 
   const placed = dispatch(state, {
-    type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_forest_basic",
+    type: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+    tileId: "core_vanguard_house_basic",
     coordinate: woodland
   });
   assert.equal(placed.result.ok, true);
-  assert.equal(placed.state.players[0].openingResourcePlacement.completed, true);
+  assert.equal(placed.result.actionCost.total, 0);
+  assert.deepEqual(placed.result.cost, []);
+  assert.equal(placed.state.players[0].actionsRemaining, 4);
+  assert.equal(placed.state.warehouse.resources.Wood, beforeWood);
+  assert.equal(placed.state.players[0].stewardHousePlacement.completed, true);
   assert.equal(placed.state.players[0].lastInteraction.placedTileId, placed.result.placedTile.id);
-
-  const ended = dispatch(placed.state, { type: TILE_ACTION_TYPES.END_TURN });
-  assert.equal(ended.result.ok, true);
+  assert.equal(placed.state.phase, GAME_PHASES.SEED_ENCOUNTERS);
+  assert.equal(placed.state.activePlayerId, null);
+  assert.equal(
+    placed.state.tileSupply.core.find((entry) => entry.tileId === "core_vanguard_house_basic").available,
+    0
+  );
 });
 
-test("Quartermaster opening can use any basic Resource tile on its matching terrain", () => {
-  const state = advanceToOpeningTurn(newState({ stewardRoles: ["quartermaster"] }));
-  const arable = firstTerrainCoordinate(state, "Arable Land");
+test("Quartermaster setup House can use any Steward terrain but not Grasslands", () => {
+  const state = newState({ stewardRoles: ["quartermaster"] });
+  const grasslands = firstTerrainCoordinate(state, "Grasslands");
+  const ruins = firstTerrainCoordinate(state, "Ruins");
+  const rejected = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+    tileId: "core_quartermaster_house_basic",
+    coordinate: grasslands
+  });
+  assert.equal(rejected.result.ok, false);
+  assert.match(rejected.result.errors.join(" "), /Woodland or Mountains or Heaths or Arable Land or Ruins/);
+
   const placed = dispatch(state, {
-    type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_farm_basic",
-    coordinate: arable
+    type: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+    tileId: "core_quartermaster_house_basic",
+    coordinate: ruins
   });
 
   assert.equal(placed.result.ok, true);
-  assert.equal(placed.state.players[0].openingResourcePlacement.completed, true);
-  assert.equal(placed.state.players[0].openingResourcePlacement.tileId, "core_farm_basic");
+  assert.equal(placed.state.players[0].stewardHousePlacement.completed, true);
+  assert.equal(placed.state.players[0].stewardHousePlacement.tileId, "core_quartermaster_house_basic");
 });
 
-test("later players do not pay disconnected Travel for their required opening placement", () => {
-  let state = advanceToOpeningTurn(newState({
+test("multiple players place Steward Houses before Encounter seeding", () => {
+  let state = newState({
     playerCount: 2,
     stewardRoles: ["vanguard", "sentinel"]
-  }));
+  });
   const woodland = firstTerrainCoordinate(state, "Woodland");
   const mountains = firstTerrainCoordinate(state, "Mountains");
 
   state = dispatch(state, {
-    type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_forest_basic",
+    type: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+    tileId: "core_vanguard_house_basic",
     coordinate: woodland
   }).state;
-  state = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN }).state;
   assert.equal(state.activePlayerId, "P2");
+  assert.equal(state.phase, GAME_PHASES.PLACE_STEWARD_HOUSES);
 
   const placed = dispatch(state, {
-    type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_mine_basic",
+    type: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+    tileId: "core_sentinel_house_basic",
     coordinate: mountains
   });
 
   assert.equal(placed.result.ok, true);
-  assert.equal(placed.result.actionCost.connected, false);
-  assert.equal(placed.result.actionCost.disconnectedTravelIgnored, true);
-  assert.equal(placed.result.actionCost.disconnectedTravelActionCost, 0);
-  assert.equal(placed.result.actionCost.total, 1);
-  assert.equal(placed.state.players[1].actionsRemaining, 3);
-  assert.equal(placed.state.players[1].openingResourcePlacement.completed, true);
+  assert.equal(placed.result.actionCost.total, 0);
+  assert.equal(placed.state.players[1].actionsRemaining, 4);
+  assert.equal(placed.state.players[1].stewardHousePlacement.completed, true);
+  assert.equal(placed.state.phase, GAME_PHASES.SEED_ENCOUNTERS);
+  assert.equal(placed.state.map.placedTiles.length, 2);
+});
+
+test("Round 1 no longer forces a Resource opening move after Steward Houses are placed", () => {
+  let state = newState({ stewardRoles: ["vanguard"] });
+  const woodland = firstTerrainCoordinate(state, "Woodland");
+
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+    tileId: "core_vanguard_house_basic",
+    coordinate: woodland
+  }).state;
+  state = advanceToPlayerTurns(state);
+
+  const ended = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN });
+  assert.equal(ended.result.ok, true);
 });

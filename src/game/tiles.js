@@ -1,6 +1,7 @@
 import { HEX_DIRECTIONS, createMapIndex, getFootprintCoordinates, getNeighborCoordinates, isWaterHex } from "./map.js";
 
 export const TILE_ACTION_TYPES = Object.freeze({
+  PLACE_STEWARD_HOUSE: "PLACE_STEWARD_HOUSE",
   PLACE_TILE: "PLACE_TILE",
   UPGRADE_TILE: "UPGRADE_TILE",
   ACTIVATE_TILE: "ACTIVATE_TILE",

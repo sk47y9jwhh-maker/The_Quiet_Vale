@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2240 1140" role="img" aria-labelledby="title desc">
+  <title id="title">The Quiet Vale tile wireframe v1.7.4 example</title>
+  <desc id="desc">Example Core Tile wireframes for Washhouse and Sweet Flag Bathhouse using fixed v1.7.4 hex geometry and Wellbeing colour coding.</desc>
+  <defs>
+    <style>
+      :root {
+        --ink: #161816;
+        --muted: #555955;
+        --paper: #fffdf7;
+        --parchment: #f4eee3;
+        --plaque: #f0eadc;
+        --guide: #9b9b95;
+        --wellbeing: #6d8378;
+        --wellbeing-soft: #ced9cf;
+      }
+
+      .page { fill: var(--parchment); }
+      .heading { fill: var(--ink); font: 700 38px Arial, sans-serif; }
+      .subheading { fill: var(--muted); font: 18px Arial, sans-serif; }
+      .tile-body { fill: var(--paper); stroke: var(--ink); stroke-width: 4; }
+      .accent-edge { fill: none; stroke: var(--wellbeing); stroke-width: 11; stroke-linejoin: round; opacity: 0.26; }
+      .divider { stroke: var(--ink); stroke-width: 2.2; }
+      .minor-divider { stroke: var(--ink); stroke-width: 2; }
+      .guide-line { stroke: var(--guide); stroke-width: 1.6; stroke-dasharray: 8 10; }
+      .title-text { fill: var(--ink); font: 700 33px Arial, sans-serif; }
+      .side-text { fill: var(--muted); font: 15px Arial, sans-serif; }
+      .label { fill: var(--ink); font: 700 28px Arial, sans-serif; }
+      .small-label { fill: var(--muted); font: 13px Arial, sans-serif; }
+      .art-text { fill: var(--muted); font: 700 24px Arial, sans-serif; }
+      .lineage { fill: var(--ink); font: 700 32px Arial, sans-serif; }
+      .effect-lead { fill: var(--ink); font: 700 20px Arial, sans-serif; }
+      .effect-copy { fill: var(--ink); font: 18px Arial, sans-serif; }
+      .micro { fill: var(--muted); font: 11px Arial, sans-serif; }
+      .plaque { fill: var(--plaque); stroke: none; }
+      .plaque-icon { fill: none; stroke: var(--wellbeing); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+      .score-number { fill: var(--ink); font: 700 34px Arial, sans-serif; }
+      .cost-number { fill: var(--ink); font: 700 21px Arial, sans-serif; }
+      .cost-icon { fill: var(--wellbeing-soft); stroke: var(--wellbeing); stroke-width: 2.4; stroke-linejoin: round; }
+    </style>
+    <symbol id="icon-wellbeing" viewBox="0 0 80 80">
+      <circle class="plaque" cx="40" cy="40" r="34"/>
+      <path class="plaque-icon" d="M40 19v11M40 50v11M19 40h11M50 40h11M25 25l8 8M47 47l8 8M55 25l-8 8M33 47l-8 8"/>
+      <circle class="plaque-icon" cx="40" cy="40" r="10"/>
+    </symbol>
+    <symbol id="icon-river" viewBox="0 0 80 80">
+      <circle class="plaque" cx="40" cy="40" r="34"/>
+      <path class="plaque-icon" d="M19 32c7-6 14-6 21 0s14 6 21 0M19 45c7-6 14-6 21 0s14 6 21 0"/>
+    </symbol>
+    <symbol id="icon-activate" viewBox="0 0 80 80">
+      <circle class="plaque" cx="40" cy="40" r="34"/>
+      <circle class="plaque-icon" cx="40" cy="40" r="15"/>
+      <circle class="plaque-icon" cx="40" cy="40" r="4"/>
+    </symbol>
+    <symbol id="icon-population" viewBox="0 0 80 80">
+      <circle class="plaque" cx="40" cy="40" r="34"/>
+      <path class="plaque-icon" d="M40 42c10 0 18 7 18 16M22 58c0-9 8-16 18-16M40 20a11 11 0 1 1 0 22a11 11 0 0 1 0-22Z"/>
+    </symbol>
+    <symbol id="resource-stone" viewBox="0 0 32 32">
+      <path class="cost-icon" d="M9 7h14l6 9l-6 9H9l-6-9z"/>
+    </symbol>
+    <symbol id="resource-metal" viewBox="0 0 32 32">
+      <path class="cost-icon" d="M7 9h18l-2 14H9z"/>
+      <path class="cost-icon" d="M10 9l4-5h8l3 5"/>
+    </symbol>
+    <symbol id="resource-herbs" viewBox="0 0 32 32">
+      <path class="cost-icon" d="M16 27V9"/>
+      <path class="cost-icon" d="M16 13c-8-1-11-6-11-6c8-2 12 2 11 6Z"/>
+      <path class="cost-icon" d="M16 18c8-1 11-7 11-7c-8-2-12 3-11 7Z"/>
+    </symbol>
+  </defs>
+
+  <rect class="page" x="0" y="0" width="2240" height="1140"/>
+  <text class="heading" x="70" y="62">The Quiet Vale — Core Tile Wireframe Example v1.7.4</text>
+  <text class="subheading" x="70" y="94">Data-backed sample: Washhouse / Sweet Flag Bathhouse. Wellbeing colour family: #6D8378 with restrained parchment structure.</text>
+
+  <g transform="translate(90 158)">
+    <text class="subheading" x="500" y="-30" text-anchor="middle">Basic side</text>
+    <path class="accent-edge" d="M250 0H750L1000 433.0127L750 866.0254H250L0 433.0127Z"/>
+    <path class="tile-body" d="M250 0H750L1000 433.0127L750 866.0254H250L0 433.0127Z"/>
+    <line class="divider" x1="151.85" y1="170" x2="848.15" y2="170"/>
+    <line class="divider" x1="50.222" y1="520" x2="949.778" y2="520"/>
+    <line class="divider" x1="102.184" y1="610" x2="897.816" y2="610"/>
+    <line class="divider" x1="154.145" y1="700" x2="845.855" y2="700"/>
+    <line class="minor-divider" x1="335" y1="40" x2="335" y2="140"/>
+    <line class="minor-divider" x1="320" y1="712" x2="320" y2="836.0254"/>
+    <line class="minor-divider" x1="680" y1="712" x2="680" y2="836.0254"/>
+    <line class="guide-line" x1="151.85" y1="170" x2="500" y2="345"/>
+    <line class="guide-line" x1="848.15" y1="170" x2="500" y2="345"/>
+    <line class="guide-line" x1="151.85" y1="520" x2="500" y2="345"/>
+    <line class="guide-line" x1="848.15" y1="520" x2="500" y2="345"/>
+
+    <use href="#icon-wellbeing" x="225" y="48" width="78" height="78"/>
+    <use href="#icon-river" x="690" y="48" width="78" height="78"/>
+    <text class="title-text" x="515" y="82" text-anchor="middle">Washhouse</text>
+    <text class="side-text" x="515" y="112" text-anchor="middle">Basic</text>
+    <text class="art-text" x="500" y="355" text-anchor="middle">Artwork Area</text>
+
+    <text class="label" x="152" y="576">Place</text>
+    <text class="cost-number" x="442" y="575" text-anchor="middle">2x Stone</text>
+    <text class="cost-number" x="578" y="575" text-anchor="middle">1x Metal</text>
+    <text class="cost-number" x="716" y="575" text-anchor="middle">5x Herbs</text>
+
+    <text class="label" x="162" y="666">Upgrade</text>
+    <text class="cost-number" x="442" y="665" text-anchor="middle">2x Stone</text>
+    <text class="cost-number" x="578" y="665" text-anchor="middle">2x Metal</text>
+    <text class="cost-number" x="716" y="665" text-anchor="middle">8x Herbs</text>
+
+    <use href="#icon-activate" x="342" y="718" width="54" height="54"/>
+    <text class="effect-lead" x="500" y="752" text-anchor="middle">Activated Effect</text>
+    <text class="effect-copy" x="500" y="782" text-anchor="middle">Remove 1 Strain from an adjacent tile.</text>
+    <text class="micro" x="500" y="830" text-anchor="middle">wireframe v1.7.4 · effect box v0.7</text>
+  </g>
+
+  <g transform="translate(1150 158)">
+    <text class="subheading" x="500" y="-30" text-anchor="middle">Upgraded side</text>
+    <path class="accent-edge" d="M250 0H750L1000 433.0127L750 866.0254H250L0 433.0127Z"/>
+    <path class="tile-body" d="M250 0H750L1000 433.0127L750 866.0254H250L0 433.0127Z"/>
+    <line class="divider" x1="151.85" y1="170" x2="848.15" y2="170"/>
+    <line class="divider" x1="50.222" y1="520" x2="949.778" y2="520"/>
+    <line class="divider" x1="154.145" y1="700" x2="845.855" y2="700"/>
+    <line class="minor-divider" x1="335" y1="40" x2="335" y2="140"/>
+    <line class="minor-divider" x1="320" y1="712" x2="320" y2="836.0254"/>
+    <line class="minor-divider" x1="680" y1="712" x2="680" y2="836.0254"/>
+    <line class="guide-line" x1="151.85" y1="170" x2="500" y2="345"/>
+    <line class="guide-line" x1="848.15" y1="170" x2="500" y2="345"/>
+    <line class="guide-line" x1="151.85" y1="520" x2="500" y2="345"/>
+    <line class="guide-line" x1="848.15" y1="520" x2="500" y2="345"/>
+
+    <use href="#icon-wellbeing" x="225" y="48" width="78" height="78"/>
+    <text class="title-text" x="592" y="72" text-anchor="middle">Sweet Flag</text>
+    <text class="title-text" x="592" y="108" text-anchor="middle">Bathhouse</text>
+    <text class="side-text" x="592" y="138" text-anchor="middle">Upgraded</text>
+    <text class="art-text" x="500" y="355" text-anchor="middle">Artwork Area</text>
+
+    <text class="lineage" x="500" y="612" text-anchor="middle">Upgraded Washhouse</text>
+    <text class="small-label" x="500" y="642" text-anchor="middle">Lineage</text>
+
+    <use href="#icon-population" x="218" y="718" width="64" height="64"/>
+    <text class="score-number" x="250" y="804" text-anchor="middle">5</text>
+    <use href="#icon-activate" x="342" y="718" width="54" height="54"/>
+    <text class="effect-lead" x="500" y="752" text-anchor="middle">Activated Effect</text>
+    <text class="effect-copy" x="500" y="778" text-anchor="middle">Remove 1 Strain from up to 2</text>
+    <text class="effect-copy" x="500" y="806" text-anchor="middle">adjacent tiles.</text>
+    <text class="micro" x="500" y="830" text-anchor="middle">wireframe v1.7.4 · effect box v0.7</text>
+  </g>
+</svg>

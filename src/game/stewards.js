@@ -5,6 +5,8 @@ export const STEWARD_ROLES = Object.freeze([
     id: "vanguard",
     name: "Vanguard",
     houseTileId: "core_vanguard_house_basic",
+    houseTerrainOptions: Object.freeze(["Woodland"]),
+    housePlacementSummary: "Place Vanguard House on Woodland",
     openingResourceTileIds: Object.freeze(["core_forest_basic"]),
     openingSummary: "Place Forest on Woodland"
   }),
@@ -12,6 +14,8 @@ export const STEWARD_ROLES = Object.freeze([
     id: "sentinel",
     name: "Sentinel",
     houseTileId: "core_sentinel_house_basic",
+    houseTerrainOptions: Object.freeze(["Mountains"]),
+    housePlacementSummary: "Place Sentinel House on Mountains",
     openingResourceTileIds: Object.freeze(["core_mine_basic"]),
     openingSummary: "Place Mine on Mountains"
   }),
@@ -19,6 +23,8 @@ export const STEWARD_ROLES = Object.freeze([
     id: "ranger",
     name: "Ranger",
     houseTileId: "core_ranger_house_basic",
+    houseTerrainOptions: Object.freeze(["Heaths"]),
+    housePlacementSummary: "Place Ranger House on Heaths",
     openingResourceTileIds: Object.freeze(["core_wildlands_basic"]),
     openingSummary: "Place Wildlands on Heaths"
   }),
@@ -26,6 +32,8 @@ export const STEWARD_ROLES = Object.freeze([
     id: "knight",
     name: "Knight",
     houseTileId: "core_knight_house_basic",
+    houseTerrainOptions: Object.freeze(["Arable Land"]),
+    housePlacementSummary: "Place Knight House on Arable Land",
     openingResourceTileIds: Object.freeze(["core_farm_basic"]),
     openingSummary: "Place Farm on Arable Land"
   }),
@@ -33,6 +41,8 @@ export const STEWARD_ROLES = Object.freeze([
     id: "warden",
     name: "Warden",
     houseTileId: "core_warden_house_basic",
+    houseTerrainOptions: Object.freeze(["Ruins"]),
+    housePlacementSummary: "Place Warden House on Ruins",
     openingResourceTileIds: Object.freeze(["core_dig_site_basic"]),
     openingSummary: "Place Dig Site on Ruins"
   }),
@@ -40,6 +50,8 @@ export const STEWARD_ROLES = Object.freeze([
     id: "quartermaster",
     name: "Quartermaster",
     houseTileId: "core_quartermaster_house_basic",
+    houseTerrainOptions: Object.freeze(["Woodland", "Mountains", "Heaths", "Arable Land", "Ruins"]),
+    housePlacementSummary: "Place Quartermaster House on any Steward terrain",
     openingResourceTileIds: Object.freeze([
       "core_forest_basic",
       "core_mine_basic",
@@ -131,6 +143,58 @@ export function isStewardHouseTileForPlayer(tile, player) {
   const role = getStewardHouseRole(tile);
 
   return Boolean(role && player?.stewardRoleId === role.id);
+}
+
+export function isStewardHousePlacementTerrainForRole(role, terrain) {
+  return Boolean(role?.houseTerrainOptions?.includes(terrain));
+}
+
+export function getPendingStewardHousePlacement(state, playerId = state.activePlayerId) {
+  if (
+    state.stewardHousePlacementRequired !== true ||
+    state.phase !== "place_steward_houses"
+  ) {
+    return null;
+  }
+
+  const player = state.players.find((candidate) => candidate.id === playerId);
+
+  if (!player || player.stewardHousePlacement?.completed) {
+    return null;
+  }
+
+  const role = getStewardRole(player.stewardRoleId);
+
+  if (!role) {
+    return null;
+  }
+
+  return {
+    player,
+    role,
+    tileId: role.houseTileId,
+    terrainOptions: [...(role.houseTerrainOptions ?? [])],
+    summary: role.housePlacementSummary
+  };
+}
+
+export function markStewardHousePlacementComplete(player, placedTile) {
+  const role = getStewardRole(player?.stewardRoleId);
+
+  if (!role || role.houseTileId !== placedTile?.tileId) {
+    return player;
+  }
+
+  return {
+    ...player,
+    stewardHousePlacement: {
+      ...(player.stewardHousePlacement ?? {}),
+      completed: true,
+      placedTileId: placedTile.id,
+      tileId: placedTile.tileId,
+      coordinate: placedTile.coordinate ?? placedTile.coordinates?.[0] ?? null
+    }
+  };
 }
 
 export function getPendingOpeningResourcePlacement(state, playerId = state.activePlayerId) {

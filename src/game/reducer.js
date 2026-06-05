@@ -1,10 +1,12 @@
 import {
   TILE_ACTION_TYPES,
   STRAIN_MAX_PER_TILE,
+  createTileIndex,
   fillWarehouse,
   gainWarehouseResources,
   canAffordCost,
   getTileSupplyEntry,
+  getPlacedTileAt,
   getPlacedTileCoordinates,
   isOverstrainedPlacedTile,
   markGoodsSubstitutionRound,
@@ -38,9 +40,12 @@ import {
   STEWARD_POWER_TYPES,
   getAvailableStewardPowerProviders,
   getPendingOpeningResourcePlacement,
+  getPendingStewardHousePlacement,
   getRequestedStewardPowerProvider,
+  isStewardHousePlacementTerrainForRole,
   isOpeningResourceTileForPlayer,
   markOpeningResourcePlacementComplete,
+  markStewardHousePlacementComplete,
   markStewardPowerUsed
 } from "./stewards.js";
 import {
@@ -134,6 +139,169 @@ function markPlayerOpeningResourcePlacement(state, playerId, placedTile) {
     players: state.players.map((player) =>
       player.id === playerId ? markOpeningResourcePlacementComplete(player, placedTile) : player
     )
+  };
+}
+
+function markPlayerStewardHousePlacement(state, playerId, placedTile) {
+  return {
+    ...state,
+    players: state.players.map((player) =>
+      player.id === playerId ? markStewardHousePlacementComplete(player, placedTile) : player
+    )
+  };
+}
+
+function validateStewardHouseSetupPlacement(state, action, context, pendingPlacement) {
+  const tileIndex = context.tileIndex ?? createTileIndex(context.tiles ?? []);
+  const mapIndex = createMapIndex(state.map.hexes);
+  const tile = tileIndex.get(action.tileId ?? pendingPlacement?.tileId);
+  const hex = mapIndex.get(action.coordinate);
+  const supplyEntry = tile ? getTileSupplyEntry(state, tile.tile_id) : null;
+  const errors = [];
+
+  if (!pendingPlacement) {
+    errors.push("No Steward House placement is currently pending.");
+  }
+
+  if (!tile) {
+    errors.push(`Unknown Steward House tile: ${action.tileId ?? pendingPlacement?.tileId ?? "none"}.`);
+  } else {
+    if (tile.tile_id !== pendingPlacement?.tileId) {
+      errors.push(`${pendingPlacement?.role?.name ?? "This Steward"} must place their own Steward House.`);
+    }
+
+    if (tile.subtype !== "Steward House" || tile.side !== "Basic") {
+      errors.push(`${tile.tile_name} is not a basic Steward House.`);
+    }
+  }
+
+  if (!hex) {
+    errors.push(`Unknown map coordinate: ${action.coordinate}.`);
+  } else if (!isStewardHousePlacementTerrainForRole(pendingPlacement?.role, hex.Terrain)) {
+    errors.push(`${pendingPlacement?.role?.name ?? "This Steward"} must place their House on ${pendingPlacement?.terrainOptions?.join(" or ") ?? "their setup terrain"}.`);
+  }
+
+  if (hex?.Terrain === "Water") {
+    errors.push("Steward Houses cannot be placed on River hexes.");
+  }
+
+  if (getPlacedTileAt(state, action.coordinate)) {
+    errors.push(`${action.coordinate} already has a placed tile.`);
+  }
+
+  if (!supplyEntry) {
+    errors.push(`${tile?.tile_name ?? "Steward House"} is not in the tile supply.`);
+  } else {
+    if (supplyEntry.locked) {
+      errors.push(`${tile.tile_name} is not unlocked for this setup.`);
+    }
+
+    if (supplyEntry.available <= 0) {
+      errors.push(`${tile.tile_name} has no remaining stock.`);
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    tile,
+    hex,
+    footprintCoordinates: action.coordinate ? [action.coordinate] : [],
+    supplyEntry
+  };
+}
+
+function placeStewardHouse(state, action, context) {
+  if (state.phase !== GAME_PHASES.PLACE_STEWARD_HOUSES) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+        errors: ["Steward Houses can only be placed during the Place Steward Houses setup phase."]
+      }
+    };
+  }
+
+  const pendingPlacement = getPendingStewardHousePlacement(state, state.activePlayerId);
+  const validation = validateStewardHouseSetupPlacement(state, action, context, pendingPlacement);
+
+  if (!validation.valid) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+        errors: validation.errors
+      }
+    };
+  }
+
+  const player = pendingPlacement.player;
+  const placedTile = createPlacedTileRecord(
+    state,
+    {
+      ...action,
+      tileId: validation.tile.tile_id,
+      orientation: action.orientation
+    },
+    validation
+  );
+  const actionState = markPlayerStewardHousePlacement(
+    markPlayerMapInteraction(state, player.id, placedTile, "place"),
+    player.id,
+    placedTile
+  );
+  const nextPendingPlayer = actionState.players.find((candidate) => !candidate.stewardHousePlacement?.completed);
+  const setupComplete = !nextPendingPlayer;
+  const nextState = {
+    ...actionState,
+    phase: setupComplete ? GAME_PHASES.SEED_ENCOUNTERS : GAME_PHASES.PLACE_STEWARD_HOUSES,
+    activePlayerId: setupComplete ? null : nextPendingPlayer.id,
+    map: {
+      ...actionState.map,
+      placedTiles: [...actionState.map.placedTiles, placedTile]
+    },
+    tileSupply: updateTileSupply(actionState, validation.tile.tile_id, (entry) => ({
+      ...entry,
+      available: entry.available - 1
+    })),
+    log: [
+      ...actionState.log,
+      createActionLogEntry(
+        actionState,
+        "setup",
+        `${player.name} placed ${validation.tile.tile_name} on ${placedTile.coordinate}.`,
+        {
+          playerId: player.id,
+          stewardRoleId: player.stewardRoleId,
+          tileId: validation.tile.tile_id,
+          coordinate: placedTile.coordinate,
+          setupComplete
+        }
+      )
+    ]
+  };
+
+  return {
+    state: nextState,
+    result: {
+      ok: true,
+      action: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
+      message: `Placed ${validation.tile.tile_name} on ${placedTile.coordinate} for free.`,
+      placedTile,
+      placedTiles: [placedTile],
+      actionCost: {
+        connected: true,
+        disconnectedTravelIgnored: true,
+        disconnectedTravelIgnoreReason: "steward_house_setup",
+        placeActionCost: 0,
+        disconnectedTravelActionCost: 0,
+        total: 0
+      },
+      cost: [],
+      setupComplete
+    }
   };
 }
 
@@ -4319,6 +4487,10 @@ export function dispatchGameAction(state, action, context = {}) {
   let outcome;
 
   switch (action.type) {
+    case TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE:
+      outcome = placeStewardHouse(state, action, context);
+      break;
+
     case TILE_ACTION_TYPES.PLACE_TILE:
       outcome = placeTile(state, action, context);
       break;

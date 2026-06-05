@@ -1,0 +1,5 @@
+The Quiet Vale styled rulebook draft
+PDF: The_Quiet_Vale_Rulebook_Styled_Draft_v0_1.pdf
+Pages: 10
+Source data: src/data/rules_config.json, src/data/redesigned_basic_map_v0_2.json, src/data/tiles.json, src/data/encounter_cards.json
+Visual direction: smoke black, warm parchment, muted brass, blue-grey slate, restrained ledger styling.

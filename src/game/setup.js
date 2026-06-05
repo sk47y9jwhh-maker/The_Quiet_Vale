@@ -13,6 +13,7 @@ export const ENCOUNTER_TYPES = Object.freeze({
 });
 
 export const GAME_PHASES = Object.freeze({
+  PLACE_STEWARD_HOUSES: "place_steward_houses",
   SEED_ENCOUNTERS: "seed_encounters",
   REVEAL_ENCOUNTERS: "reveal_encounters",
   PLAYER_TURNS: "player_turns",
@@ -171,6 +172,12 @@ function createPlayers(playerCount, standardPool, stewardRoleIds) {
       actionsRemaining: STANDARD_RULES.actionsPerPlayer,
       hand: hand.map((card) => card.card_id),
       lastInteraction: null,
+      stewardHousePlacement: {
+        completed: false,
+        tileId: stewardRole?.houseTileId ?? null,
+        terrainOptions: [...(stewardRole?.houseTerrainOptions ?? [])],
+        summary: stewardRole?.housePlacementSummary ?? ""
+      },
       openingResourcePlacement: {
         requiredRound: 1,
         completed: false,
@@ -247,7 +254,8 @@ export function createInitialGameState({
   tiles,
   mapHexes,
   stewardRoles = [],
-  enforceOpeningResourcePlacement = false
+  enforceOpeningResourcePlacement = false,
+  setupStewardHousePlacement = false
 }) {
   requirePlayerCount(playerCount);
 
@@ -271,12 +279,13 @@ export function createInitialGameState({
 
   return {
     id: `game-${playerCount}p-${hashSeed(seed).toString(16)}`,
-    phase: GAME_PHASES.SEED_ENCOUNTERS,
+    phase: setupStewardHousePlacement ? GAME_PHASES.PLACE_STEWARD_HOUSES : GAME_PHASES.SEED_ENCOUNTERS,
     round: 1,
     season: getSeasonForRound(1),
     playerCount,
+    stewardHousePlacementRequired: setupStewardHousePlacement,
     openingResourcePlacementRequired: enforceOpeningResourcePlacement,
-    activePlayerId: null,
+    activePlayerId: setupStewardHousePlacement ? (players[0]?.id ?? null) : null,
     seed,
     rules: STANDARD_RULES,
     players,
@@ -333,6 +342,7 @@ export function createInitialGameState({
           playerId: player.id,
           stewardRoleId: player.stewardRoleId,
           stewardRoleName: player.stewardRoleName,
+          stewardHousePlacement: player.stewardHousePlacement.summary,
           openingResourcePlacement: player.openingResourcePlacement.summary
         }))
       })
