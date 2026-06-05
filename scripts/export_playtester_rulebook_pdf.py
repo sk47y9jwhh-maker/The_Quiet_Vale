@@ -13,7 +13,7 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from export_styled_rulebook_from_docx import (
     DEFAULT_SOURCE,
@@ -27,8 +27,9 @@ from export_styled_rulebook_from_docx import (
 )
 
 
-OUTPUT = OUT_DIR / "The_Quiet_Vale_Playtester_Rulebook_Styled_Draft_v0_3.pdf"
-MANIFEST = OUT_DIR / "manifest_playtester_v0_3.txt"
+RULEBOOK_VERSION = "v0.4"
+OUTPUT = OUT_DIR / "The_Quiet_Vale_Playtester_Rulebook_Styled_Draft_v0_4.pdf"
+MANIFEST = OUT_DIR / "manifest_playtester_v0_4.txt"
 
 
 PLAYTEST_STYLES = {
@@ -139,6 +140,84 @@ def compact_rule_box(label: str, text: str):
     return table
 
 
+def manual_table(rows: list[list[str]], widths: list[float] | None = None):
+    data = []
+    for row_index, row in enumerate(rows):
+        style = PLAYTEST_STYLES["table_header"] if row_index == 0 else PLAYTEST_STYLES["table_cell"]
+        data.append([Paragraph(safe(cell), style) for cell in row])
+
+    flowable = Table(data, colWidths=widths or None, hAlign="LEFT", repeatRows=1)
+    flowable.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), PALETTE["graphite"]),
+                ("TEXTCOLOR", (0, 0), (-1, 0), PALETTE["parchment_light"]),
+                ("BACKGROUND", (0, 1), (-1, -1), PALETTE["parchment_light"]),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [PALETTE["parchment_light"], PALETTE["parchment_deep"]]),
+                ("GRID", (0, 0), (-1, -1), 0.32, PALETTE["line"]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 3.6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3.8),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]
+        )
+    )
+    return flowable
+
+
+def steward_house_setup_table():
+    return manual_table(
+        [
+            ["Steward", "Free setup House placement", "First normal tile"],
+            ["Vanguard", "Vanguard House on Woodland.", "Player choice."],
+            ["Knight", "Knight House on Arable Land.", "Player choice."],
+            ["Sentinel", "Sentinel House on Mountains.", "Player choice."],
+            ["Ranger", "Ranger House on Heaths.", "Player choice."],
+            ["Warden", "Warden House on Ruins.", "Player choice."],
+            [
+                "Quartermaster",
+                "Quartermaster House on Woodland, Mountains, Heaths, Arable Land, or Ruins. Not Grasslands or River.",
+                "Player choice.",
+            ],
+        ],
+        widths=[28 * mm, 86 * mm, 45 * mm],
+    )
+
+
+def steward_power_table():
+    return manual_table(
+        [
+            ["Upgraded Home", "Once per Season Steward Power"],
+            [
+                "Vanguard Home",
+                "Place a Travel Tile or Resource Tile without spending the Place Action. Costs, requirements, and disconnected Travel still apply.",
+            ],
+            [
+                "Knight Home",
+                "Place a Housing Tile without spending the Place Action. Costs, requirements, and disconnected Travel still apply.",
+            ],
+            [
+                "Sentinel Home",
+                "Upgrade a Core Tile without spending the Upgrade Action. Costs, requirements, and disconnected Travel still apply.",
+            ],
+            [
+                "Ranger Home",
+                "When placing a tile in a disconnected empty hex, ignore the extra disconnected Travel Action for that placement.",
+            ],
+            [
+                "Quartermaster Home",
+                "Exchange up to 3 Warehouse resources for the same number of different non-Goods resources.",
+            ],
+            [
+                "Warden Home",
+                "Resolve an active Burden without spending the Resolve Action. Normal costs and requirements still apply.",
+            ],
+        ],
+        widths=[43 * mm, 116 * mm],
+    )
+
+
 def draw_playtester_cover(canvas, doc):
     canvas.saveState()
     canvas.setFillColor(PALETTE["smoke"])
@@ -173,7 +252,7 @@ def draw_playtester_body(canvas, doc):
     canvas.setFont("Helvetica", 7.2)
     canvas.setFillColor(PALETTE["muted"])
     canvas.drawString(20 * mm, 10 * mm, "The Quiet Vale: Seasons of Settlement")
-    canvas.drawRightString(A4[0] - 20 * mm, 10 * mm, f"Playtester draft v0.3 - Page {doc.page}")
+    canvas.drawRightString(A4[0] - 20 * mm, 10 * mm, f"Playtester draft {RULEBOOK_VERSION} - Page {doc.page}")
     canvas.restoreState()
 
 
@@ -207,16 +286,17 @@ def build_story(doc) -> list:
                 "Lay out the Game Map, Stewards Board, Warehouse Board, and Round Timer.",
                 "Each player chooses a unique Steward and takes that Steward's Player Aid and Steward House Tile.",
                 "Set the shared Warehouse using the player-count table.",
-                "Each player places their Steward's starting Resource Tile for free on matching terrain. This ignores normal placement costs and adjacency requirements.",
                 "Build the balanced Encounter pool, deal hidden player hands, build the Encounter Deck, and add 1 random Golden Boon.",
-                "Begin Round 1 with the Seed Encounter Cards phase.",
+                "Each player places their Steward House for free on its setup terrain. This costs 0 Actions and 0 resources, ignores normal adjacency, and must use an empty non-River hex.",
+                "Begin Round 1 with the Seed Encounter Cards phase. There is no forced opening Resource tile; players choose their first normal tile action.",
             ]
         )
     )
     story.append(heading("Starting Warehouse", 2))
     story.append(docx_table_to_flowable(table_by_index(doc, 0)))
-    story.append(heading("Starting Stewards", 2))
-    story.append(docx_table_to_flowable(table_by_index(doc, 1)))
+    story.append(heading("Steward House Setup", 2))
+    story.append(steward_house_setup_table())
+    story.append(compact_rule_box("Why houses matter", "A basic Steward House is a normal placed Housing tile. Its upgraded Home unlocks that Steward's once-per-Season power. Only the matching Steward may use their own Steward Power."))
     story.append(heading("Encounter Setup", 2))
     story.append(docx_table_to_flowable(table_by_index(doc, 2)))
 
@@ -231,11 +311,11 @@ def build_story(doc) -> list:
     story.append(docx_table_to_flowable(table_by_index(doc, 7)))
     story.append(body("Players may also spend extra Actions when a tile action requires disconnected Travel or river crossing. The prototype calculates these costs, but players should still understand why they happened."))
 
-    story.append(PageBreak())
     story.append(heading("Map, Tiles, And Reachability"))
     for item in [
         "Tiles stay on the map unless a rule explicitly removes them.",
         "Placed, non-Overstrained tiles connected by side adjacency form the connected settlement network.",
+        "Stewards share the connected settlement network; one player's placed tiles can extend another player's reach if connected.",
         "Each player's Steward location is the tile they last interacted with or placed.",
         "A tile is reachable if it is the Steward's tile or connected to that tile through the connected settlement network.",
         "Overstrained tiles break the connected settlement network.",
@@ -251,11 +331,28 @@ def build_story(doc) -> list:
     ]:
         story.append(bullet(item))
 
-    story.append(heading("Resources And Warehouse"))
-    story.append(body("The Warehouse is shared by all players. It stores Wood, Stone, Metal, Food, Herbs, and Goods. The Warehouse limit is 15 of each resource."))
-    story.append(docx_table_to_flowable(table_by_index(doc, 8)))
+    story.append(
+        KeepTogether(
+            [
+                heading("Resources And Warehouse"),
+                body("The Warehouse is shared by all players. It stores Wood, Stone, Metal, Food, Herbs, and Goods. The Warehouse limit is 15 of each resource."),
+                docx_table_to_flowable(table_by_index(doc, 8)),
+            ]
+        )
+    )
 
     story.append(PageBreak())
+    story.append(heading("Steward Houses And Powers"))
+    for item in [
+        "Steward Houses are placed for free during setup before Encounter cards are seeded.",
+        "The acting Steward's marker starts on their own Steward House after setup placement.",
+        "A basic Steward House does not grant its once-per-Season power until upgraded to its Home side.",
+        "Only the matching Steward may use their own upgraded Home power, even though all Stewards may use the shared connected settlement network.",
+        "Using a Steward Power never waives resource costs, placement requirements, or disconnected Travel unless that power says so.",
+    ]:
+        story.append(bullet(item))
+    story.append(steward_power_table())
+
     story.append(heading("Encounter Cards"))
     story.append(body("Encounter Cards are seeded into and revealed from the Encounter Deck. Cards on the Stewards Board are open information. Players may inspect active cards, completed Arrivals, active Burdens, and face-up Boons."))
     story.append(docx_table_to_flowable(table_by_index(doc, 9)))
@@ -271,6 +368,7 @@ def build_story(doc) -> list:
     ]:
         story.append(bullet(item))
 
+    story.append(PageBreak())
     story.append(heading("Burdens"))
     for item in [
         "When a Burden is revealed, apply the current Season effect and then place it on the Stewards Board as an active Burden.",
@@ -352,7 +450,7 @@ def build_pdf(source: Path, output: Path):
         leftMargin=25 * mm,
         topMargin=24 * mm,
         bottomMargin=24 * mm,
-        title="The Quiet Vale Playtester Rulebook Styled Draft v0.3",
+        title=f"The Quiet Vale Playtester Rulebook Styled Draft {RULEBOOK_VERSION}",
         author="Robert Little",
         subject="Focused The Quiet Vale playtester rulebook draft",
     )
@@ -361,11 +459,11 @@ def build_pdf(source: Path, output: Path):
     MANIFEST.write_text(
         "\n".join(
             [
-                "The Quiet Vale playtester rulebook styled draft v0.3",
+                f"The Quiet Vale playtester rulebook styled draft {RULEBOOK_VERSION}",
                 f"PDF: {output.name}",
                 f"Source DOCX: {source}",
                 f"Pages: {pages}",
-                "Trim approach: table-facing rules only; opening flavour text preserved; dense production fallback lists summarised to card-text guidance.",
+                "Trim approach: table-facing rules only; opening flavour text preserved; recent Steward House setup, reachability, and scoring rules reflected.",
                 "",
             ]
         ),

@@ -5,7 +5,7 @@ This note tracks the local prototype as of the v2.0 aligned production-set pass.
 ## Supported Now
 
 - Loads the JSON map, tiles, encounter cards, and rules config from `src/data/`.
-- Uses `Redesigned Basic Map v0.2` as the default locked map; `Redesigned Basic Map v0.1` remains available as the previous reference map.
+- Uses `Redesigned Basic Map v0.2` as the default locked map.
 - Provides a setup `Redeal Cards` control for generating a fresh playtest seed and rebuilding Encounter hands/deck without changing map or player count.
 - Stocks the starting Warehouse by player count: 15 of each resource at 1p, 10 at 2p, 5 at 3p, and 0 at 4p/5+ Council reference.
 - Renders the current flat-top hex map with terrain, features, placed tiles, Strain, Support, and player last-interaction markers.
@@ -18,13 +18,13 @@ This note tracks the local prototype as of the v2.0 aligned production-set pass.
 - Implements v2.2 Core Resource production values, Workshop/Makers Conclave upgrade support, Market/Seldes Goods substitution, and The Apprentice Steward as a placement Action discount rather than a resource discount.
 - Shows Encounter flavour text prominently on active Encounter cards, recent reveals, and round effects so playtests can read the settlement story while checking mechanics.
 - Shows a debug Encounter coverage audit for each source Encounter card, including supported, partial, and unsupported implementation status.
-- Provides a sticky prototype testing bar for phase, player actions, steward marker context, latest action result, panel jumps, and common turn-flow actions.
+- Provides a compact dynamic helper panel for phase, round, season, selected hex, last action, and common turn-flow actions.
 - Prioritizes the playtest layout around the map, Warehouse, tile placement, selected tile actions, and Encounter cards before lower-priority debug and feedback tools.
 - Provides prototype map shortcuts: right-click an empty hex to rotate a selected multihex placement preview, and right-click a placed tile to open quick Produce/Interact and Upgrade actions.
 - Provides debug scenario presets for focused local checks of disconnected Travel, Steward marker travel anchoring, Arrival completion, Burden resolution, Boon discounts, Supported Strain, and Golden Vial travel.
 - Shows a Playtest Pulse panel with action mix, travel friction, Encounter pressure, board Strain, resource caps, and pacing signals for subjective playtesting.
 - Provides Playtest Notes and a generated markdown report for capturing subjective fun, pacing, tension, choice quality, friction, balance notes, and rule questions.
-- Treats source Burdens without `To resolve:` text as persistent active Burdens; they reapply at Season starts and cannot be resolved by the player.
+- Gives previously unresolvable Burdens a Season III 4 Goods resolution opportunity where implemented, while keeping them persistent before that point.
 - Implements `The Golden Bell` as a deterministic prototype choice from eligible game-box Arrivals, revealing one as an active Arrival with 3 timer tokens.
 - Implements `The Golden Eyed Traveler` as one additional Player Turns phase before end-of-round effects.
 - Implements `The Golden Scroll` as a pending hand-refresh choice that discards selected standard hand cards and draws replacements from eligible game-box standards.
@@ -32,6 +32,7 @@ This note tracks the local prototype as of the v2.0 aligned production-set pass.
 - Implements `The Golden Vial` as a rest-of-game, once-per-round discount for the disconnected Travel action cost.
 - Supports player last-interaction markers as the local stand-in for Steward Tokens.
 - Counts the acting player's last-interaction marker as the local travel anchor for disconnected Travel action costs.
+- Places each selected Steward House for free during setup; the old forced Round 1 opening Resource tile is no longer required.
 - Implements `The Burden of Command` and `Where Help Stands` against those markers.
 - Provides debug controls to manually set or clear each player's marker.
 - Implements minimal upgraded Steward House powers:

@@ -43,15 +43,17 @@ Full tile and card component tables are in `docs/the_quiet_vale_component_list_t
 
 1. Choose 1-4 players.
 2. Use Redesigned Basic Map v0.2 as the default locked map.
-3. Place all directly placeable Core Basic tiles in the tile supply. Upgraded faces are not placed directly; they are used when tiles are upgraded.
-4. Keep Special Tiles locked until their matching Arrival is completed.
-5. Stock the shared Warehouse based on player count: 1 player starts with 15 of each resource, 2 players with 10 of each, 3 players with 5 of each, and 4 players with 0 of each. The 5+ Council Variant reference value is also 0 of each resource, but the prototype does not implement Council Variant.
-6. Build a balanced standard Encounter pool with 5 Boons, 5 Burdens, and 5 Arrivals per player.
-7. Shuffle the standard pool.
-8. Deal 10 hidden Encounter Cards to each player.
-9. Deal 5 standard Encounter Cards per player to the Encounter Deck.
-10. Add exactly 1 random Golden Boon to the Encounter Deck. Golden Boons are never dealt to player hands.
-11. Start at Round 1, Season I, Seed Encounters phase. Each player has 4 Actions available for the round.
+3. Each player chooses a unique Steward and unlocks that Steward's basic Steward House tile.
+4. Place all directly placeable Core Basic tiles in the tile supply. Upgraded faces are not placed directly; they are used when tiles are upgraded.
+5. Keep Special Tiles locked until their matching Arrival is completed.
+6. Stock the shared Warehouse based on player count: 1 player starts with 15 of each resource, 2 players with 10 of each, 3 players with 5 of each, and 4 players with 0 of each. The 5+ Council Variant reference value is also 0 of each resource, but the prototype does not implement Council Variant.
+7. Build a balanced standard Encounter pool with 5 Boons, 5 Burdens, and 5 Arrivals per player.
+8. Shuffle the standard pool.
+9. Deal 10 hidden Encounter Cards to each player.
+10. Deal 5 standard Encounter Cards per player to the Encounter Deck.
+11. Add exactly 1 random Golden Boon to the Encounter Deck. Golden Boons are never dealt to player hands.
+12. Each player places their Steward House for free on its setup terrain. This costs 0 Actions and 0 resources, ignores normal adjacency, and must use an empty non-River hex.
+13. Start at Round 1, Season I, Seed Encounters phase. Each player has 4 Actions available for the round. There is no forced opening Resource tile; players choose their first normal tile action.
 
 ## Round And Season Structure
 
@@ -217,7 +219,7 @@ When a Burden is revealed:
 
 Burdens that place Strain can affect disconnected or unreachable tiles unless the card says otherwise. If fewer valid targets exist than requested, choose all valid targets. If no valid targets exist, no Strain is placed, but the Burden remains active unless resolved.
 
-Some source Burdens have no `To resolve:` text and are treated as persistent active Burdens. They reapply at Season starts and cannot be resolved by the player in the prototype.
+Some Burdens have no normal Season I or Season II resolution, but the current balance pass gives previously unresolvable Burdens a Season III resolution opportunity where printed.
 
 ## Resolving Burdens
 
@@ -286,6 +288,17 @@ Implemented Golden Boon effects:
 - The Golden Vial: create a rest-of-game, once-per-round discount for the disconnected Travel action cost.
 
 ## Steward Houses And Steward Powers
+
+Steward Houses are placed for free during setup before Encounter cards are seeded. A basic Steward House is a normal placed Housing tile. Its upgraded Home unlocks that Steward's once-per-Season power. Only the matching Steward may use their own upgraded Home power, even though all Stewards may use the shared connected settlement network.
+
+Setup terrain:
+
+- Vanguard House: Woodland.
+- Knight House: Arable Land.
+- Sentinel House: Mountains.
+- Ranger House: Heaths.
+- Warden House: Ruins.
+- Quartermaster House: Woodland, Mountains, Heaths, Arable Land, or Ruins; not Grasslands or River.
 
 The prototype represents Steward Tokens as each player's last-interaction marker. Current upgraded Steward House powers from source tile text:
 
