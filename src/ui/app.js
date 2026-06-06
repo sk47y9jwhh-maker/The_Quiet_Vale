@@ -1497,24 +1497,58 @@ function getPlacementOrientations(tile) {
   return Number(tile?.size_hexes ?? 1) > 1 ? HEX_DIRECTIONS.map((direction) => direction.id) : [HEX_DIRECTIONS[0].id];
 }
 
-function getAutomaticPlacementCostDiscountResources(game, tile, cost) {
-  const discountEffect = getPendingPlacementResourceDiscount(game, tile);
-
+function getAutomaticResourceDiscountResources(game, cost, discountEffect, savedResources = []) {
   if (!discountEffect || discountEffect.freeResourceCost) {
     return [];
   }
 
-  const eligibleCost = getPlacementDiscountEligibleCost(cost, discountEffect);
-  const choiceCount = getCostReductionChoiceCount(eligibleCost, discountEffect);
+  const choiceCount = getCostReductionChoiceCount(cost, discountEffect);
+  if (choiceCount <= 0) {
+    return [];
+  }
+
+  const remainingByResource = summarizeResourceCostEntries(cost).reduce((remaining, entry) => {
+    remaining.set(entry.resource, entry.amount);
+    return remaining;
+  }, new Map());
   const choices = [];
 
-  for (const entry of eligibleCost) {
-    for (let index = 0; index < entry.amount && choices.length < choiceCount; index += 1) {
-      choices.push(entry.resource);
+  const addChoice = (resource) => {
+    const remaining = remainingByResource.get(resource) ?? 0;
+    if (choices.length >= choiceCount || remaining <= 0) {
+      return false;
+    }
+
+    choices.push(resource);
+    remainingByResource.set(resource, remaining - 1);
+    return true;
+  };
+
+  for (const resource of savedResources.filter(Boolean)) {
+    addChoice(resource);
+  }
+
+  const warehouseResources = game?.warehouse?.resources ?? {};
+  for (const entry of cost) {
+    const deficit = Math.max(0, Number(entry.amount ?? 0) - Number(warehouseResources[entry.resource] ?? 0));
+    for (let index = 0; index < deficit; index += 1) {
+      addChoice(entry.resource);
+    }
+  }
+
+  for (const entry of cost) {
+    while (addChoice(entry.resource)) {
+      // Keep filling from the printed cost order once affordability deficits are covered.
     }
   }
 
   return choices;
+}
+
+function getAutomaticPlacementCostDiscountResources(game, tile, cost) {
+  const discountEffect = getPendingPlacementResourceDiscount(game, tile);
+  const eligibleCost = getPlacementDiscountEligibleCost(cost, discountEffect);
+  return getAutomaticResourceDiscountResources(game, eligibleCost, discountEffect);
 }
 
 function shouldIgnoreDisconnectedTravelForOpeningPlacement(game, tile) {
@@ -3649,12 +3683,7 @@ function getBurdenResolutionSelectedCost(activeEncounterId, resolution) {
 
 function getBurdenResolutionDiscountChoices(activeEncounterId, cost, discountEffect) {
   const saved = state.burdenResolutionDiscounts[activeEncounterId] ?? [];
-  const allowedResources = new Set(cost.map((entry) => entry.resource));
-
-  return Array.from({ length: getCostReductionChoiceCount(cost, discountEffect) }, (_, index) => {
-    const selectedResource = saved[index] ?? "";
-    return selectedResource && allowedResources.has(selectedResource) ? selectedResource : "";
-  });
+  return getAutomaticResourceDiscountResources(state.game, cost, discountEffect, saved);
 }
 
 function renderBurdenResolutionDiscountChoices(activeState, cost, discountEffect) {
@@ -3668,24 +3697,32 @@ function renderBurdenResolutionDiscountChoices(activeState, cost, discountEffect
   }
 
   const allowedResources = [...new Set(cost.map((entry) => entry.resource))];
+  const discountedCost = getCostAfterSelectedResourceDiscount(cost, discountEffect, selectedResources);
 
   return `
-    <div class="burden-payment-grid" aria-label="Burden resolution reduction resources">
-      ${selectedResources
-        .map(
-          (selectedResource, index) => `
-            <select class="burden-resolution-discount-resource" data-active-encounter-id="${escapeHtml(activeState.id)}" data-discount-index="${index}" aria-label="Burden reduction resource ${index + 1}">
-              <option value="">Reduce...</option>
-              ${allowedResources
-                .map(
-                  (resource) =>
-                    `<option value="${escapeHtml(resource)}" ${resource === selectedResource ? "selected" : ""}>${escapeHtml(resource)}</option>`
-                )
-                .join("")}
-            </select>
-          `
-        )
-        .join("")}
+    <div class="placement-choice-panel is-ready" aria-label="Burden resolution reduction resources">
+      <header>
+        <span>Discount applied</span>
+        <strong>${escapeHtml(discountEffect.cardName ?? "Boon discount")}</strong>
+      </header>
+      <p>${escapeHtml(`Burden cost: ${renderCost(cost)} -> ${renderCost(discountedCost)}. Change the reduced resource below if needed.`)}</p>
+      <div class="burden-payment-grid">
+        ${selectedResources
+          .map(
+            (selectedResource, index) => `
+              <select class="burden-resolution-discount-resource" data-active-encounter-id="${escapeHtml(activeState.id)}" data-discount-index="${index}" aria-label="Burden reduction resource ${index + 1}">
+                <option value="">Reduce...</option>
+                ${allowedResources
+                  .map(
+                    (resource) =>
+                      `<option value="${escapeHtml(resource)}" ${resource === selectedResource ? "selected" : ""}>${escapeHtml(resource)}</option>`
+                  )
+                  .join("")}
+              </select>
+            `
+          )
+          .join("")}
+      </div>
     </div>
   `;
 }
@@ -3704,21 +3741,12 @@ function getPendingArrivalRequirementDiscount(game) {
   );
 }
 
-function getArrivalRequirementResources(card, game) {
-  const requirement = String(card?.requirement ?? "").split(/\bwithin\b/i)[0];
-  const resources = [
-    ...new Set(
-      [...requirement.matchAll(/\b\d+\s+([A-Za-z]+)\b/g)]
-        .map((match) => match[1])
-        .filter((resource) => game.rules.resources.includes(resource))
-    )
-  ];
-
-  return resources.length ? resources : game.rules.resources;
-}
-
-function getArrivalRequirementDiscountChoices(activeEncounterId, discountEffect) {
+function getArrivalRequirementDiscountChoices(activeEncounterId, discountEffect, cost = []) {
   const saved = state.arrivalRequirementDiscounts[activeEncounterId] ?? [];
+  if (cost.length > 0) {
+    return getAutomaticResourceDiscountResources(state.game, cost, discountEffect, saved);
+  }
+
   return Array.from({ length: discountEffect?.amount ?? 0 }, (_, index) => saved[index] ?? "");
 }
 
@@ -3727,32 +3755,46 @@ function renderArrivalRequirementDiscountChoices(activeState, card, discountEffe
     return "";
   }
 
-  const allowedResources = getArrivalRequirementResources(card, game);
-  const selectedResources = getArrivalRequirementDiscountChoices(activeState.id, discountEffect);
+  const baseCost = getArrivalBaseCompletionCost(card, game);
+  const allowedResources = [...new Set(baseCost.map((entry) => entry.resource))];
+  const selectedResources = getArrivalRequirementDiscountChoices(activeState.id, discountEffect, baseCost);
+  const discountedCost = getCostAfterSelectedResourceDiscount(baseCost, discountEffect, selectedResources);
 
   return `
-    <div class="burden-payment-grid" aria-label="Arrival requirement reduction resources">
-      ${selectedResources
-        .map(
-          (selectedResource, index) => `
-            <select class="arrival-requirement-discount-resource" data-active-encounter-id="${escapeHtml(activeState.id)}" data-discount-index="${index}" aria-label="Arrival reduction resource ${index + 1}">
-              <option value="">Reduce...</option>
-              ${allowedResources
-                .map(
-                  (resource) =>
-                    `<option value="${escapeHtml(resource)}" ${resource === selectedResource ? "selected" : ""}>${escapeHtml(resource)}</option>`
-                )
-                .join("")}
-            </select>
-          `
-        )
-        .join("")}
+    <div class="placement-choice-panel is-ready" aria-label="Arrival requirement reduction resources">
+      <header>
+        <span>Discount applied</span>
+        <strong>${escapeHtml(discountEffect.cardName ?? "Boon discount")}</strong>
+      </header>
+      <p>${escapeHtml(`Arrival cost: ${renderCost(baseCost)} -> ${renderCost(discountedCost)}. Change the reduced resource below if needed.`)}</p>
+      <div class="burden-payment-grid">
+        ${selectedResources
+          .map(
+            (selectedResource, index) => `
+              <select class="arrival-requirement-discount-resource" data-active-encounter-id="${escapeHtml(activeState.id)}" data-discount-index="${index}" aria-label="Arrival reduction resource ${index + 1}">
+                <option value="">Reduce...</option>
+                ${allowedResources
+                  .map(
+                    (resource) =>
+                      `<option value="${escapeHtml(resource)}" ${resource === selectedResource ? "selected" : ""}>${escapeHtml(resource)}</option>`
+                  )
+                  .join("")}
+              </select>
+            `
+          )
+          .join("")}
+      </div>
     </div>
   `;
 }
 
 function getArrivalRequirementDiscountAction(activeEncounterId) {
-  return (state.arrivalRequirementDiscounts[activeEncounterId] ?? []).filter(Boolean);
+  const discountEffect = getPendingArrivalRequirementDiscount(state.game);
+  const activeState = state.game.encounter.active.find((candidate) => candidate.id === activeEncounterId);
+  const card = state.data.encounterCards.find((candidate) => candidate.card_id === activeState?.cardId);
+  const cost = card ? getArrivalBaseCompletionCost(card, state.game) : [];
+
+  return getArrivalRequirementDiscountChoices(activeEncounterId, discountEffect, cost).filter(Boolean);
 }
 
 function summarizeResourceCostEntries(cost, resourceOrder = []) {
@@ -3799,7 +3841,7 @@ function getArrivalBaseCompletionCost(card, game) {
 function getArrivalCompletionCost(activeState, card, arrivalRequirementDiscount, game) {
   const baseCost = getArrivalBaseCompletionCost(card, game);
   const selectedResources = arrivalRequirementDiscount
-    ? getArrivalRequirementDiscountChoices(activeState.id, arrivalRequirementDiscount).filter(Boolean)
+    ? getArrivalRequirementDiscountChoices(activeState.id, arrivalRequirementDiscount, baseCost).filter(Boolean)
     : [];
   const reductions = selectedResources.reduce((summary, resource) => {
     summary[resource] = (summary[resource] ?? 0) + 1;
@@ -3870,7 +3912,7 @@ function getCostReductionChoiceCount(cost, discountEffect) {
 
 function getUpgradeCostDiscountChoices(placedTileId, cost, discountEffect) {
   const saved = state.upgradeCostDiscounts[placedTileId] ?? [];
-  return Array.from({ length: getCostReductionChoiceCount(cost, discountEffect) }, (_, index) => saved[index] ?? "");
+  return getAutomaticResourceDiscountResources(state.game, cost, discountEffect, saved);
 }
 
 function renderUpgradeCostDiscountChoices(selectedPlacedTile, selectedTileDefinition, upgradeCost, discountEffect) {
@@ -3884,30 +3926,50 @@ function renderUpgradeCostDiscountChoices(selectedPlacedTile, selectedTileDefini
     return "";
   }
 
+  if (discountEffect.freeResourceCost) {
+    return `
+      <div class="placement-choice-panel is-ready">
+        <header>
+          <span>Discount applied</span>
+          <strong>${escapeHtml(discountEffect.cardName ?? "Boon discount")}</strong>
+        </header>
+        <p>${escapeHtml(`${selectedTileDefinition.tile_name}'s upgrade resource cost is reduced from ${renderCost(upgradeCost.cost)} to 0.`)}</p>
+      </div>
+    `;
+  }
+
   const selectedResources = getUpgradeCostDiscountChoices(selectedPlacedTile.id, upgradeCost.cost, discountEffect);
   if (selectedResources.length === 0) {
     return "";
   }
 
   const allowedResources = [...new Set(upgradeCost.cost.map((entry) => entry.resource))];
+  const discountedCost = getCostAfterSelectedResourceDiscount(upgradeCost.cost, discountEffect, selectedResources);
 
   return `
-    <div class="burden-payment-grid" aria-label="Core upgrade cost reduction resources">
-      ${selectedResources
-        .map(
-          (selectedResource, index) => `
-            <select class="upgrade-cost-discount-resource" data-placed-tile-id="${escapeHtml(selectedPlacedTile.id)}" data-discount-index="${index}" aria-label="Upgrade reduction resource ${index + 1}">
-              <option value="">Reduce...</option>
-              ${allowedResources
-                .map(
-                  (resource) =>
-                    `<option value="${escapeHtml(resource)}" ${resource === selectedResource ? "selected" : ""}>${escapeHtml(resource)}</option>`
-                )
-                .join("")}
-            </select>
-          `
-        )
-        .join("")}
+    <div class="placement-choice-panel is-ready" aria-label="Core upgrade cost reduction resources">
+      <header>
+        <span>Discount applied</span>
+        <strong>${escapeHtml(discountEffect.cardName ?? "Boon discount")}</strong>
+      </header>
+      <p>${escapeHtml(`Upgrade cost: ${renderCost(upgradeCost.cost)} -> ${renderCost(discountedCost)}. Change the reduced resource below if needed.`)}</p>
+      <div class="burden-payment-grid">
+        ${selectedResources
+          .map(
+            (selectedResource, index) => `
+              <select class="upgrade-cost-discount-resource" data-placed-tile-id="${escapeHtml(selectedPlacedTile.id)}" data-discount-index="${index}" aria-label="Upgrade reduction resource ${index + 1}">
+                <option value="">Reduce...</option>
+                ${allowedResources
+                  .map(
+                    (resource) =>
+                      `<option value="${escapeHtml(resource)}" ${resource === selectedResource ? "selected" : ""}>${escapeHtml(resource)}</option>`
+                  )
+                  .join("")}
+              </select>
+            `
+          )
+          .join("")}
+      </div>
     </div>
   `;
 }
@@ -3940,12 +4002,7 @@ function getPlacementDiscountEligibleCost(cost, discountEffect) {
 function getPlacementCostDiscountChoices(tileId, cost, discountEffect) {
   const saved = state.placementCostDiscounts[tileId] ?? [];
   const eligibleCost = getPlacementDiscountEligibleCost(cost, discountEffect);
-  const allowedResources = new Set(eligibleCost.map((entry) => entry.resource));
-
-  return Array.from({ length: getCostReductionChoiceCount(eligibleCost, discountEffect) }, (_, index) => {
-    const selectedResource = saved[index] ?? "";
-    return selectedResource && allowedResources.has(selectedResource) ? selectedResource : "";
-  });
+  return getAutomaticResourceDiscountResources(state.game, eligibleCost, discountEffect, saved);
 }
 
 function getCostAfterSelectedResourceDiscount(cost, discountEffect, selectedResources) {
@@ -4006,15 +4063,15 @@ function renderPlacementCostDiscountChoices(tile, cost, discountEffect) {
 
   const eligibleCost = getPlacementDiscountEligibleCost(cost, discountEffect);
   const allowedResources = [...new Set(eligibleCost.map((entry) => entry.resource))];
-  const ready = selectedResources.every(Boolean);
+  const discountedCost = getCostAfterSelectedResourceDiscount(cost, discountEffect, selectedResources);
 
   return `
-    <div class="placement-choice-panel ${ready ? "is-ready" : "needs-choice"}" aria-label="Placement cost reduction resources">
+    <div class="placement-choice-panel is-ready" aria-label="Placement cost reduction resources">
       <header>
-        <span>${ready ? "Discount ready" : "Choose before placing"}</span>
+        <span>Discount applied</span>
         <strong>${escapeHtml(discountEffect.cardName ?? "Boon discount")}</strong>
       </header>
-      <p>${escapeHtml(`Choose ${selectedResources.length} resource${selectedResources.length === 1 ? "" : "s"} to reduce for this ${tile.tile_name} placement.`)}</p>
+      <p>${escapeHtml(`Placement cost: ${renderCost(cost)} -> ${renderCost(discountedCost)}. Change the reduced resource below if needed.`)}</p>
       <div class="burden-payment-grid">
         ${selectedResources
           .map(
@@ -4786,9 +4843,14 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
             !burdenResolutionDiscount ||
             activeState.encounterType !== ENCOUNTER_TYPES.BURDEN ||
             burdenResolutionDiscountChoices.every((resource) => Boolean(resource));
+          const arrivalRequirementBaseCost =
+            activeState.encounterType === ENCOUNTER_TYPES.ARRIVAL && card
+              ? getArrivalBaseCompletionCost(card, game)
+              : [];
           const arrivalRequirementDiscountChoices = getArrivalRequirementDiscountChoices(
             activeState.id,
-            arrivalRequirementDiscount
+            arrivalRequirementDiscount,
+            arrivalRequirementBaseCost
           );
           const arrivalRequirementDiscountReady =
             !arrivalRequirementDiscount ||
