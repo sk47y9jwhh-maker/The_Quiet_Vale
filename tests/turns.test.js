@@ -225,6 +225,27 @@ test("resolving end-of-round effects advances the round and resets actions", () 
   );
 });
 
+test("end of round skips seeding when all player hands are empty", () => {
+  let state = advanceToPlayerTurns(newState(2));
+  state = {
+    ...state,
+    players: state.players.map((player) => ({
+      ...player,
+      hand: []
+    }))
+  };
+  state = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN }).state;
+  state = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN }).state;
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.END_ROUND });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.autoSkippedSeeding, true);
+  assert.equal(nextState.phase, GAME_PHASES.REVEAL_ENCOUNTERS);
+  assert.equal(nextState.round, 2);
+  assert.deepEqual(nextState.encounter.seededRounds, [1, 2]);
+  assert.match(result.message, /ready to reveal/);
+});
+
 test("round advancement updates seasons at rounds 6 and 11", () => {
   let state = newState(1);
 

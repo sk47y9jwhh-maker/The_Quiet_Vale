@@ -155,6 +155,26 @@ test("seeding removes one hidden card per player and places seeded cards on top 
   assert.equal(nextState.phase, GAME_PHASES.REVEAL_ENCOUNTERS);
 });
 
+test("seeding skips cleanly when no players have cards in hand", () => {
+  const state = {
+    ...newState(2),
+    players: newState(2).players.map((player) => ({
+      ...player,
+      hand: []
+    }))
+  };
+  const originalDeckLength = state.encounter.deck.length;
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.SEED_ENCOUNTERS });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.seededCount, 0);
+  assert.equal(result.skippedNoCards, true);
+  assert.match(result.message, /Skipped seeding/);
+  assert.deepEqual(nextState.encounter.seededRounds, [1]);
+  assert.equal(nextState.encounter.deck.length, originalDeckLength);
+  assert.equal(nextState.phase, GAME_PHASES.REVEAL_ENCOUNTERS);
+});
+
 test("debug seeding can choose a hand card and insert the packet in the middle of the deck", () => {
   const state = newState(1);
   const selectedCard = state.players[0].hand[3];

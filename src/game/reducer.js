@@ -70,6 +70,10 @@ function createActionLogEntry(state, type, message, data = {}, offset = 0) {
   };
 }
 
+function hasSeedableEncounterCards(state) {
+  return (state.players ?? []).some((player) => (player.hand ?? []).length > 0);
+}
+
 function canCalculateScore(context) {
   return Boolean(context.tiles || context.tileIndex);
 }
@@ -4259,9 +4263,15 @@ function endRound(state, context) {
         reappliedBurdens: []
       }
     : reapplySeasonStartBurdens(seasonEffects.state, encounterResolution.active, nextRound, nextSeason, context);
+  const shouldSkipSeeding = !isComplete && !hasSeedableEncounterCards(state);
+  const endRoundMessage = isComplete
+    ? `Resolved end-of-round effects for Round ${state.round}. The standard game is complete.`
+    : shouldSkipSeeding
+      ? `Resolved end-of-round effects for Round ${state.round}. Round ${nextRound} has no cards to seed and is ready to reveal.`
+      : `Resolved end-of-round effects for Round ${state.round}. Round ${nextRound} is ready to seed.`;
   const nextState = {
     ...stateAfterArrivalTimerEffects,
-    phase: isComplete ? GAME_PHASES.COMPLETE : GAME_PHASES.SEED_ENCOUNTERS,
+    phase: isComplete ? GAME_PHASES.COMPLETE : shouldSkipSeeding ? GAME_PHASES.REVEAL_ENCOUNTERS : GAME_PHASES.SEED_ENCOUNTERS,
     round: isComplete ? state.round : nextRound,
     season: nextSeason,
     activePlayerId: null,
@@ -4274,6 +4284,9 @@ function endRound(state, context) {
       ...stateAfterArrivalTimerEffects.encounter,
       active: burdenReapplication.active,
       discard: encounterResolution.discard,
+      seededRounds: shouldSkipSeeding
+        ? [...stateAfterArrivalTimerEffects.encounter.seededRounds, nextRound]
+        : stateAfterArrivalTimerEffects.encounter.seededRounds,
       roundEffects: resetRecurringRoundEffects(
         (stateAfterArrivalTimerEffects.encounter.roundEffects ?? []).filter(
           (effect) => effect.expiresAtEndOfRound === false || effect.round > state.round
@@ -4285,13 +4298,12 @@ function endRound(state, context) {
       createActionLogEntry(
         state,
         "round",
-        isComplete
-          ? `Resolved end-of-round effects for Round ${state.round}. The standard game is complete.`
-          : `Resolved end-of-round effects for Round ${state.round}. Round ${nextRound} is ready to seed.`,
+        endRoundMessage,
         {
           completedRound: state.round,
           nextRound: isComplete ? null : nextRound,
           nextSeason: isComplete ? null : nextSeason,
+          autoSkippedSeeding: shouldSkipSeeding,
           timersRemoved: encounterResolution.timersRemoved,
           expiredArrivalIds: encounterResolution.expiredArrivals.map((arrival) => arrival.cardId),
           reappliedBurdenIds: burdenReapplication.reappliedBurdens.map((burden) => burden.cardId),
@@ -4319,7 +4331,25 @@ function endRound(state, context) {
         ),
         round: burden.round,
         season: burden.season
-      }))
+      })),
+      ...(shouldSkipSeeding
+        ? [
+            {
+              ...createActionLogEntry(
+                state,
+                "encounter",
+                `Skipped seeding for Round ${nextRound}; no players have Encounter Cards in hand.`,
+                {
+                  seededCount: 0,
+                  skippedNoCards: true
+                },
+                1 + seasonEffects.effects.length + burdenReapplication.reappliedBurdens.length
+              ),
+              round: nextRound,
+              season: nextSeason
+            }
+          ]
+        : [])
     ]
   };
 
@@ -4328,11 +4358,10 @@ function endRound(state, context) {
     result: {
       ok: true,
       action: TILE_ACTION_TYPES.END_ROUND,
-      message: isComplete
-        ? `Resolved end-of-round effects for Round ${state.round}. The standard game is complete.`
-        : `Resolved end-of-round effects for Round ${state.round}. Round ${nextRound} is ready to seed.`,
+      message: endRoundMessage,
       advancedRound: !isComplete,
       complete: isComplete,
+      autoSkippedSeeding: shouldSkipSeeding,
       timersRemoved: encounterResolution.timersRemoved,
       expiredArrivals: encounterResolution.expiredArrivals,
       reappliedBurdens: burdenReapplication.reappliedBurdens,
@@ -4380,6 +4409,10 @@ function seedEncounters(state, action = {}) {
     };
   }
 
+  const skippedNoCards = seed.seeded.length === 0 && !hasSeedableEncounterCards(state);
+  const seedMessage = skippedNoCards
+    ? `Skipped seeding for Round ${state.round}; no players have Encounter Cards in hand.`
+    : `Seeded ${seed.seeded.length} Encounter Card${seed.seeded.length === 1 ? "" : "s"} for Round ${state.round}.`;
   const nextState = {
     ...state,
     phase: GAME_PHASES.REVEAL_ENCOUNTERS,
@@ -4388,8 +4421,9 @@ function seedEncounters(state, action = {}) {
     encounter: seed.encounter,
     log: [
       ...state.log,
-      createActionLogEntry(state, "encounter", `Seeded ${seed.seeded.length} Encounter Card${seed.seeded.length === 1 ? "" : "s"} for Round ${state.round}.`, {
+      createActionLogEntry(state, "encounter", seedMessage, {
         seededCount: seed.seeded.length,
+        skippedNoCards,
         playerIds: seed.seeded.map((entry) => entry.playerId),
         cardIds: seed.seeded.map((entry) => entry.cardId),
         seedPosition: seed.seedPosition,
@@ -4403,8 +4437,9 @@ function seedEncounters(state, action = {}) {
     result: {
       ok: true,
       action: TILE_ACTION_TYPES.SEED_ENCOUNTERS,
-      message: `Seeded ${seed.seeded.length} Encounter Card${seed.seeded.length === 1 ? "" : "s"} for Round ${state.round}.`,
+      message: seedMessage,
       seededCount: seed.seeded.length,
+      skippedNoCards,
       seedPosition: seed.seedPosition,
       insertIndex: seed.insertIndex,
       seeded: seed.seeded

@@ -5313,10 +5313,19 @@ function getStewardHouseGuideHint(game, tileIndex, activePlayer) {
   return `${baseTile.tile_name} is placed. Upgrading to ${upgradeTile.tile_name} unlocks: ${powerSummary}.`;
 }
 
+function getSeedablePlayers(game) {
+  return game.players.filter((player) => (player.hand ?? []).length > 0);
+}
+
+function getSeedablePlayerCount(game) {
+  return getSeedablePlayers(game).length;
+}
+
 function getGuideInstruction(game, tileIndex, encounterIndex) {
   const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
   const seeded = game.encounter.seededRounds.includes(game.round);
   const selectedSeedCount = Object.keys(getDebugSeedSelectionsForAction(game)).length;
+  const seedablePlayerCount = getSeedablePlayerCount(game);
 
   if (isPlaySessionSetup()) {
     return "Choose player count and Stewards in Setup, then press Start Game when the table is ready.";
@@ -5338,11 +5347,15 @@ function getGuideInstruction(game, tileIndex, encounterIndex) {
   }
 
   if (game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded) {
-    if (selectedSeedCount > 0 && selectedSeedCount < game.playerCount) {
-      return `Choose the remaining seed cards. ${selectedSeedCount}/${game.playerCount} players have chosen.`;
+    if (seedablePlayerCount === 0) {
+      return "No players have Encounter Cards left to seed. The round is moving straight to Reveal Encounters.";
     }
 
-    if (selectedSeedCount === game.playerCount) {
+    if (selectedSeedCount > 0 && selectedSeedCount < seedablePlayerCount) {
+      return `Choose the remaining seed cards. ${selectedSeedCount}/${seedablePlayerCount} players with cards have chosen.`;
+    }
+
+    if (selectedSeedCount === seedablePlayerCount) {
       return "All players have chosen a seed card. Press Seed, then Reveal the round.";
     }
 
@@ -5391,13 +5404,18 @@ function getPlayerAidPrompt(game, tileIndex, encounterIndex) {
   const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
   const seeded = game.encounter.seededRounds.includes(game.round);
   const selectedSeedCount = Object.keys(getDebugSeedSelectionsForAction(game)).length;
+  const seedablePlayerCount = getSeedablePlayerCount(game);
 
   if (!isPlaySessionPlaying()) {
     return "";
   }
 
   if (game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded) {
-    if (selectedSeedCount === game.playerCount) {
+    if (seedablePlayerCount === 0) {
+      return "No hands have Encounter Cards left, so the Seed phase is skipped.";
+    }
+
+    if (selectedSeedCount === seedablePlayerCount) {
       return "Seed places the selected cards into the deck at the chosen packet position.";
     }
 
@@ -5467,6 +5485,7 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
   const seeded = game.encounter.seededRounds.includes(game.round);
   const revealed = game.encounter.revealedRounds.includes(game.round);
   const selectedSeedCount = Object.keys(getDebugSeedSelectionsForAction(game)).length;
+  const seedablePlayerCount = getSeedablePlayerCount(game);
   const pendingChoice = getActivePendingBurdenChoice(game, encounterIndex);
   const selectedPlacementTile = getSelectedPlacementTile(tileIndex);
 
@@ -5534,15 +5553,17 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
   }
 
   if (game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded) {
-    const ready = selectedSeedCount === game.playerCount;
+    const ready = seedablePlayerCount > 0 && selectedSeedCount === seedablePlayerCount;
 
     return {
-      tone: ready ? "ready" : "normal",
+      tone: seedablePlayerCount === 0 ? "ready" : ready ? "ready" : "normal",
       label: "Seed Cards",
-      title: ready ? "Seed cards are selected" : "Choose cards to seed",
-      detail: ready
-        ? "Press Seed to place the chosen cards into the Encounter Deck."
-        : `${selectedSeedCount}/${game.playerCount} players have chosen a card. Click a card in each player hand to select it.`,
+      title: seedablePlayerCount === 0 ? "No cards left to seed" : ready ? "Seed cards are selected" : "Choose cards to seed",
+      detail: seedablePlayerCount === 0
+        ? "The table will skip directly to Reveal Encounters."
+        : ready
+          ? "Press Seed to place the chosen cards into the Encounter Deck."
+          : `${selectedSeedCount}/${seedablePlayerCount} players with cards have chosen. Click a card in each player hand to select it.`,
       quickAction: ready ? "seed" : "",
       quickLabel: "Seed"
     };
@@ -5794,6 +5815,38 @@ function getDebugSeedSelectionsForAction(game) {
   );
 }
 
+function autoSkipEmptySeedPhase() {
+  if (
+    !state.data ||
+    !state.game ||
+    !isPlaySessionPlaying() ||
+    state.game.phase !== GAME_PHASES.SEED_ENCOUNTERS ||
+    state.game.encounter.seededRounds.includes(state.game.round) ||
+    getSeedablePlayerCount(state.game) > 0
+  ) {
+    return false;
+  }
+
+  const { state: nextGame, result } = dispatchGameAction(
+    state.game,
+    {
+      type: TILE_ACTION_TYPES.SEED_ENCOUNTERS
+    },
+    { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
+  );
+
+  if (!result.ok) {
+    return false;
+  }
+
+  state.game = nextGame;
+  state.lastActionResult = result;
+  state.debugSeedSelections = {};
+  state.contextMenu = null;
+  state.seedContextMenu = null;
+  return true;
+}
+
 function renderSeedHandCard(card, player, game) {
   const selected = getDebugSeedSelection(player) === card.card_id;
 
@@ -6030,7 +6083,7 @@ function renderEncounterPanel(game, encounterIndex) {
   const seeded = game.encounter.seededRounds.includes(game.round);
   const revealed = game.encounter.revealedRounds.includes(game.round);
   const playing = isPlaySessionPlaying();
-  const canSeed = playing && game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded;
+  const canSeed = playing && game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded && getSeedablePlayerCount(game) > 0;
   const canReveal = playing && game.phase === GAME_PHASES.REVEAL_ENCOUNTERS && !revealed;
   const completedArrivals = game.encounter.completed ?? [];
   const roundEffects = game.encounter.roundEffects ?? [];
@@ -7746,6 +7799,7 @@ function renderApp() {
   }
 
   refreshActiveMapData();
+  autoSkipEmptySeedPhase();
   const encounterIndex = createEncounterIndex(state.data.encounterCards);
   const tileIndex = createTileIndex(state.data.tiles);
 
