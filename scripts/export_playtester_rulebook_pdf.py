@@ -27,9 +27,9 @@ from export_styled_rulebook_from_docx import (
 )
 
 
-RULEBOOK_VERSION = "v0.4"
-OUTPUT = OUT_DIR / "The_Quiet_Vale_Playtester_Rulebook_Styled_Draft_v0_4.pdf"
-MANIFEST = OUT_DIR / "manifest_playtester_v0_4.txt"
+RULEBOOK_VERSION = "v0.5"
+OUTPUT = OUT_DIR / "The_Quiet_Vale_Playtester_Rulebook_Styled_Draft_v0_5.pdf"
+MANIFEST = OUT_DIR / "manifest_playtester_v0_5.txt"
 
 
 PLAYTEST_STYLES = {
@@ -189,10 +189,10 @@ def online_encounter_setup_table():
     return manual_table(
         [
             ["Players", "Boons", "Burdens", "Arrivals", "Golden Boons", "Hidden Cards", "Deck Cards"],
-            ["1", "5", "5", "5", "0 - not supported online", "10", "5 standard"],
-            ["2", "10", "10", "10", "0 - not supported online", "10 each", "10 standard"],
-            ["3", "15", "15", "15", "0 - not supported online", "10 each", "15 standard"],
-            ["4", "20", "20", "20", "0 - not supported online", "10 each", "20 standard"],
+            ["1", "5", "5", "5", "0 - not supported online", "9", "6 standard"],
+            ["2", "10", "10", "10", "0 - not supported online", "9 each", "12 standard"],
+            ["3", "15", "15", "15", "0 - not supported online", "9 each", "18 standard"],
+            ["4", "20", "20", "20", "0 - not supported online", "9 each", "24 standard"],
         ],
         widths=[15 * mm, 17 * mm, 19 * mm, 19 * mm, 42 * mm, 23 * mm, 24 * mm],
     )
@@ -202,7 +202,7 @@ def online_round_phase_table():
     return manual_table(
         [
             ["Phase", "Name", "Summary"],
-            ["1", "Seed Encounter Cards", "Each player with cards remaining in hand seeds 1 hidden Encounter Card into the Encounter Deck."],
+            ["1", "Seasonal Seed Encounter Cards", "Only in Rounds 1, 6, and 11. Each player seeds 3 hidden cards: 1 Top, 1 Middle, and 1 Bottom."],
             ["2", "Reveal Encounters", "Reveal standard Encounter Cards equal to player count. Golden Boons are not used in the online prototype."],
             ["3", "Player Turns", "Each player takes one turn with 4 Actions. The group chooses turn order."],
             ["4", "End of Round", "Remove Arrival timers, expire failed Arrivals, discard applicable Boons, and advance the Round Timer."],
@@ -312,7 +312,7 @@ def build_story(doc) -> list:
     for item in [
         "Build and upgrade a shared settlement.",
         "Gather and spend shared resources from the Warehouse.",
-        "Seed hidden Encounter Cards into the Encounter Deck.",
+        "Seed hidden Encounter Cards at the start of each Season.",
         "Complete Arrivals to unlock Special Tiles.",
         "Resolve or endure Burdens before Strain becomes too costly.",
     ]:
@@ -325,9 +325,9 @@ def build_story(doc) -> list:
                 "Lay out the Game Map, Stewards Board, Warehouse Board, and Round Timer.",
                 "Each player chooses a unique Steward and takes that Steward's Player Aid and Steward House Tile.",
                 "Set the shared Warehouse using the player-count table.",
-                "Build the balanced Encounter pool, deal hidden player hands, and build the Encounter Deck. Golden Boons are not currently supported by the online prototype.",
+                "Build the balanced Encounter pool, deal 9 hidden Encounter Cards to each player, and deal 6 standard Encounter Cards per player to the Encounter Deck. Golden Boons are not currently supported by the online prototype.",
                 "Each player places their Steward House for free on its setup terrain. This costs 0 Actions and 0 resources, ignores normal adjacency, and must use an empty non-River hex.",
-                "Begin Round 1 with the Seed Encounter Cards phase. There is no forced opening Resource tile; players choose their first normal tile action.",
+                "Begin Round 1 with Seasonal Seed Encounter Cards. Each player seeds one card to the Top, one to the Middle, and one to the Bottom. There is no forced opening Resource tile; players choose their first normal tile action.",
             ]
         )
     )
@@ -341,9 +341,10 @@ def build_story(doc) -> list:
     story.append(compact_rule_box("Online prototype note", "Golden Boons are excluded from the current online prototype and should not be added during online playtests."))
 
     story.append(heading("Round Structure"))
-    story.append(body("The game lasts 15 rounds across three Seasons. Each round follows the same four phases."))
+    story.append(body("The game lasts 15 rounds across three Seasons. Rounds 1, 6, and 11 begin with Seasonal Seed Encounter Cards. All other rounds skip seeding and begin with Reveal Encounters."))
     story.append(docx_table_to_flowable(table_by_index(doc, 3)))
     story.append(online_round_phase_table())
+    story.append(compact_rule_box("Seasonal seeding", "At the start of each Season, each player seeds 3 hidden cards: one Top, one Middle, and one Bottom. Players do not seed cards during the other rounds."))
     story.append(heading("Reveal And Actions By Player Count", 2))
     story.append(docx_table_to_flowable(table_by_index(doc, 6)))
 
@@ -384,7 +385,7 @@ def build_story(doc) -> list:
     story.append(PageBreak())
     story.append(heading("Steward Houses And Powers"))
     for item in [
-        "Steward Houses are placed for free during setup before Encounter cards are seeded.",
+        "Steward Houses are placed for free during setup before the first Seasonal Seed Encounter Cards step.",
         "The acting Steward's marker starts on their own Steward House after setup placement.",
         "A basic Steward House does not grant its once-per-Season power until upgraded to its Home side.",
         "Only the matching Steward may use their own upgraded Home power, even though all Stewards may use the shared connected settlement network.",
@@ -394,7 +395,7 @@ def build_story(doc) -> list:
     story.append(steward_power_table())
 
     story.append(heading("Encounter Cards"))
-    story.append(body("Encounter Cards are seeded into and revealed from the Encounter Deck. Cards on the Stewards Board are open information. Players may inspect active cards, completed Arrivals, active Burdens, and face-up Boons."))
+    story.append(body("Encounter Cards are seeded into and revealed from the Encounter Deck. Seasonal seeding happens only in Rounds 1, 6, and 11. Cards on the Stewards Board are open information. Players may inspect active cards, completed Arrivals, active Burdens, and face-up Boons."))
     story.append(online_encounter_type_table())
 
     story.append(heading("Arrivals And Special Tiles"))
@@ -501,7 +502,7 @@ def build_pdf(source: Path, output: Path):
                 f"PDF: {output.name}",
                 f"Source DOCX: {source}",
                 f"Pages: {pages}",
-                "Trim approach: table-facing rules only; opening flavour text preserved; recent Steward House setup, reachability, and scoring rules reflected.",
+                "Trim approach: table-facing rules only; opening flavour text preserved; recent Steward House setup, seasonal seeding, reachability, and scoring rules reflected.",
                 "",
             ]
         ),

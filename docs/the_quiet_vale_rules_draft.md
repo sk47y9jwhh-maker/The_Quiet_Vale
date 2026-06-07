@@ -49,11 +49,11 @@ Full tile and card component tables are in `docs/the_quiet_vale_component_list_t
 6. Stock the shared Warehouse based on player count: 1 player starts with 15 of each resource, 2 players with 10 of each, 3 players with 5 of each, and 4 players with 0 of each. The 5+ Council Variant reference value is also 0 of each resource, but the prototype does not implement Council Variant.
 7. Build a balanced standard Encounter pool with 5 Boons, 5 Burdens, and 5 Arrivals per player.
 8. Shuffle the standard pool.
-9. Deal 10 hidden Encounter Cards to each player.
-10. Deal 5 standard Encounter Cards per player to the Encounter Deck.
+9. Deal 9 hidden Encounter Cards to each player.
+10. Deal 6 standard Encounter Cards per player to the Encounter Deck.
 11. Golden Boons are not currently supported by the online prototype. Do not add a Golden Boon during online prototype playtests.
 12. Each player places their Steward House for free on its setup terrain. This costs 0 Actions and 0 resources, ignores normal adjacency, and must use an empty non-River hex.
-13. Start at Round 1, Season I, Seed Encounters phase. Each player has 4 Actions available for the round. There is no forced opening Resource tile; players choose their first normal tile action.
+13. Start at Round 1, Season I, Seasonal Seed Encounters phase. Each player seeds three hidden Encounter Cards: one to the top of the Encounter Deck, one to the middle, and one to the bottom. Each player has 4 Actions available for the round. There is no forced opening Resource tile; players choose their first normal tile action.
 
 ## Round And Season Structure
 
@@ -63,20 +63,30 @@ The game has 3 Seasons and 15 total rounds.
 - Season II: Rounds 6-10.
 - Season III: Rounds 11-15.
 
-Each round follows this order:
+Season-start rounds follow this order. Season-start rounds are Round 1, Round 6, and Round 11.
 
-1. Seed Encounter Cards.
+1. Seasonal Seed Encounter Cards.
 2. Reveal Encounters.
 3. Player Turns.
 4. End of Round.
+
+All other rounds skip Seasonal Seed Encounter Cards and begin with Reveal Encounters.
 
 At the start of Round 6 and Round 11, unresolved active Burdens reapply using the new Season's text.
 
 ## Seed Encounters
 
-During the Seed Encounters phase, each player contributes 1 hidden Encounter Card from their hand if able. The prototype currently places the seeded packet into the Encounter Deck and then proceeds to Reveal Encounters. The debug prototype can choose packet position for testing; final production wording should confirm the exact deck insertion method.
+Seasonal Seed Encounters happens only at the start of each Season: Round 1, Round 6, and Round 11.
 
-A round can seed Encounter Cards only once.
+During Seasonal Seed Encounters, each player chooses 3 hidden Encounter Cards from their hand if able:
+
+- 1 card seeded to the top of the Encounter Deck.
+- 1 card seeded to the middle of the Encounter Deck.
+- 1 card seeded to the bottom of the Encounter Deck.
+
+After Seasonal Seed Encounters, proceed to Reveal Encounters.
+
+No Encounter Cards are seeded during non-season-start rounds. A season-start round can seed Encounter Cards only once.
 
 ## Reveal Encounters
 
