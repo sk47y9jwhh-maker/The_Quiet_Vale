@@ -21,7 +21,7 @@ This document covers the standard 1-4 player game only. It intentionally exclude
 
 ## Game Overview
 
-The players guide a settlement through three Seasons. Over 15 rounds, players seed and reveal Encounter Cards, place and improve tiles on the approved hex map, manage a shared Warehouse, complete Arrivals to unlock Special Tiles, and resolve or endure Burdens. The final score is Population plus Renown, reduced by active Burdens and remaining Strain.
+The players guide a settlement through three Seasons. Over 12 rounds, players seed and reveal Encounter Cards, place and improve tiles on the approved hex map, manage a shared Warehouse, complete Arrivals to unlock Special Tiles, and resolve or endure Burdens. The final score is Population plus Renown, reduced by active Burdens and remaining Strain.
 
 ## Component Summary
 
@@ -34,7 +34,7 @@ The players guide a settlement through three Seasons. Over 15 rounds, players se
 | Warehouse resources | TBD production quantity | Wood, Stone, Metal, Food, Herbs, Goods; prototype cap is 15 per resource. |
 | Strain tokens | TBD production quantity | 3 Strain overstrains a tile; final token count not specified in JSON. |
 | Arrival timer tokens | TBD production quantity | Arrivals start with 3; maximum 3. |
-| Steward/player markers | TBD production quantity | Prototype uses last-interaction marker as the local stand-in for Steward Tokens. |
+| Steward/player markers | TBD production quantity | Used to mark each player's Steward location on the map. |
 | Supported markers | TBD production quantity | Used to mark manual or passive Supported state in prototype. |
 
 Full tile and card component tables are in `docs/the_quiet_vale_component_list_tiles_and_cards.md`.
@@ -43,27 +43,27 @@ Full tile and card component tables are in `docs/the_quiet_vale_component_list_t
 
 1. Choose 1-4 players.
 2. Use Redesigned Basic Map v0.2 as the default locked map.
-3. Each player chooses a unique Steward and unlocks that Steward's basic Steward House tile.
+3. Each player chooses a unique Steward and takes that Steward's once-per-Season power from the start of the game. Steward House tiles are not used in this playtest version.
 4. Place all directly placeable Core Basic tiles in the tile supply. Upgraded faces are not placed directly; they are used when tiles are upgraded.
 5. Keep Special Tiles locked until their matching Arrival is completed.
 6. Stock the shared Warehouse based on player count: 1 player starts with 15 of each resource, 2 players with 10 of each, 3 players with 5 of each, and 4 players with 0 of each. The 5+ Council Variant reference value is also 0 of each resource, but the prototype does not implement Council Variant.
 7. Build a balanced standard Encounter pool with 5 Boons, 5 Burdens, and 5 Arrivals per player.
 8. Shuffle the standard pool.
 9. Deal 9 hidden Encounter Cards to each player.
-10. Deal 6 standard Encounter Cards per player to the Encounter Deck.
+10. Deal 3 standard Encounter Cards per player to the Encounter Deck.
 11. Golden Boons are not currently supported by the online prototype. Do not add a Golden Boon during online prototype playtests.
-12. Each player places their Steward House for free on its setup terrain. This costs 0 Actions and 0 resources, ignores normal adjacency, and must use an empty non-River hex.
+12. Each player places their Steward token for free on its setup terrain. This costs 0 Actions and 0 resources, ignores normal adjacency, and must use an empty non-River hex.
 13. Start at Round 1, Season I, Seasonal Seed Encounters phase. Each player seeds three hidden Encounter Cards: one to the top of the Encounter Deck, one to the middle, and one to the bottom. Each player has 4 Actions available for the round. There is no forced opening Resource tile; players choose their first normal tile action.
 
 ## Round And Season Structure
 
-The game has 3 Seasons and 15 total rounds.
+The game has 3 Seasons and 12 total rounds.
 
-- Season I: Rounds 1-5.
-- Season II: Rounds 6-10.
-- Season III: Rounds 11-15.
+- Season I: Rounds 1-4.
+- Season II: Rounds 5-8.
+- Season III: Rounds 9-12.
 
-Season-start rounds follow this order. Season-start rounds are Round 1, Round 6, and Round 11.
+Season-start rounds follow this order. Season-start rounds are Round 1, Round 5, and Round 9.
 
 1. Seasonal Seed Encounter Cards.
 2. Reveal Encounters.
@@ -72,11 +72,11 @@ Season-start rounds follow this order. Season-start rounds are Round 1, Round 6,
 
 All other rounds skip Seasonal Seed Encounter Cards and begin with Reveal Encounters.
 
-At the start of Round 6 and Round 11, unresolved active Burdens reapply using the new Season's text.
+At the start of Round 5 and Round 9, unresolved active Burdens reapply using the new Season's text.
 
 ## Seed Encounters
 
-Seasonal Seed Encounters happens only at the start of each Season: Round 1, Round 6, and Round 11.
+Seasonal Seed Encounters happens only at the start of each Season: Round 1, Round 5, and Round 9.
 
 During Seasonal Seed Encounters, each player chooses 3 hidden Encounter Cards from their hand if able:
 
@@ -118,8 +118,6 @@ Implemented action types:
 - Complete an Arrival.
 - Resolve a Burden.
 - Use a Steward Power.
-- Travel to a disconnected tile as part of a tile action.
-- Cross the river without a Bridge connection when applicable.
 
 If a player ends their turn with unspent Actions, those Actions are not carried forward by the prototype; the next player becomes active. When the final player ends their turn, the round moves to End of Round.
 
@@ -154,9 +152,9 @@ To place a tile:
 2. Choose a legal empty footprint on the approved map.
 3. Pay the tile's resource cost from the shared Warehouse.
 4. Spend the Place action cost.
-5. If the placement is disconnected from the player's travel access, spend the disconnected Travel action cost as well unless a rule waives it.
+5. The tile must be reachable from the acting Steward's connected settlement network unless a Steward power or card explicitly says otherwise.
 6. Place the tile and reduce its available stock.
-7. Move the acting player's Steward/last-interaction marker to the placed tile.
+7. Move the acting player's Steward marker to the placed tile.
 
 A tile must obey its printed placement rule, including terrain and adjacency restrictions. Multihex tiles must keep their full footprint on legal empty hexes. Single-hex tiles do not require rotation.
 
@@ -164,11 +162,11 @@ A tile must obey its printed placement rule, including terrain and adjacency res
 
 All placed, non-Overstrained tiles create the connected settlement network when connected by flat-top adjacency. Travel Tiles remain a tile category and component identity, but they are no longer the only tiles that carry reachability. Active Bridges and eligible Docks can connect networks according to their rules.
 
-For action-cost purposes, the acting player's current Steward/last-interaction tile anchors that player's local access. This means:
+For action purposes, the acting player's current Steward tile anchors that player's local access. This means:
 
-- Placing a tile away from the connected settlement network can cost the extra disconnected Travel action.
-- After that placement, the Steward marker moves to the new tile.
-- The acting player may then upgrade or activate that same tile without paying the disconnected Travel action again, because the Steward marker is there.
+- Players must place, upgrade, and activate tiles on the acting Steward's connected settlement network.
+- After a placement, upgrade, or activation, the Steward marker moves to that tile.
+- The Ranger Steward may travel anywhere once per Season for free before taking a map action. This does not spend an Action.
 
 Overstrained tiles do not contribute to the connected settlement network.
 
@@ -180,9 +178,9 @@ To upgrade a tile:
 2. The tile must not be Overstrained.
 3. Pay the listed upgrade resource cost, if any.
 4. Spend the Upgrade action cost.
-5. If the tile is disconnected from the player's travel access, spend the disconnected Travel action cost unless the tile is the acting player's Steward/last-interaction tile or another rule waives the cost.
+5. The tile must be reachable from the acting Steward's connected settlement network unless a Steward power or card explicitly says otherwise.
 6. Replace the placed tile's Basic face with its Upgraded face while preserving its map position and state.
-7. Move the acting player's Steward/last-interaction marker to that tile.
+7. Move the acting player's Steward marker to that tile.
 
 Resource tile upgrades cost only the Upgrade action when their source cost is 0.
 
@@ -193,11 +191,11 @@ To activate a tile:
 1. Choose a placed tile with a supported activation effect.
 2. The tile must not be Overstrained.
 3. Spend the Activate action cost.
-4. If the tile is disconnected from the player's travel access, spend the disconnected Travel action cost unless the tile is the acting player's Steward/last-interaction tile or another rule waives the cost.
+4. The tile must be reachable from the acting Steward's connected settlement network unless a Steward power or card explicitly says otherwise.
 5. Resolve the tile's printed effect.
-6. Move the acting player's Steward/last-interaction marker to that tile.
+6. Move the acting player's Steward marker to that tile.
 
-Activation effects currently represented in the source include production, Strain removal, Arrival timer support, resource exchange, active Burden resolution, and Encounter deck inspection.
+Activation effects currently represented in the source include production, Strain removal, Arrival timer support, resource exchange, active Burden resolution, Encounter deck inspection, and giving Supported to adjacent eligible tiles.
 
 ## Warehouse And Resources
 
@@ -218,6 +216,8 @@ Strain represents pressure on placed tiles.
 
 Supported prevents the first Strain placed on a tile each round. Supported use resets at end of round.
 
+Support tile balance update: broad adjacent Supported effects now require activation. Basic support tiles give Supported to 1 adjacent eligible tile. Upgraded support tiles give Supported to up to 2 adjacent eligible tiles. Brewery of Legends and Labourers' Yard apply their adjacent placement discount once per Season, not once per round.
+
 ## Burdens
 
 When a Burden is revealed:
@@ -234,7 +234,7 @@ Some Burdens have no normal Season I or Season II resolution, but the current ba
 
 If a Burden has a supported resolution cost, a player may resolve it by paying the listed requirement and spending the listed action cost. Resolved Burdens leave active play and do not reapply at future Season starts.
 
-Some Steward House powers and Boons can reduce Burden resolution action or resource costs.
+Some Steward powers and Boons can reduce Burden resolution action or resource costs.
 
 ## Arrivals
 
@@ -252,7 +252,7 @@ To complete an Arrival:
 4. Move the Arrival to completed state.
 5. Unlock its matching Special Tile.
 
-At end of round, remove 1 timer token from each active Arrival. Failed Arrivals with no remaining timer tokens expire.
+At end of round, remove 1 timer token from each active Arrival. Failed Arrivals with no remaining timer tokens expire, then the group adds 1 Strain to any placed tile of their choice.
 
 Arrival and Special Tile links from JSON:
 
@@ -288,48 +288,41 @@ Arrival and Special Tile links from JSON:
 
 Golden Boons are special Encounter Cards in the design set, but they are not currently supported by the online prototype. Do not add them to the Encounter Deck during online prototype playtests.
 
-Legacy Golden Boon implementation notes:
+## Stewards And Steward Powers
 
-- The Golden Bell: reveal an eligible Arrival from the game box as an active Arrival.
-- The Golden Eyed Traveler: open one additional Player Turns phase before end-of-round effects.
-- The Golden Scroll: allow hand refresh choices.
-- The Golden Signet Ring: relocate up to 5 placed tiles while preserving their state and obeying map restrictions.
-- The Golden Vial: create a rest-of-game, once-per-round discount for the disconnected Travel action cost.
-
-## Steward Houses And Steward Powers
-
-Steward Houses are placed for free during setup before Encounter cards are seeded. A basic Steward House is a normal placed Housing tile. Its upgraded Home unlocks that Steward's once-per-Season power. Only the matching Steward may use their own upgraded Home power, even though all Stewards may use the shared connected settlement network.
+Steward tokens are placed for free during setup before Encounter cards are seeded. Steward House tiles are not used in this playtest version. Each Steward has their once-per-Season power from the start of the game. Only the matching Steward may use their own power, even though all Stewards may use the shared connected settlement network.
 
 Setup terrain:
 
-- Vanguard House: Woodland.
-- Knight House: Arable Land.
-- Sentinel House: Mountains.
-- Ranger House: Heaths.
-- Warden House: Ruins.
-- Quartermaster House: Woodland, Mountains, Heaths, Arable Land, or Ruins; not Grasslands or River.
+- Vanguard: Woodland.
+- Knight: Arable Land.
+- Sentinel: Mountains.
+- Ranger: Heaths.
+- Warden: Ruins.
+- Quartermaster: Woodland, Mountains, Heaths, Arable Land, or Ruins; not Grasslands or River.
 
-The prototype represents Steward Tokens as each player's last-interaction marker. Current upgraded Steward House powers from source tile text:
+Current Steward powers:
 
-- Vanguard Home: once per Season, eligible Travel or Resource placement costs 0 Actions.
-- Knight Home: once per Season, eligible Housing placement costs 0 Actions.
-- Sentinel Home: once per Season, eligible Core upgrade costs 0 Actions.
-- Ranger Home: once per Season, disconnected placement can ignore the extra Travel action.
-- Quartermaster Home: once per Season, exchange up to 3 Warehouse resources.
-- Warden Home: once per Season, resolve an active Burden without spending an Action.
+- Vanguard: once per Season, eligible Travel or Resource placement costs 0 Actions.
+- Knight: once per Season, eligible Housing placement costs 0 Actions.
+- Sentinel: once per Season, eligible Core upgrade costs 0 Actions.
+- Ranger: once per Season, travel to anywhere for free before taking a map action. This does not spend an Action.
+- Quartermaster: once per Season, exchange up to 3 Warehouse resources.
+- Warden: once per Season, resolve an active Burden without spending an Action.
 
 ## End Of Round
 
 At End of Round:
 
 1. Remove 1 timer token from each active Arrival.
-2. Expire failed Arrivals with no timer tokens remaining.
+2. Expire failed Arrivals with no timer tokens remaining, then add 1 Strain to any placed tile of the group's choice for each expired Arrival.
 3. Discard Boons that expire at end of round.
 4. Reset per-round Supported use.
-5. Reset once-per-round effects such as The Golden Vial.
-6. Advance to the next round, or complete the game after Round 15.
+5. Advance to the next round, or complete the game after Round 12.
 
-At the start of Rounds 6 and 11, unresolved active Burdens reapply using the new Season's text.
+At the end of Season I after Round 4, and Season II after Round 8, each Overstrained tile spreads 1 Strain to an adjacent tile where possible.
+
+At the start of Rounds 5 and 9, unresolved active Burdens reapply using the new Season's text.
 
 ## Final Scoring
 

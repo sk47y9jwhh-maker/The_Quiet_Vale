@@ -83,7 +83,7 @@ test("self-Supported passive prevents the first Strain on an upgraded Travel til
   assert.equal(nextState.map.placedTiles[0].supportedUsedThisRound, true);
 });
 
-test("adjacent passive Supported prevents Strain on neighboring tiles", () => {
+test("Theatre gives Supported to one adjacent tile when activated", () => {
   let state = unlockSpecial(newState(), "special_theater");
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -96,20 +96,28 @@ test("adjacent passive Supported prevents Strain on neighboring tiles", () => {
     coordinate: "A12"
   }).state;
 
-  const support = getEffectiveSupportDetails(state, "tile-001", { tiles });
-  const { state: nextState, result } = dispatch(state, {
+  const passiveSupport = getEffectiveSupportDetails(state, "tile-001", { tiles });
+  const { state: supportedState, result: activationResult } = dispatch(state, {
+    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+    placedTileId: "tile-002",
+    targetPlacedTileId: "tile-001"
+  });
+  const support = getEffectiveSupportDetails(supportedState, "tile-001", { tiles });
+  const { state: nextState, result } = dispatch(supportedState, {
     type: TILE_ACTION_TYPES.APPLY_STRAIN,
     placedTileId: "tile-001"
   });
 
+  assert.equal(passiveSupport.supported, false);
+  assert.equal(activationResult.ok, true);
   assert.equal(support.supported, true);
-  assert.equal(support.providers[0].providerTileName, "Theatre");
+  assert.equal(support.providers[0].providerTileName, "Debug Support");
   assert.equal(result.strainPrevented, 1);
   assert.equal(result.strainAdded, 0);
   assert.equal(nextState.map.placedTiles[0].strain, 0);
 });
 
-test("Overstrained passive providers stop granting Supported", () => {
+test("Overstrained support providers cannot activate", () => {
   let state = unlockSpecial(newState(), "special_theater");
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -129,17 +137,18 @@ test("Overstrained passive providers stop granting Supported", () => {
 
   const support = getEffectiveSupportDetails(state, "tile-001", { tiles });
   const { state: nextState, result } = dispatch(state, {
-    type: TILE_ACTION_TYPES.APPLY_STRAIN,
-    placedTileId: "tile-001"
+    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+    placedTileId: "tile-002",
+    targetPlacedTileId: "tile-001"
   });
 
   assert.equal(support.supported, false);
-  assert.equal(result.strainPrevented, 0);
-  assert.equal(result.strainAdded, 1);
-  assert.equal(nextState.map.placedTiles[0].strain, 1);
+  assert.equal(result.ok, false);
+  assert.equal(nextState, state);
+  assert.match(result.errors.join(" "), /Overstrained tiles cannot be activated/);
 });
 
-test("Common Land grants Supported to only one adjacent Housing tile", () => {
+test("Common Land activates to give Supported to one adjacent Housing tile", () => {
   let state = dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -148,29 +157,34 @@ test("Common Land grants Supported to only one adjacent Housing tile", () => {
   }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_cottage_basic",
-    coordinate: "A5"
-  }).state;
-  state = dispatch(state, {
-    type: TILE_ACTION_TYPES.PLACE_TILE,
     tileId: "core_common_land_basic",
     coordinate: "A4"
   }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_cottage_basic",
+    coordinate: "A5"
+  }).state;
 
-  const firstSupport = getEffectiveSupportDetails(state, "tile-001", { tiles });
-  const secondSupport = getEffectiveSupportDetails(state, "tile-002", { tiles });
-  const firstStrain = dispatch(state, {
+  const { state: supportedState, result: activationResult } = dispatch(state, {
+    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+    placedTileId: "tile-002",
+    targetPlacedTileId: "tile-001"
+  });
+  const firstSupport = getEffectiveSupportDetails(supportedState, "tile-001", { tiles });
+  const secondSupport = getEffectiveSupportDetails(supportedState, "tile-003", { tiles });
+  const firstStrain = dispatch(supportedState, {
     type: TILE_ACTION_TYPES.APPLY_STRAIN,
     placedTileId: "tile-001"
   });
-  const secondStrain = dispatch(state, {
+  const secondStrain = dispatch(supportedState, {
     type: TILE_ACTION_TYPES.APPLY_STRAIN,
-    placedTileId: "tile-002"
+    placedTileId: "tile-003"
   });
 
+  assert.equal(activationResult.ok, true);
   assert.equal(firstSupport.supported, true);
-  assert.equal(firstSupport.providers[0].providerTileName, "Common Land");
-  assert.equal(firstSupport.providers[0].reason, "adjacent_category_limited");
+  assert.equal(firstSupport.providers[0].providerTileName, "Debug Support");
   assert.equal(secondSupport.supported, false);
   assert.equal(firstStrain.result.strainPrevented, 1);
   assert.equal(firstStrain.result.strainAdded, 0);
@@ -178,7 +192,7 @@ test("Common Land grants Supported to only one adjacent Housing tile", () => {
   assert.equal(secondStrain.result.strainAdded, 1);
 });
 
-test("The Pleasence grants Supported to multiple adjacent Housing tiles", () => {
+test("The Pleasence activates to give Supported to two adjacent Housing tiles", () => {
   let state = dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -187,30 +201,36 @@ test("The Pleasence grants Supported to multiple adjacent Housing tiles", () => 
   }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_cottage_basic",
-    coordinate: "A5"
+    tileId: "core_common_land_basic",
+    coordinate: "A4"
   }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_common_land_basic",
-    coordinate: "A4"
+    tileId: "core_cottage_basic",
+    coordinate: "A5"
   }).state;
   state = dispatch(state, { type: TILE_ACTION_TYPES.DEBUG_RESET_ACTIONS }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.UPGRADE_TILE,
-    placedTileId: "tile-003"
+    placedTileId: "tile-002"
+  }).state;
+  state = dispatch(state, { type: TILE_ACTION_TYPES.DEBUG_RESET_ACTIONS }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+    placedTileId: "tile-002",
+    targetPlacedTileIds: ["tile-001", "tile-003"]
   }).state;
 
   const firstSupport = getEffectiveSupportDetails(state, "tile-001", { tiles });
-  const secondSupport = getEffectiveSupportDetails(state, "tile-002", { tiles });
+  const secondSupport = getEffectiveSupportDetails(state, "tile-003", { tiles });
 
   assert.equal(firstSupport.supported, true);
   assert.equal(secondSupport.supported, true);
-  assert.equal(firstSupport.providers[0].providerTileName, "The Pleasence");
-  assert.equal(secondSupport.providers[0].providerTileName, "The Pleasence");
+  assert.equal(firstSupport.providers[0].providerTileName, "Debug Support");
+  assert.equal(secondSupport.providers[0].providerTileName, "Debug Support");
 });
 
-test("limited adjacent Housing support does not support adjacent Resource tiles", () => {
+test("Common Land cannot give Supported to adjacent Resource tiles", () => {
   let state = dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -224,6 +244,14 @@ test("limited adjacent Housing support does not support adjacent Resource tiles"
   }).state;
 
   const support = getEffectiveSupportDetails(state, "tile-001", { tiles });
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+    placedTileId: "tile-002",
+    targetPlacedTileId: "tile-001"
+  });
 
   assert.equal(support.supported, false);
+  assert.equal(result.ok, false);
+  assert.equal(nextState, state);
+  assert.match(result.errors.join(" "), /not a Housing Tile/);
 });

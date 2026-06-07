@@ -6571,6 +6571,15 @@ function formatActivationDetails(details) {
       : `${cadence}Remove ${details.amount} Strain${categoryTarget}`;
   }
 
+  if (details.type === "give_supported_adjacent") {
+    const maxTargets = details.maxTargets ?? 1;
+    const categoryTarget = details.targetCategories?.length ? ` ${details.targetCategories.join(", ")}` : "";
+
+    return maxTargets > 1
+      ? `${cadence}Give Supported to up to ${maxTargets} adjacent${categoryTarget} tiles`
+      : `${cadence}Give Supported to 1 adjacent${categoryTarget} tile`;
+  }
+
   if (details.type === "add_arrival_timer") {
     return `${cadence}${details.amount > 1
       ? `Add up to ${details.amount} timer tokens`
@@ -6640,6 +6649,21 @@ function getActivationActionExtras(game, placedTile, tileIndex, activationDetail
         (candidate.strain ?? 0) > 0 &&
         matchesActivationTargetCategories(tileIndex, candidate, activationDetails)
     );
+    const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
+    const validSavedTargetIds = savedTargetIds.filter((targetId) =>
+      targetCandidates.some((candidate) => candidate.id === targetId)
+    );
+    const selectedTargetIds = (
+      validSavedTargetIds.length ? validSavedTargetIds : targetCandidates.slice(0, 1).map((candidate) => candidate.id)
+    ).slice(0, maxTargets);
+
+    extras.targetPlacedTileIds = selectedTargetIds;
+    extras.targetPlacedTileId = selectedTargetIds[0];
+  }
+
+  if (activationDetails.type === "give_supported_adjacent") {
+    const maxTargets = activationDetails.maxTargets ?? 1;
+    const targetCandidates = getSupportActivationTargetCandidates(game, tileIndex, placedTile, activationDetails);
     const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
     const validSavedTargetIds = savedTargetIds.filter((targetId) =>
       targetCandidates.some((candidate) => candidate.id === targetId)
@@ -6904,11 +6928,41 @@ function matchesActivationTargetCategories(tileIndex, placedTile, activationDeta
   return targetCategories.includes(definition?.tile_category);
 }
 
-function renderActivationTargetControl(game, tileIndex, candidates, selectedTargetIds, maxTargets) {
+function getSupportActivationTargetCandidates(game, tileIndex, placedTile, activationDetails) {
+  if (!placedTile) {
+    return [];
+  }
+
+  return getAdjacentPlacedTiles(game, placedTile).filter(
+    (candidate) =>
+      !isOverstrainedPlacedTile(candidate) &&
+      !isSupportedPlacedTile(candidate) &&
+      matchesActivationTargetCategories(tileIndex, candidate, activationDetails)
+  );
+}
+
+function formatActivationTargetOption(game, tileIndex, placedTile, mode) {
+  const name = getTileNameByPlacedId(game, tileIndex, placedTile.id);
+
+  if (mode === "support") {
+    return `${name} - Not Supported`;
+  }
+
+  return `${name} - ${placedTile.strain ?? 0} Strain`;
+}
+
+function renderActivationTargetControl(
+  game,
+  tileIndex,
+  candidates,
+  selectedTargetIds,
+  maxTargets,
+  { label = "Target", emptyText = "No strained adjacent tiles", mode = "strain" } = {}
+) {
   if (maxTargets <= 1) {
     return `
       <label class="stacked-field activation-target">
-        <span>Target</span>
+        <span>${escapeHtml(label)}</span>
         <select id="activation-target" aria-label="Activation target" ${candidates.length ? "" : "disabled"}>
           ${
             candidates.length
@@ -6916,12 +6970,12 @@ function renderActivationTargetControl(game, tileIndex, candidates, selectedTarg
                   .map(
                     (placedTile) => `
                       <option value="${escapeHtml(placedTile.id)}" ${placedTile.id === selectedTargetIds[0] ? "selected" : ""}>
-                        ${escapeHtml(getTileNameByPlacedId(game, tileIndex, placedTile.id))} - ${placedTile.strain ?? 0} Strain
+                        ${escapeHtml(formatActivationTargetOption(game, tileIndex, placedTile, mode))}
                       </option>
                     `
                   )
                   .join("")
-              : `<option>No strained adjacent tiles</option>`
+              : `<option>${escapeHtml(emptyText)}</option>`
           }
         </select>
       </label>
@@ -6949,13 +7003,13 @@ function renderActivationTargetControl(game, tileIndex, candidates, selectedTarg
                         ${checked ? "checked" : ""}
                         ${disabled ? "disabled" : ""}
                       >
-                      <span>${escapeHtml(getTileNameByPlacedId(game, tileIndex, placedTile.id))} - ${placedTile.strain ?? 0} Strain</span>
+                      <span>${escapeHtml(formatActivationTargetOption(game, tileIndex, placedTile, mode))}</span>
                     </label>
                   `;
                 })
                 .join("")}
             </div>`
-          : `<p class="empty-note">No strained adjacent tiles</p>`
+          : `<p class="empty-note">${escapeHtml(emptyText)}</p>`
       }
     </fieldset>
   `;
@@ -7193,6 +7247,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
   const activationDetails = activation?.details ?? null;
   const activationLabel = activation?.error ? "Unsupported" : formatActivationDetails(activationDetails);
   const needsStrainActivationTarget = activationDetails?.type === "remove_strain_adjacent";
+  const needsSupportActivationTarget = activationDetails?.type === "give_supported_adjacent";
   const needsArrivalTimerTarget = activationDetails?.type === "add_arrival_timer";
   const needsBurdenTarget = activationDetails?.type === "resolve_active_burden";
   const needsExchangePayment =
@@ -7206,6 +7261,8 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
             (placedTile.strain ?? 0) > 0 &&
             matchesActivationTargetCategories(tileIndex, placedTile, activationDetails)
         )
+      : needsSupportActivationTarget && selectedPlacedTile
+        ? getSupportActivationTargetCandidates(game, tileIndex, selectedPlacedTile, activationDetails)
       : [];
   const arrivalTimerTargetCandidates = needsArrivalTimerTarget
     ? game.encounter.active.filter((activeEncounter) => {
@@ -7296,7 +7353,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
     !isOverstrainedPlacedTile(selectedPlacedTile) &&
     activationReachable &&
     activationActionsReady &&
-    (!needsStrainActivationTarget || selectedActivationTargetIds.length > 0) &&
+    (!(needsStrainActivationTarget || needsSupportActivationTarget) || selectedActivationTargetIds.length > 0) &&
     (!needsArrivalTimerTarget || Boolean(selectedArrivalTimerTargetId)) &&
     (!needsBurdenTarget || Boolean(selectedBurdenTargetId)) &&
     exchangePaymentReady &&
@@ -7346,13 +7403,20 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
       ${renderStewardHouseUpgradePreview(selectedTileDefinition, tileIndex)}
       ${renderTileSourceText(upgradeTile, "Upgrade Side Says")}
       ${
-        needsStrainActivationTarget
+        needsStrainActivationTarget || needsSupportActivationTarget
           ? renderActivationTargetControl(
               game,
               tileIndex,
               activationTargetCandidates,
               selectedActivationTargetIds,
-              activationMaxTargets
+              activationMaxTargets,
+              needsSupportActivationTarget
+                ? {
+                    label: "Support target",
+                    emptyText: "No adjacent eligible tiles without Supported",
+                    mode: "support"
+                  }
+                : {}
             )
           : ""
       }
@@ -8500,6 +8564,24 @@ function activatePlacedTile(placedTileId) {
         (candidate) =>
           (candidate.strain ?? 0) > 0 &&
           matchesActivationTargetCategories(tileIndex, candidate, activationDetails)
+      );
+      const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
+      const validSavedTargetIds = savedTargetIds.filter((targetId) =>
+        targetCandidates.some((candidate) => candidate.id === targetId)
+      );
+      targetPlacedTileIds = (
+        validSavedTargetIds.length ? validSavedTargetIds : targetCandidates.slice(0, 1).map((candidate) => candidate.id)
+      ).slice(0, maxTargets);
+      targetPlacedTileId = targetPlacedTileIds[0];
+    }
+
+    if (activationDetails?.type === "give_supported_adjacent") {
+      const maxTargets = activationDetails.maxTargets ?? 1;
+      const targetCandidates = getSupportActivationTargetCandidates(
+        state.game,
+        tileIndex,
+        placedTile,
+        activationDetails
       );
       const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
       const validSavedTargetIds = savedTargetIds.filter((targetId) =>

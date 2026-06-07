@@ -4,6 +4,7 @@ import { HEX_DIRECTIONS, createMapIndex, getFootprintCoordinates, getNeighborCoo
 import { dispatchGameAction } from "./reducer.js";
 import { calculateScore } from "./scoring.js";
 import { ENCOUNTER_TYPES, GAME_PHASES, createInitialGameState } from "./setup.js";
+import { isSupportedPlacedTile } from "./strain.js";
 import {
   getPendingOpeningResourcePlacement,
   getPendingStewardHousePlacement,
@@ -137,9 +138,9 @@ const SCORE_BOT_WEIGHTS = Object.freeze({
 });
 
 const FREE_ADJACENT_PLACEMENT_PROVIDER =
-  /^Once per round,\s*when any player places a(?: ([A-Za-z]+))? tile adjacent to this tile,\s*that tile costs 0 Resources\./i;
+  /^Once per (round|season),\s*when any player places a(?: ([A-Za-z]+))? tile adjacent to this tile,\s*that tile costs 0 Resources\./i;
 const REDUCE_ADJACENT_PLACEMENT_PROVIDER =
-  /^Once per round,\s*when any player places a tile adjacent to this tile,\s*reduce that tile's cost by (\d+) resource/i;
+  /^Once per (round|season),\s*when any player places a tile adjacent to this tile,\s*reduce that tile's cost by (\d+) resource/i;
 const ADJACENT_CORE_UPGRADE_DISCOUNT =
   /^Passive:\s*Once per round,\s*when upgrading an adjacent Core Tile,\s*reduce that upgrade cost by (\d+) resource/i;
 const ADJACENT_ANY_SUPPORT = /adjacent tiles have Supported/i;
@@ -902,6 +903,11 @@ function getLimitedSupportCategory(tile) {
 
 function supportsAdjacentTarget(providerTile, targetTile) {
   const benefit = String(providerTile?.benefit ?? "");
+  const activation = getSafeActivationDetails(providerTile);
+
+  if (activation?.type === "give_supported_adjacent") {
+    return activationCanTargetTile(activation, targetTile);
+  }
 
   if (ADJACENT_ANY_SUPPORT.test(benefit)) {
     return true;
@@ -934,7 +940,7 @@ function getSupportPlacementValue(targetTile, placedTarget = null) {
 
 function getFreeAdjacentPlacementTargetCategory(tile) {
   const match = FREE_ADJACENT_PLACEMENT_PROVIDER.exec(String(tile?.benefit ?? "").trim());
-  return match?.[1] ? match[1][0].toUpperCase() + match[1].slice(1).toLowerCase() : match ? null : undefined;
+  return match?.[2] ? match[2][0].toUpperCase() + match[2].slice(1).toLowerCase() : match ? null : undefined;
 }
 
 function canProvideFreeAdjacentPlacement(providerTile, targetTile) {
@@ -944,7 +950,7 @@ function canProvideFreeAdjacentPlacement(providerTile, targetTile) {
 
 function getReducedAdjacentPlacementAmount(tile) {
   const match = REDUCE_ADJACENT_PLACEMENT_PROVIDER.exec(String(tile?.benefit ?? "").trim());
-  return match ? Number(match[1]) : 0;
+  return match ? Number(match[2]) : 0;
 }
 
 function hasPotentialRoundPlacementDiscount(state, tile) {
@@ -967,7 +973,7 @@ function hasPotentialRoundPlacementDiscount(state, tile) {
 
 function hasPotentialAdjacentPlacementDiscount(state, tile, context) {
   return state.map.placedTiles.some((placedTile) => {
-    if (isOverstrainedPlacedTile(placedTile) || placedTile.placementDiscountRounds?.includes(state.round)) {
+    if (isOverstrainedPlacedTile(placedTile) || placedTile.placementDiscountSeasons?.includes(state.season)) {
       return false;
     }
 
@@ -1043,11 +1049,15 @@ function getFutureProviderPlacementValue(tile, state, coordinates) {
     value += openSlots * 130;
   }
 
-  if (ADJACENT_ANY_SUPPORT.test(String(tile?.benefit ?? "")) || ADJACENT_RESOURCE_SUPPORT.test(String(tile?.benefit ?? ""))) {
+  if (getSafeActivationDetails(tile)?.type === "give_supported_adjacent") {
     value += openSlots * 120;
   }
 
-  if (getLimitedSupportCategory(tile)) {
+  if (
+    ADJACENT_ANY_SUPPORT.test(String(tile?.benefit ?? "")) ||
+    ADJACENT_RESOURCE_SUPPORT.test(String(tile?.benefit ?? "")) ||
+    getLimitedSupportCategory(tile)
+  ) {
     value += openSlots * 90;
   }
 
@@ -1473,6 +1483,33 @@ function buildUtilityActivationCandidates(state, profile, context, options = {})
           type: TILE_ACTION_TYPES.ACTIVATE_TILE,
           placedTileId: placedTile.id,
           targetActiveEncounterId: activeArrival.id
+        });
+      }
+      continue;
+    }
+
+    if (activation.type === "give_supported_adjacent") {
+      const targets = getAdjacentPlacedTiles(state, placedTile)
+        .filter(
+          (target) =>
+            !isOverstrainedPlacedTile(target) &&
+            !isSupportedPlacedTile(target) &&
+            activationCanTargetTile(activation, tileIndex.get(target.tileId))
+        )
+        .sort(
+          (left, right) =>
+            getSupportPlacementValue(tileIndex.get(right.tileId), right) -
+            getSupportPlacementValue(tileIndex.get(left.tileId), left)
+        )
+        .slice(0, activation.maxTargets ?? 1)
+        .map((target) => target.id);
+
+      if (targets.length > 0) {
+        candidates.push({
+          type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+          placedTileId: placedTile.id,
+          targetPlacedTileId: targets[0],
+          targetPlacedTileIds: targets
         });
       }
       continue;
@@ -1993,7 +2030,7 @@ function buildActionCandidates(state, profile, context, priority) {
     produce: (currentState) => buildProductionCandidates(currentState, profile, context),
     utility: (currentState) =>
       buildUtilityActivationCandidates(currentState, profile, context, {
-        allowedTypes: ["resource_exchange", "flexible_resource_exchange"]
+        allowedTypes: ["resource_exchange", "flexible_resource_exchange", "give_supported_adjacent"]
       }),
     place: (currentState) => buildPlacementCandidates(currentState, profile, context),
     upgrade: (currentState) => buildUpgradeCandidates(currentState, profile, context)
@@ -2057,6 +2094,18 @@ function estimateActivationCandidateValue(state, action, context) {
 
   if (activation.type === "add_arrival_timer") {
     return SCORE_BOT_WEIGHTS.arrivalTimer;
+  }
+
+  if (activation.type === "give_supported_adjacent") {
+    const targetIds = action.targetPlacedTileIds ?? [action.targetPlacedTileId];
+    return targetIds
+      .filter(Boolean)
+      .map((targetId) => state.map.placedTiles.find((candidate) => candidate.id === targetId))
+      .filter(Boolean)
+      .reduce(
+        (total, target) => total + getSupportPlacementValue(context.tileIndex.get(target.tileId), target),
+        0
+      );
   }
 
   return 0;

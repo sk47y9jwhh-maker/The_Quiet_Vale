@@ -38,7 +38,7 @@ test("automated simulation batch completes one game for each bot and player coun
 
   assert.equal(result.errors.length, 0);
   assert.equal(result.game_rows.length, botProfiles.length * 4);
-  assert.equal(result.round_rows.length, botProfiles.length * 4 * 15);
+  assert.equal(result.round_rows.length, botProfiles.length * 4 * 12);
   assert.equal(result.game_rows.every((row) => SIMULATION_SUMMARY_FIELDS.every((field) => field in row)), true);
   assert.equal(result.round_rows.every((row) => SIMULATION_ROUND_FIELDS.every((field) => field in row)), true);
   assert.deepEqual(new Set(result.game_rows.map((row) => row.bot_profile)), new Set(botProfiles));
@@ -133,7 +133,7 @@ test("balanced bot converts placed tiles into upgraded scoring tiles", () => {
     gameIndex: 1,
     playerCount: 2,
     botProfile: "balanced",
-    seed: "balanced-upgrade-check-2p-1",
+    seed: "upgrade-pressure",
     encounterCards,
     tiles,
     mapHexes

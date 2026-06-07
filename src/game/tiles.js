@@ -50,9 +50,9 @@ const TILE_NAME_ADJACENCY_RULES = Object.freeze({
 });
 
 const FREE_ADJACENT_PLACEMENT_COST =
-  /^Once per round,\s*when any player places a(?: ([A-Za-z]+))? tile adjacent to this tile,\s*that tile costs 0 Resources\./i;
+  /^Once per (round|season),\s*when any player places a(?: ([A-Za-z]+))? tile adjacent to this tile,\s*that tile costs 0 Resources\./i;
 const REDUCE_ADJACENT_PLACEMENT_COST =
-  /^Once per round,\s*when any player places a tile adjacent to this tile,\s*reduce that tile's cost by (\d+) resource of the group's choice\./i;
+  /^Once per (round|season),\s*when any player places a tile adjacent to this tile,\s*reduce that tile's cost by (\d+) resource of the group's choice\./i;
 const REDUCE_ADJACENT_CORE_UPGRADE_COST =
   /^Passive:\s*Once per round,\s*when upgrading an adjacent Core Tile,\s*reduce that upgrade cost by (\d+) resource of your choice\.$/i;
 const REDUCE_REACHABLE_CORE_UPGRADE_COST =
@@ -677,7 +677,8 @@ function getFreeAdjacentPlacementCost(tile) {
   }
 
   return {
-    targetCategory: match[1] ? match[1][0].toUpperCase() + match[1].slice(1).toLowerCase() : null
+    cadence: match[1].toLowerCase(),
+    targetCategory: match[2] ? match[2][0].toUpperCase() + match[2].slice(1).toLowerCase() : null
   };
 }
 
@@ -689,7 +690,8 @@ function getAdjacentPlacementCostReduction(tile) {
   }
 
   return {
-    amount: Number(match[1])
+    cadence: match[1].toLowerCase(),
+    amount: Number(match[2])
   };
 }
 
@@ -753,7 +755,10 @@ function getBoonPlacementResourceDiscount(state, action, cost, tile) {
 
 function findUnusedAdjacentProvider(state, coordinates, tileIndex, predicate) {
   return sortPlacedTilesById(getAdjacentPlacedTiles(state, coordinates)).find((placedTile) => {
-    if (isOverstrainedPlacedTile(placedTile) || placedTile.placementDiscountRounds?.includes(state.round)) {
+    if (
+      isOverstrainedPlacedTile(placedTile) ||
+      placedTile.placementDiscountSeasons?.includes(state.season)
+    ) {
       return false;
     }
 
@@ -789,6 +794,7 @@ function getFreeAdjacentPlacementCostReduction(state, coordinates, cost, tileInd
     providerTileId: providerTile.tileId,
     providerTileName: providerDefinition?.tile_name ?? providerTile.tileId,
     round: state.round,
+    season: state.season,
     originalCost: cost,
     cost: []
   };
@@ -848,6 +854,7 @@ function getReducedAdjacentPlacementCostReduction(state, action, coordinates, co
       providerTileId: providerTile.tileId,
       providerTileName: providerDefinition?.tile_name ?? providerTile.tileId,
       round: state.round,
+      season: state.season,
       originalCost: cost,
       cost: reducedCost,
       resource: selectedResource,
@@ -885,16 +892,16 @@ function getPlacementCostReduction(state, action, coordinates, cost, tileIndex, 
   return getReducedAdjacentPlacementCostReduction(state, action, coordinates, cost, tileIndex, targetTile);
 }
 
-export function markPlacementDiscountRound(placedTile, round) {
-  const placementDiscountRounds = placedTile.placementDiscountRounds ?? [];
+export function markPlacementDiscountSeason(placedTile, season) {
+  const placementDiscountSeasons = placedTile.placementDiscountSeasons ?? [];
 
-  if (placementDiscountRounds.includes(round)) {
+  if (placementDiscountSeasons.includes(season)) {
     return placedTile;
   }
 
   return {
     ...placedTile,
-    placementDiscountRounds: [...placementDiscountRounds, round]
+    placementDiscountSeasons: [...placementDiscountSeasons, season]
   };
 }
 

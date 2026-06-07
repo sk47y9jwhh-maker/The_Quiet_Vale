@@ -721,7 +721,7 @@ test("rejects multihex footprints covering occupied hexes", () => {
   assert.match(result.errors.join(" "), /A13 already has a placed tile/);
 });
 
-test("Brewery of Legends makes the first adjacent paid placement cost 0 resources each round", () => {
+test("Brewery of Legends makes one adjacent paid placement cost 0 resources each season", () => {
   const state = createBreweryPlacementState();
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -738,11 +738,11 @@ test("Brewery of Legends makes the first adjacent paid placement cost 0 resource
   assert.deepEqual(result.cost, []);
   assert.equal(result.placementCostReduction.providerPlacedTileId, "tile-003");
   assert.equal(result.placementCostReduction.providerTileName, "Brewery of Legends");
-  assert.deepEqual(brewery.placementDiscountRounds, [1]);
+  assert.deepEqual(brewery.placementDiscountSeasons, ["I"]);
   assert.deepEqual(nextState.warehouse.resources, state.warehouse.resources);
 });
 
-test("Brewery of Legends cannot discount two adjacent placements in the same round", () => {
+test("Brewery of Legends cannot discount two adjacent placements in the same season", () => {
   let state = createBreweryPlacementState();
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -760,7 +760,7 @@ test("Brewery of Legends cannot discount two adjacent placements in the same rou
   assert.match(result.errors.join(" "), /Terrace costs 2 Wood, 2 Metal, 8 Food/);
 });
 
-test("Brewery of Legends discounts again in a later round", () => {
+test("Brewery of Legends cannot discount again in a later round of the same season", () => {
   let state = createBreweryPlacementState();
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
@@ -777,11 +777,35 @@ test("Brewery of Legends discounts again in a later round", () => {
     tileId: "core_terrace_basic",
     coordinate: "C4"
   });
+
+  assert.equal(result.ok, false);
+  assert.equal(nextState, state);
+  assert.match(result.errors.join(" "), /Terrace costs 2 Wood, 2 Metal, 8 Food/);
+});
+
+test("Brewery of Legends discounts again in a later season", () => {
+  let state = createBreweryPlacementState();
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_cottage_basic",
+    coordinate: "D4"
+  }).state;
+  state = {
+    ...state,
+    round: 5,
+    season: "II",
+    players: state.players.map((player) => ({ ...player, actionsRemaining: 4 }))
+  };
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_terrace_basic",
+    coordinate: "C4"
+  });
   const brewery = nextState.map.placedTiles.find((tile) => tile.id === "tile-003");
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.cost, []);
-  assert.deepEqual(brewery.placementDiscountRounds, [1, 2]);
+  assert.deepEqual(brewery.placementDiscountSeasons, ["I", "II"]);
 });
 
 test("Overstrained Brewery of Legends does not discount adjacent placement", () => {
@@ -802,7 +826,7 @@ test("Overstrained Brewery of Legends does not discount adjacent placement", () 
   assert.match(result.errors.join(" "), /Cottage costs 2 Wood, 5 Food/);
 });
 
-test("Labourers' Yard reduces one chosen adjacent placement cost resource each round", () => {
+test("Labourers' Yard reduces one chosen adjacent placement cost resource each season", () => {
   const state = withWarehouseResources(createLabourersYardPlacementState(), {
     Food: 5
   });
@@ -824,7 +848,7 @@ test("Labourers' Yard reduces one chosen adjacent placement cost resource each r
   assert.equal(result.placementCostReduction.providerTileName, "Labourers’ Yard");
   assert.equal(result.placementCostReduction.resource, "Wood");
   assert.equal(result.placementCostReduction.amountReduced, 2);
-  assert.deepEqual(labourersYard.placementDiscountRounds, [1]);
+  assert.deepEqual(labourersYard.placementDiscountSeasons, ["I"]);
   assert.equal(nextState.warehouse.resources.Wood, 0);
   assert.equal(nextState.warehouse.resources.Food, 0);
 });
@@ -847,7 +871,7 @@ test("Labourers' Yard rejects a reduction resource outside the placement cost", 
   assert.match(result.errors.join(" "), /can only reduce a resource in Cottage's placement cost/);
 });
 
-test("Labourers' Yard cannot reduce two adjacent placements in the same round", () => {
+test("Labourers' Yard cannot reduce two adjacent placements in the same season", () => {
   let state = withWarehouseResources(createLabourersYardPlacementState(), {
     Food: 5,
     Wood: 0
@@ -875,7 +899,7 @@ test("Labourers' Yard cannot reduce two adjacent placements in the same round", 
   assert.match(result.errors.join(" "), /Terrace costs 2 Wood, 2 Metal, 8 Food/);
 });
 
-test("Labourers' Yard reduces adjacent placement again in a later round", () => {
+test("Labourers' Yard cannot reduce adjacent placement again in a later round of the same season", () => {
   let state = withWarehouseResources(createLabourersYardPlacementState(), {
     Food: 5,
     Wood: 0
@@ -904,6 +928,42 @@ test("Labourers' Yard reduces adjacent placement again in a later round", () => 
     coordinate: "C4",
     placementCostReductionResource: "Wood"
   });
+
+  assert.equal(result.ok, false);
+  assert.equal(nextState, state);
+  assert.match(result.errors.join(" "), /Terrace costs 2 Wood, 2 Metal, 8 Food/);
+});
+
+test("Labourers' Yard reduces adjacent placement again in a later season", () => {
+  let state = withWarehouseResources(createLabourersYardPlacementState(), {
+    Food: 5,
+    Wood: 0
+  });
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_cottage_basic",
+    coordinate: "D3",
+    placementCostReductionResource: "Wood"
+  }).state;
+  state = withWarehouseResources(
+    {
+      ...state,
+      round: 5,
+      season: "II",
+      players: state.players.map((player) => ({ ...player, actionsRemaining: 4 }))
+    },
+    {
+      Food: 8,
+      Metal: 2,
+      Wood: 0
+    }
+  );
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_terrace_basic",
+    coordinate: "C4",
+    placementCostReductionResource: "Wood"
+  });
   const labourersYard = nextState.map.placedTiles.find((tile) => tile.id === "tile-002");
 
   assert.equal(result.ok, true);
@@ -911,7 +971,7 @@ test("Labourers' Yard reduces adjacent placement again in a later round", () => 
     { amount: 2, resource: "Metal" },
     { amount: 8, resource: "Food" }
   ]);
-  assert.deepEqual(labourersYard.placementDiscountRounds, [1, 2]);
+  assert.deepEqual(labourersYard.placementDiscountSeasons, ["I", "II"]);
 });
 
 test("Overstrained Labourers' Yard does not reduce adjacent placement costs", () => {

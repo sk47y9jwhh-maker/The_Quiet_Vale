@@ -27,9 +27,9 @@ from export_styled_rulebook_from_docx import (
 )
 
 
-RULEBOOK_VERSION = "v0.5"
-OUTPUT = OUT_DIR / "The_Quiet_Vale_Playtester_Rulebook_Styled_Draft_v0_5.pdf"
-MANIFEST = OUT_DIR / "manifest_playtester_v0_5.txt"
+RULEBOOK_VERSION = "v0.6"
+OUTPUT = OUT_DIR / "The_Quiet_Vale_Playtester_Rulebook_Styled_Draft_v0_6.pdf"
+MANIFEST = OUT_DIR / "manifest_playtester_v0_6.txt"
 
 
 PLAYTEST_STYLES = {
@@ -169,15 +169,15 @@ def manual_table(rows: list[list[str]], widths: list[float] | None = None):
 def steward_house_setup_table():
     return manual_table(
         [
-            ["Steward", "Free setup House placement", "First normal tile"],
-            ["Vanguard", "Vanguard House on Woodland.", "Player choice."],
-            ["Knight", "Knight House on Arable Land.", "Player choice."],
-            ["Sentinel", "Sentinel House on Mountains.", "Player choice."],
-            ["Ranger", "Ranger House on Heaths.", "Player choice."],
-            ["Warden", "Warden House on Ruins.", "Player choice."],
+            ["Steward", "Free setup token placement", "First normal tile"],
+            ["Vanguard", "Steward token on Woodland.", "Player choice."],
+            ["Knight", "Steward token on Arable Land.", "Player choice."],
+            ["Sentinel", "Steward token on Mountains.", "Player choice."],
+            ["Ranger", "Steward token on Heaths.", "Player choice."],
+            ["Warden", "Steward token on Ruins.", "Player choice."],
             [
                 "Quartermaster",
-                "Quartermaster House on Woodland, Mountains, Heaths, Arable Land, or Ruins. Not Grasslands or River.",
+                "Steward token on Woodland, Mountains, Heaths, Arable Land, or Ruins. Not Grasslands or River.",
                 "Player choice.",
             ],
         ],
@@ -189,10 +189,10 @@ def online_encounter_setup_table():
     return manual_table(
         [
             ["Players", "Boons", "Burdens", "Arrivals", "Golden Boons", "Hidden Cards", "Deck Cards"],
-            ["1", "5", "5", "5", "0 - not supported online", "9", "6 standard"],
-            ["2", "10", "10", "10", "0 - not supported online", "9 each", "12 standard"],
-            ["3", "15", "15", "15", "0 - not supported online", "9 each", "18 standard"],
-            ["4", "20", "20", "20", "0 - not supported online", "9 each", "24 standard"],
+            ["1", "5", "5", "5", "0 - not supported online", "9", "3 standard"],
+            ["2", "10", "10", "10", "0 - not supported online", "9 each", "6 standard"],
+            ["3", "15", "15", "15", "0 - not supported online", "9 each", "9 standard"],
+            ["4", "20", "20", "20", "0 - not supported online", "9 each", "12 standard"],
         ],
         widths=[15 * mm, 17 * mm, 19 * mm, 19 * mm, 42 * mm, 23 * mm, 24 * mm],
     )
@@ -202,7 +202,7 @@ def online_round_phase_table():
     return manual_table(
         [
             ["Phase", "Name", "Summary"],
-            ["1", "Seasonal Seed Encounter Cards", "Only in Rounds 1, 6, and 11. Each player seeds 3 hidden cards: 1 Top, 1 Middle, and 1 Bottom."],
+            ["1", "Seasonal Seed Encounter Cards", "Only in Rounds 1, 5, and 9. Each player seeds 3 hidden cards: 1 Top, 1 Middle, and 1 Bottom."],
             ["2", "Reveal Encounters", "Reveal standard Encounter Cards equal to player count. Golden Boons are not used in the online prototype."],
             ["3", "Player Turns", "Each player takes one turn with 4 Actions. The group chooses turn order."],
             ["4", "End of Round", "Remove Arrival timers, expire failed Arrivals, discard applicable Boons, and advance the Round Timer."],
@@ -227,29 +227,29 @@ def online_encounter_type_table():
 def steward_power_table():
     return manual_table(
         [
-            ["Upgraded Home", "Once per Season Steward Power"],
+            ["Steward", "Once per Season Steward Power"],
             [
-                "Vanguard Home",
-                "Place a Travel Tile or Resource Tile without spending the Place Action. Costs, requirements, and disconnected Travel still apply.",
+                "Vanguard",
+                "Place a Travel Tile or Resource Tile without spending the Place Action. Costs and requirements still apply.",
             ],
             [
-                "Knight Home",
-                "Place a Housing Tile without spending the Place Action. Costs, requirements, and disconnected Travel still apply.",
+                "Knight",
+                "Place a Housing Tile without spending the Place Action. Costs and requirements still apply.",
             ],
             [
-                "Sentinel Home",
-                "Upgrade a Core Tile without spending the Upgrade Action. Costs, requirements, and disconnected Travel still apply.",
+                "Sentinel",
+                "Upgrade a Core Tile without spending the Upgrade Action. Costs and requirements still apply.",
             ],
             [
-                "Ranger Home",
-                "When placing a tile in a disconnected empty hex, ignore the extra disconnected Travel Action for that placement.",
+                "Ranger",
+                "Once per Season, travel to anywhere for free before taking a map action. This does not spend an Action.",
             ],
             [
-                "Quartermaster Home",
+                "Quartermaster",
                 "Exchange up to 3 Warehouse resources for the same number of different non-Goods resources.",
             ],
             [
-                "Warden Home",
+                "Warden",
                 "Resolve an active Burden without spending the Resolve Action. Normal costs and requirements still apply.",
             ],
         ],
@@ -323,26 +323,36 @@ def build_story(doc) -> list:
         numbered(
             [
                 "Lay out the Game Map, Stewards Board, Warehouse Board, and Round Timer.",
-                "Each player chooses a unique Steward and takes that Steward's Player Aid and Steward House Tile.",
+                "Each player chooses a unique Steward and takes that Steward's Player Aid and Steward token.",
                 "Set the shared Warehouse using the player-count table.",
-                "Build the balanced Encounter pool, deal 9 hidden Encounter Cards to each player, and deal 6 standard Encounter Cards per player to the Encounter Deck. Golden Boons are not currently supported by the online prototype.",
-                "Each player places their Steward House for free on its setup terrain. This costs 0 Actions and 0 resources, ignores normal adjacency, and must use an empty non-River hex.",
+                "Build the balanced Encounter pool, deal 9 hidden Encounter Cards to each player, and deal 3 standard Encounter Cards per player to the Encounter Deck. Golden Boons are not currently supported by the online prototype.",
+                "Each player places their Steward token for free on its setup terrain. This costs 0 Actions and 0 resources, ignores normal adjacency, and must use an empty non-River hex.",
                 "Begin Round 1 with Seasonal Seed Encounter Cards. Each player seeds one card to the Top, one to the Middle, and one to the Bottom. There is no forced opening Resource tile; players choose their first normal tile action.",
             ]
         )
     )
     story.append(heading("Starting Warehouse", 2))
     story.append(docx_table_to_flowable(table_by_index(doc, 0)))
-    story.append(heading("Steward House Setup", 2))
+    story.append(heading("Steward Token Setup", 2))
     story.append(steward_house_setup_table())
-    story.append(compact_rule_box("Why houses matter", "A basic Steward House is a normal placed Housing tile. Its upgraded Home unlocks that Steward's once-per-Season power. Only the matching Steward may use their own Steward Power."))
+    story.append(compact_rule_box("Steward powers", "Steward House tiles are not used in this playtest version. Each Steward has their once-per-Season power from the start of the game. Only that Steward may use their own power."))
     story.append(heading("Encounter Setup", 2))
     story.append(online_encounter_setup_table())
     story.append(compact_rule_box("Online prototype note", "Golden Boons are excluded from the current online prototype and should not be added during online playtests."))
 
     story.append(heading("Round Structure"))
-    story.append(body("The game lasts 15 rounds across three Seasons. Rounds 1, 6, and 11 begin with Seasonal Seed Encounter Cards. All other rounds skip seeding and begin with Reveal Encounters."))
-    story.append(docx_table_to_flowable(table_by_index(doc, 3)))
+    story.append(body("The game lasts 12 rounds across three Seasons. Rounds 1, 5, and 9 begin with Seasonal Seed Encounter Cards. All other rounds skip seeding and begin with Reveal Encounters."))
+    story.append(
+        manual_table(
+            [
+                ["Season", "Rounds"],
+                ["I", "Rounds 1-4"],
+                ["II", "Rounds 5-8"],
+                ["III", "Rounds 9-12"],
+            ],
+            widths=[40 * mm, 119 * mm],
+        )
+    )
     story.append(online_round_phase_table())
     story.append(compact_rule_box("Seasonal seeding", "At the start of each Season, each player seeds 3 hidden cards: one Top, one Middle, and one Bottom. Players do not seed cards during the other rounds."))
     story.append(heading("Reveal And Actions By Player Count", 2))
@@ -350,14 +360,14 @@ def build_story(doc) -> list:
 
     story.append(heading("Player Actions"))
     story.append(docx_table_to_flowable(table_by_index(doc, 7)))
-    story.append(body("Players may also spend extra Actions when a tile action requires disconnected Travel or river crossing. The prototype calculates these costs, but players should still understand why they happened."))
+    story.append(body("There is no normal disconnected Travel action in this playtest version. A Steward must place, upgrade, and activate tiles on their own connected settlement network unless a Steward power or card explicitly says otherwise."))
 
     story.append(heading("Map, Tiles, And Reachability"))
     for item in [
         "Tiles stay on the map unless a rule explicitly removes them.",
         "Placed, non-Overstrained tiles connected by side adjacency form the connected settlement network.",
         "Stewards share the connected settlement network; one player's placed tiles can extend another player's reach if connected.",
-        "Each player's Steward location is the tile they last interacted with or placed.",
+        "Each player's Steward location starts at their setup token and later becomes the tile they last interacted with or placed.",
         "A tile is reachable if it is the Steward's tile or connected to that tile through the connected settlement network.",
         "Overstrained tiles break the connected settlement network.",
         "Multi-hex tiles count all hexes in their footprint for adjacency and connection. Single-hex tiles do not need rotation.",
@@ -367,7 +377,7 @@ def build_story(doc) -> list:
     for item in [
         "River hexes are barriers. Tiles do not connect across a river unless a Bridge or card effect allows the crossing.",
         "Every River hex is a legal potential Bridge placement site.",
-        "Crossing a river without a Bridge connection costs 1 Action when the action requires that crossing.",
+        "Without a Bridge or explicit crossing rule, a river break means the far side is not connected for normal Steward actions.",
         "A Bridge connects settlement networks through its river hex. An Overstrained Bridge stops providing that connection.",
     ]:
         story.append(bullet(item))
@@ -383,19 +393,20 @@ def build_story(doc) -> list:
     )
 
     story.append(PageBreak())
-    story.append(heading("Steward Houses And Powers"))
+    story.append(heading("Stewards And Powers"))
     for item in [
-        "Steward Houses are placed for free during setup before the first Seasonal Seed Encounter Cards step.",
-        "The acting Steward's marker starts on their own Steward House after setup placement.",
-        "A basic Steward House does not grant its once-per-Season power until upgraded to its Home side.",
-        "Only the matching Steward may use their own upgraded Home power, even though all Stewards may use the shared connected settlement network.",
-        "Using a Steward Power never waives resource costs, placement requirements, or disconnected Travel unless that power says so.",
+        "Each Steward token is placed for free during setup before the first Seasonal Seed Encounter Cards step.",
+        "The acting Steward's marker starts on their own setup terrain after token placement.",
+        "Steward House tiles are not used in this playtest version.",
+        "Each Steward has their once-per-Season power from game start.",
+        "Only the matching Steward may use their own power, even though all Stewards may use the shared connected settlement network.",
+        "Using a Steward Power never waives resource costs or placement requirements unless that power says so.",
     ]:
         story.append(bullet(item))
     story.append(steward_power_table())
 
     story.append(heading("Encounter Cards"))
-    story.append(body("Encounter Cards are seeded into and revealed from the Encounter Deck. Seasonal seeding happens only in Rounds 1, 6, and 11. Cards on the Stewards Board are open information. Players may inspect active cards, completed Arrivals, active Burdens, and face-up Boons."))
+    story.append(body("Encounter Cards are seeded into and revealed from the Encounter Deck. Seasonal seeding happens only in Rounds 1, 5, and 9. Cards on the Stewards Board are open information. Players may inspect active cards, completed Arrivals, active Burdens, and face-up Boons."))
     story.append(online_encounter_type_table())
 
     story.append(heading("Arrivals And Special Tiles"))
@@ -403,7 +414,7 @@ def build_story(doc) -> list:
         "An Arrival enters play with 3 timer tokens.",
         "To complete an Arrival, fulfill its Requirement all at once and spend 1 Action to interact with it.",
         "Arrival resource Requirements cannot be partly paid over time.",
-        "At the end of each round, each active Arrival loses 1 timer token. If it reaches 0 before completion, it expires.",
+        "At the end of each round, each active Arrival loses 1 timer token. If it reaches 0 before completion, it expires and the group adds 1 Strain to any placed tile of their choice.",
         "A completed Arrival unlocks its Special Tile. Any player may later place that unlocked Special Tile with a normal Place a Tile action.",
         "Unlocked but unplaced Special Tiles are not on the map and have no effects until placed.",
     ]:
@@ -413,7 +424,7 @@ def build_story(doc) -> list:
     story.append(heading("Burdens"))
     for item in [
         "When a Burden is revealed, apply the current Season effect and then place it on the Stewards Board as an active Burden.",
-        "Unresolved active Burdens reapply at the start of Round 6 using Season II text and at the start of Round 11 using Season III text.",
+        "Unresolved active Burdens reapply at the start of Round 5 using Season II text and at the start of Round 9 using Season III text.",
         "If a Burden places Strain, choose valid tiles with fewer than 3 Strain. If there are fewer valid tiles than requested, choose all valid tiles.",
         "If no valid target exists, no Strain is placed for that application. The Burden remains active unless resolved.",
         "Some Season III Burdens include fallback targets or Season III-only resolution. Use the text printed on that card rather than memorising a separate list.",
@@ -445,9 +456,21 @@ def build_story(doc) -> list:
         "As soon as a tile has fewer than 3 Strain, it is no longer Overstrained.",
     ]:
         story.append(bullet(item))
+    story.append(compact_rule_box("Support tile update", "Tiles that give broad adjacent Supported now do so by activation. Basic support tiles give Supported to 1 adjacent eligible tile. Upgraded support tiles give Supported to up to 2 adjacent eligible tiles."))
+    story.append(compact_rule_box("Placement discount update", "Brewery of Legends and Labourers' Yard may apply their adjacent placement discount once per Season, not once per round."))
 
     story.append(heading("Season Ends And Final Scoring"))
-    story.append(docx_table_to_flowable(table_by_index(doc, 10)))
+    story.append(
+        manual_table(
+            [
+                ["Timing", "Effect"],
+                ["End of Season I, after Round 4", "Each Overstrained tile spreads 1 Strain to an adjacent tile, following normal Strain cap and prevention rules."],
+                ["End of Season II, after Round 8", "Each Overstrained tile spreads 1 Strain to an adjacent tile, following normal Strain cap and prevention rules."],
+                ["End of Season III, after Round 12", "Apply final Renown penalties: -6 Renown for each active Burden and -2 Renown for each Strain token on the board."],
+            ],
+            widths=[50 * mm, 109 * mm],
+        )
+    )
     for item in [
         "Add Population from non-Overstrained placed tiles.",
         "Add Renown from non-Overstrained placed tiles.",
@@ -502,7 +525,7 @@ def build_pdf(source: Path, output: Path):
                 f"PDF: {output.name}",
                 f"Source DOCX: {source}",
                 f"Pages: {pages}",
-                "Trim approach: table-facing rules only; opening flavour text preserved; recent Steward House setup, seasonal seeding, reachability, and scoring rules reflected.",
+                "Trim approach: table-facing rules only; opening flavour text preserved; current Steward token setup, seasonal seeding, reachability, support, and scoring rules reflected.",
                 "",
             ]
         ),

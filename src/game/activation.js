@@ -7,6 +7,7 @@ import {
   isOverstrainedPlacedTile,
   spendWarehouseResources
 } from "./tiles.js";
+import { isSupportedPlacedTile } from "./strain.js";
 
 const PRODUCTION_PREFIX = /^Production:\s*Gain\s+(.+)\.$/i;
 const REMOVE_ONE_ADJACENT_STRAIN = /^Activated Effect:\s*Remove 1 Strain from an adjacent tile\.$/i;
@@ -26,6 +27,10 @@ const FLEXIBLE_RESOURCE_EXCHANGE =
 const RESOLVE_ONE_ACTIVE_BURDEN = /^Activated Effect:\s*Resolve 1 active Burden\.$/i;
 const ENCOUNTER_DECK_PEEK =
   /^Activated Effect:\s*Look at the top (\d+) cards of the Encounter Deck, then return them in any order\.$/i;
+const GIVE_SUPPORTED_TO_ONE_ADJACENT =
+  /^Activated Effect:\s*Give Supported to (?:1|one) adjacent(?: (.+?))? Tiles?\.$/i;
+const GIVE_SUPPORTED_TO_UP_TO_ADJACENT =
+  /^Activated Effect:\s*Give Supported to up to (\d+) adjacent(?: (.+?))? Tiles?\.$/i;
 
 export function parseProductionBenefit(benefitText) {
   const match = PRODUCTION_PREFIX.exec(String(benefitText ?? "").trim());
@@ -204,6 +209,48 @@ export function getEncounterDeckPeekEffect(tile) {
   };
 }
 
+function parseSupportedTargetCategories(categoryText) {
+  if (!categoryText) {
+    return [];
+  }
+
+  const normalized = String(categoryText)
+    .replace(/\btiles?\b/gi, "")
+    .trim();
+
+  if (!normalized || normalized.toLowerCase() === "placed") {
+    return [];
+  }
+
+  return parseTargetCategories(normalized);
+}
+
+export function getGiveSupportedEffect(tile) {
+  const { benefit, oncePerSeason } = getActivatedEffectBenefit(tile);
+  const upToMatch = GIVE_SUPPORTED_TO_UP_TO_ADJACENT.exec(benefit);
+  const oneMatch = GIVE_SUPPORTED_TO_ONE_ADJACENT.exec(benefit);
+
+  if (upToMatch) {
+    return {
+      type: "give_supported_adjacent",
+      maxTargets: Number(upToMatch[1]),
+      targetCategories: parseSupportedTargetCategories(upToMatch[2]),
+      oncePerSeason
+    };
+  }
+
+  if (oneMatch) {
+    return {
+      type: "give_supported_adjacent",
+      maxTargets: 1,
+      targetCategories: parseSupportedTargetCategories(oneMatch[1]),
+      oncePerSeason
+    };
+  }
+
+  return null;
+}
+
 export function getActivationDetails(tile) {
   const gains = getProductionGains(tile);
 
@@ -219,7 +266,8 @@ export function getActivationDetails(tile) {
     getArrivalTimerEffect(tile) ??
     getResourceExchangeEffect(tile) ??
     getResolveActiveBurdenEffect(tile) ??
-    getEncounterDeckPeekEffect(tile)
+    getEncounterDeckPeekEffect(tile) ??
+    getGiveSupportedEffect(tile)
   );
 }
 
@@ -318,6 +366,7 @@ export function validateActivateTile(state, action, context) {
   let exchangeGain = null;
   let exchangeGains = [];
   let encounterDeckPeek = null;
+  let supportTargetPlacedTiles = [];
   if (activation?.type === "remove_strain_adjacent") {
     const maxTargets = activation.maxTargets ?? 1;
     const requestedTargetIds = getRequestedStrainRemovalTargets(action, activation);
@@ -364,6 +413,50 @@ export function validateActivateTile(state, action, context) {
         strainRemoved: Math.min(activation.amount, target.strain ?? 0)
       }));
       strainRemoved = strainRemovals.reduce((total, removal) => total + removal.strainRemoved, 0);
+    }
+  }
+
+  if (activation?.type === "give_supported_adjacent") {
+    const maxTargets = activation.maxTargets ?? 1;
+    const requestedTargetIds = getRequestedStrainRemovalTargets(action, activation);
+    const uniqueTargetIds = new Set(requestedTargetIds);
+    const adjacentPlacedTiles = getAdjacentPlacedTiles(state, placedTile);
+
+    if (requestedTargetIds.length === 0) {
+      errors.push("Choose an adjacent tile to give Supported.");
+    }
+
+    if (requestedTargetIds.length > maxTargets) {
+      errors.push(`${tile.tile_name} can give Supported to at most ${maxTargets} adjacent tile${maxTargets === 1 ? "" : "s"}.`);
+    }
+
+    if (uniqueTargetIds.size !== requestedTargetIds.length) {
+      errors.push("Choose each Supported target only once.");
+    }
+
+    supportTargetPlacedTiles = requestedTargetIds
+      .map((targetId) => state.map.placedTiles.find((candidate) => candidate.id === targetId))
+      .filter(Boolean);
+    targetPlacedTiles = supportTargetPlacedTiles;
+    targetPlacedTile = targetPlacedTiles[0] ?? null;
+
+    for (const targetId of requestedTargetIds) {
+      const target = state.map.placedTiles.find((candidate) => candidate.id === targetId);
+
+      if (!target) {
+        errors.push(`Unknown Supported target: ${targetId}`);
+      } else if (!adjacentPlacedTiles.some((candidate) => candidate.id === target.id)) {
+        errors.push(`${target.id} is not adjacent to ${tile.tile_name}.`);
+      } else if (
+        activation.targetCategories?.length &&
+        !activation.targetCategories.includes(tileIndex.get(target.tileId)?.tile_category)
+      ) {
+        errors.push(`${target.id} is not a ${describeCategories(activation.targetCategories)} Tile.`);
+      } else if (isOverstrainedPlacedTile(target)) {
+        errors.push(`${target.id} is Overstrained and cannot receive Supported.`);
+      } else if (isSupportedPlacedTile(target)) {
+        errors.push(`${target.id} already has Supported.`);
+      }
     }
   }
 
@@ -545,6 +638,7 @@ export function validateActivateTile(state, action, context) {
     exchangeCost,
     exchangeGain,
     exchangeGains,
-    encounterDeckPeek
+    encounterDeckPeek,
+    supportTargetPlacedTiles
   };
 }

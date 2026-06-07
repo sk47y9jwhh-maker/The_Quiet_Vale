@@ -10,7 +10,7 @@ import {
   getPlacedTileCoordinates,
   isOverstrainedPlacedTile,
   markGoodsSubstitutionRound,
-  markPlacementDiscountRound,
+  markPlacementDiscountSeason,
   markUpgradeDiscountRound,
   spendWarehouseResources,
   validatePlaceTile,
@@ -1712,7 +1712,7 @@ function placeTile(state, action, context) {
   );
   const placedTilesAfterDiscount = actionState.map.placedTiles.map((existingTile) =>
     existingTile.id === validation.placementCostReduction?.providerPlacedTileId
-      ? markPlacementDiscountRound(existingTile, actionState.round)
+      ? markPlacementDiscountSeason(existingTile, actionState.season)
       : existingTile
   );
   const placedTilesAfterGoodsSubstitution = placedTilesAfterDiscount.map((existingTile) =>
@@ -1984,6 +1984,59 @@ function activateTile(state, action, context) {
         targetPlacedTiles: [...nextTargetsById.values()],
         strainRemovalTargets: validation.strainRemovalTargets,
         strainRemoved: validation.strainRemoved,
+        actionCost
+      }
+    };
+  }
+
+  if (validation.activation.type === "give_supported_adjacent") {
+    const supportTargetsById = new Map(
+      validation.supportTargetPlacedTiles.map((target) => [target.id, setPlacedTileSupported(target, true)])
+    );
+    const targetTileNames = validation.supportTargetPlacedTiles.map((placedTile) =>
+      getTileName(context, placedTile.tileId)
+    );
+    const message = `Activated ${validation.tile.tile_name} to give Supported to ${describeList(targetTileNames)}.`;
+    const nextPlacedTiles = actionState.map.placedTiles.map((placedTile) => {
+      const updatedPlacedTile = supportTargetsById.get(placedTile.id) ?? placedTile;
+
+      return updatedPlacedTile.id === validation.placedTile.id
+        ? markActivatedEffectSeason(updatedPlacedTile, validation.activation, actionState.season)
+        : updatedPlacedTile;
+    });
+    const activatedPlacedTile = nextPlacedTiles.find((placedTile) => placedTile.id === validation.placedTile.id);
+    const nextState = {
+      ...actionState,
+      map: {
+        ...actionState.map,
+        placedTiles: nextPlacedTiles
+      },
+      log: [
+        ...actionState.log,
+        createActionLogEntry(actionState, "activate_tile", message, {
+          playerId: player.id,
+          placedTileId: validation.placedTile.id,
+          tileId: validation.tile.tile_id,
+          targetPlacedTileId: validation.targetPlacedTile?.id,
+          targetPlacedTileIds: [...supportTargetsById.keys()],
+          actionCost,
+          supportTargetPlacedTileIds: [...supportTargetsById.keys()],
+          oncePerSeason: validation.activation.oncePerSeason,
+          activatedEffectSeasons: activatedPlacedTile?.activatedEffectSeasons ?? []
+        })
+      ]
+    };
+
+    return {
+      state: nextState,
+      result: {
+        ok: true,
+        action: TILE_ACTION_TYPES.ACTIVATE_TILE,
+        message,
+        placedTile: activatedPlacedTile,
+        targetPlacedTile: supportTargetsById.get(validation.targetPlacedTile?.id),
+        targetPlacedTiles: [...supportTargetsById.values()],
+        supportTargetPlacedTiles: [...supportTargetsById.values()],
         actionCost
       }
     };
