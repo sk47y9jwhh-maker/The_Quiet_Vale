@@ -42,10 +42,13 @@ for (const playerCount of [1, 2, 3, 4]) {
     const standardCounts = countEncounterTypes(standardCards);
 
     assert.equal(state.players.length, playerCount);
-    assert.equal(state.players.every((player) => player.hand.length === 10), true);
+    assert.equal(state.players.every((player) => player.hand.length === STANDARD_RULES.hiddenCardsPerPlayer), true);
     assert.equal(state.players.every((player) => player.lastInteraction === null), true);
     assert.equal(handCards.every((card) => card.encounter_type !== ENCOUNTER_TYPES.GOLDEN_BOON), true);
-    assert.equal(state.encounter.deck.length, 5 * playerCount + STANDARD_RULES.goldenBoonsPerGame);
+    assert.equal(
+      state.encounter.deck.length,
+      STANDARD_RULES.standardDeckCardsPerPlayer * playerCount + STANDARD_RULES.goldenBoonsPerGame
+    );
     assert.equal(
       deckCards.filter((card) => card.encounter_type === ENCOUNTER_TYPES.GOLDEN_BOON).length,
       STANDARD_RULES.goldenBoonsPerGame

@@ -523,12 +523,20 @@ function buildScoreSeedAction(state, profile, context) {
   }
 
   const encounterIndex = getEncounterIndex(context.encounterCards ?? []);
-  const selectedValues = [];
-  const seedSelections = Object.fromEntries(
+  const seedPositions = state.rules?.seasonalSeedPositions ?? [
+    SEED_PACKET_POSITIONS.TOP,
+    SEED_PACKET_POSITIONS.MIDDLE,
+    SEED_PACKET_POSITIONS.BOTTOM
+  ];
+  const rawSeedCardsPerPlayer = Number(state.rules?.seasonalSeedCardsPerPlayer ?? seedPositions.length);
+  const seedCardsPerPlayer = Number.isFinite(rawSeedCardsPerPlayer)
+    ? Math.max(0, Math.floor(rawSeedCardsPerPlayer))
+    : seedPositions.length;
+  const seedSelectionsByPosition = Object.fromEntries(
     state.players
       .filter((player) => player.hand.length > 0)
       .map((player) => {
-        const best = player.hand
+        const rankedCards = player.hand
           .map((cardId) => {
             const card = encounterIndex.get(cardId);
 
@@ -537,28 +545,30 @@ function buildScoreSeedAction(state, profile, context) {
               value: getSeedCardValue(card, state)
             };
           })
-          .sort((left, right) => right.value - left.value || left.cardId.localeCompare(right.cardId))[0];
+          .sort((left, right) => right.value - left.value || left.cardId.localeCompare(right.cardId));
+        const requiredPositions = seedPositions.slice(
+          0,
+          Math.min(seedCardsPerPlayer, seedPositions.length, rankedCards.length)
+        );
+        const selections = {};
 
-        selectedValues.push(best.value);
-        return [player.id, best.cardId];
+        for (const seedPosition of requiredPositions) {
+          const chosenCard =
+            seedPosition === SEED_PACKET_POSITIONS.BOTTOM ? rankedCards.pop() : rankedCards.shift();
+
+          if (chosenCard) {
+            selections[seedPosition] = chosenCard.cardId;
+          }
+        }
+
+        return [player.id, selections];
       })
+      .filter(([, selections]) => Object.keys(selections).length > 0)
   );
-  const averageValue = selectedValues.length
-    ? selectedValues.reduce((total, value) => total + value, 0) / selectedValues.length
-    : 0;
-  const seedPosition =
-    averageValue >= 35
-      ? SEED_PACKET_POSITIONS.TOP
-      : averageValue >= 0
-        ? SEED_PACKET_POSITIONS.UPPER_THIRD
-        : averageValue >= -45
-          ? SEED_PACKET_POSITIONS.LOWER_THIRD
-          : SEED_PACKET_POSITIONS.BOTTOM;
 
   return {
     type: TILE_ACTION_TYPES.SEED_ENCOUNTERS,
-    seedSelections,
-    seedPosition
+    seedSelectionsByPosition
   };
 }
 

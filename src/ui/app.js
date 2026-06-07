@@ -2223,9 +2223,9 @@ function renderSeedCardContextLayer(encounterIndex) {
         <strong>${escapeHtml(card.card_name ?? cardId)}</strong>
         <small>${escapeHtml(formatPlayerName(player))}</small>
       </header>
-      ${Object.entries(SEED_PACKET_POSITION_LABELS)
+      ${getRequiredSeasonalSeedPositions(state.game, player)
         .map(
-          ([position, label]) => `
+          (position) => `
             <button
               class="seed-context-action"
               data-seed-player-id="${escapeHtml(playerId)}"
@@ -2234,7 +2234,7 @@ function renderSeedCardContextLayer(encounterIndex) {
               type="button"
               role="menuitem"
             >
-              ${escapeHtml(label)}
+              ${escapeHtml(SEED_PACKET_POSITION_LABELS[position] ?? position)}
             </button>
           `
         )
@@ -5383,10 +5383,85 @@ function getSeedablePlayerCount(game) {
   return getSeedablePlayers(game).length;
 }
 
+function getSeasonalSeedPositions(game = state.game) {
+  const positions = game?.rules?.seasonalSeedPositions ?? [
+    SEED_PACKET_POSITIONS.TOP,
+    SEED_PACKET_POSITIONS.MIDDLE,
+    SEED_PACKET_POSITIONS.BOTTOM
+  ];
+  const validPositions = new Set(Object.values(SEED_PACKET_POSITIONS));
+  return positions.filter((position) => validPositions.has(position));
+}
+
+function getSeasonalSeedCardsPerPlayer(game = state.game) {
+  const count = Number(game?.rules?.seasonalSeedCardsPerPlayer ?? getSeasonalSeedPositions(game).length);
+  return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+}
+
+function getRequiredSeasonalSeedPositions(game, player) {
+  const positions = getSeasonalSeedPositions(game);
+  const requiredCount = Math.min(getSeasonalSeedCardsPerPlayer(game), positions.length, player.hand.length);
+  return positions.slice(0, requiredCount);
+}
+
+function getRawSeedSelectionMap(player) {
+  const selection = state.debugSeedSelections[player.id];
+
+  if (selection && typeof selection === "object" && !Array.isArray(selection)) {
+    return selection;
+  }
+
+  if (typeof selection === "string" && player.hand.includes(selection)) {
+    return {
+      [state.debugSeedPosition]: selection
+    };
+  }
+
+  return {};
+}
+
+function getValidSeedSelectionMap(game, player) {
+  const rawSelection = getRawSeedSelectionMap(player);
+  const requiredPositions = new Set(getRequiredSeasonalSeedPositions(game, player));
+  const usedCardIds = new Set();
+
+  return Object.fromEntries(
+    Object.entries(rawSelection).filter(([position, cardId]) => {
+      if (!requiredPositions.has(position) || !player.hand.includes(cardId) || usedCardIds.has(cardId)) {
+        return false;
+      }
+
+      usedCardIds.add(cardId);
+      return true;
+    })
+  );
+}
+
+function getSelectedSeedSelectionCount(game) {
+  return game.players.reduce(
+    (total, player) => total + Object.keys(getValidSeedSelectionMap(game, player)).length,
+    0
+  );
+}
+
+function getRequiredSeedSelectionCount(game) {
+  return game.players.reduce(
+    (total, player) => total + getRequiredSeasonalSeedPositions(game, player).length,
+    0
+  );
+}
+
+function getNextSeasonalSeedPosition(game, player) {
+  const requiredPositions = getRequiredSeasonalSeedPositions(game, player);
+  const selectionMap = getValidSeedSelectionMap(game, player);
+  return requiredPositions.find((position) => !selectionMap[position]) ?? requiredPositions[0] ?? SEED_PACKET_POSITIONS.TOP;
+}
+
 function getGuideInstruction(game, tileIndex, encounterIndex) {
   const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
   const seeded = game.encounter.seededRounds.includes(game.round);
-  const selectedSeedCount = Object.keys(getDebugSeedSelectionsForAction(game)).length;
+  const selectedSeedCount = getSelectedSeedSelectionCount(game);
+  const requiredSeedCount = getRequiredSeedSelectionCount(game);
   const seedablePlayerCount = getSeedablePlayerCount(game);
 
   if (isPlaySessionSetup()) {
@@ -5413,15 +5488,15 @@ function getGuideInstruction(game, tileIndex, encounterIndex) {
       return "No players have Encounter Cards left to seed. The round is moving straight to Reveal Encounters.";
     }
 
-    if (selectedSeedCount > 0 && selectedSeedCount < seedablePlayerCount) {
-      return `Choose the remaining seed cards. ${selectedSeedCount}/${seedablePlayerCount} players with cards have chosen.`;
+    if (selectedSeedCount > 0 && selectedSeedCount < requiredSeedCount) {
+      return `Choose the remaining seasonal seed cards. ${selectedSeedCount}/${requiredSeedCount} card slots are selected.`;
     }
 
-    if (selectedSeedCount === seedablePlayerCount) {
-      return "All players have chosen a seed card. Press Seed, then Reveal the round.";
+    if (selectedSeedCount === requiredSeedCount) {
+      return "All seasonal seed slots are chosen. Press Seed, then Reveal the round.";
     }
 
-    return "Next, each player chooses one card from their hand to seed into the Encounter Deck.";
+    return "Next, each player chooses three cards from their hand: one Top, one Middle, and one Bottom.";
   }
 
   if (game.phase === GAME_PHASES.REVEAL_ENCOUNTERS) {
@@ -5465,7 +5540,8 @@ function getGuideInstruction(game, tileIndex, encounterIndex) {
 function getPlayerAidPrompt(game, tileIndex, encounterIndex) {
   const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
   const seeded = game.encounter.seededRounds.includes(game.round);
-  const selectedSeedCount = Object.keys(getDebugSeedSelectionsForAction(game)).length;
+  const selectedSeedCount = getSelectedSeedSelectionCount(game);
+  const requiredSeedCount = getRequiredSeedSelectionCount(game);
   const seedablePlayerCount = getSeedablePlayerCount(game);
 
   if (!isPlaySessionPlaying()) {
@@ -5477,11 +5553,11 @@ function getPlayerAidPrompt(game, tileIndex, encounterIndex) {
       return "No hands have Encounter Cards left, so the Seed phase is skipped.";
     }
 
-    if (selectedSeedCount === seedablePlayerCount) {
-      return "Seed places the selected cards into the deck at the chosen packet position.";
+    if (selectedSeedCount === requiredSeedCount) {
+      return "Seed places each player's chosen cards into three packets: Top, Middle, and Bottom.";
     }
 
-    return "Click an Encounter card in each player's hand, then choose its deck position on the selected card.";
+    return "Click cards in each player's hand to fill Top, Middle, and Bottom. Selected cards show their deck slot.";
   }
 
   if (game.phase === GAME_PHASES.REVEAL_ENCOUNTERS) {
@@ -5546,7 +5622,8 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
   const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
   const seeded = game.encounter.seededRounds.includes(game.round);
   const revealed = game.encounter.revealedRounds.includes(game.round);
-  const selectedSeedCount = Object.keys(getDebugSeedSelectionsForAction(game)).length;
+  const selectedSeedCount = getSelectedSeedSelectionCount(game);
+  const requiredSeedCount = getRequiredSeedSelectionCount(game);
   const seedablePlayerCount = getSeedablePlayerCount(game);
   const pendingChoice = getActivePendingBurdenChoice(game, encounterIndex);
   const selectedPlacementTile = getSelectedPlacementTile(tileIndex);
@@ -5615,19 +5692,19 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
   }
 
   if (game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded) {
-    const ready = seedablePlayerCount > 0 && selectedSeedCount === seedablePlayerCount;
+    const ready = seedablePlayerCount > 0 && selectedSeedCount === requiredSeedCount;
 
     return {
       tone: seedablePlayerCount === 0 ? "ready" : ready ? "ready" : "normal",
-      label: "Seed Cards",
+      label: "Season Seed",
       title: seedablePlayerCount === 0 ? "No cards left to seed" : ready ? "Seed cards are selected" : "Choose cards to seed",
       detail: seedablePlayerCount === 0
         ? "The table will skip directly to Reveal Encounters."
         : ready
-          ? "Press Seed to place the chosen cards into the Encounter Deck."
-          : `${selectedSeedCount}/${seedablePlayerCount} players with cards have chosen. Click a card in each player hand to select it.`,
+          ? "Press Seed to place the Top, Middle, and Bottom packets into the Encounter Deck."
+          : `${selectedSeedCount}/${requiredSeedCount} seasonal seed slots are selected.`,
       quickAction: ready ? "seed" : "",
-      quickLabel: "Seed"
+      quickLabel: "Seed Season"
     };
   }
 
@@ -5819,7 +5896,7 @@ function renderTurnPanel(game, tileIndex) {
       : "Player Turns Locked";
   const phaseNote = {
     [GAME_PHASES.PLACE_STEWARD_HOUSES]: "Place each Steward House for free before seeding Encounter Cards.",
-    [GAME_PHASES.SEED_ENCOUNTERS]: "Seed Encounter Cards before turns open.",
+    [GAME_PHASES.SEED_ENCOUNTERS]: "Choose one Top, one Middle, and one Bottom seed card for each player.",
     [GAME_PHASES.REVEAL_ENCOUNTERS]: "Reveal Encounters before turns open.",
     [GAME_PHASES.END_ROUND]: "Resolve end-of-round effects to advance.",
     [GAME_PHASES.COMPLETE]: "The standard game is complete."
@@ -5864,16 +5941,21 @@ const SEED_PACKET_POSITION_LABELS = Object.freeze({
   [SEED_PACKET_POSITIONS.BOTTOM]: "Bottom of deck"
 });
 
-function getDebugSeedSelection(player) {
-  const selectedCardId = state.debugSeedSelections[player.id];
-  return player.hand.includes(selectedCardId) ? selectedCardId : "";
+function getShortSeedPositionLabel(seedPosition) {
+  return (SEED_PACKET_POSITION_LABELS[seedPosition] ?? seedPosition).replace(" of deck", "");
+}
+
+function getSeedPositionsForCard(game, player, cardId) {
+  return Object.entries(getValidSeedSelectionMap(game, player))
+    .filter(([, selectedCardId]) => selectedCardId === cardId)
+    .map(([position]) => position);
 }
 
 function getDebugSeedSelectionsForAction(game) {
   return Object.fromEntries(
     game.players
-      .map((player) => [player.id, getDebugSeedSelection(player)])
-      .filter(([, cardId]) => Boolean(cardId))
+      .map((player) => [player.id, getValidSeedSelectionMap(game, player)])
+      .filter(([, selections]) => Object.keys(selections).length > 0)
   );
 }
 
@@ -5910,7 +5992,10 @@ function autoSkipEmptySeedPhase() {
 }
 
 function renderSeedHandCard(card, player, game) {
-  const selected = getDebugSeedSelection(player) === card.card_id;
+  const selectedPositions = getSeedPositionsForCard(game, player, card.card_id);
+  const selected = selectedPositions.length > 0;
+  const playerSelections = getValidSeedSelectionMap(game, player);
+  const seedPositions = getRequiredSeasonalSeedPositions(game, player);
 
   return `
     <div
@@ -5922,23 +6007,23 @@ function renderSeedHandCard(card, player, game) {
       role="button"
       aria-label="${escapeHtml(`${formatPlayerName(player)} ${card.card_name}`)}"
     >
-      ${selected ? `<span class="seed-selected-badge">${escapeHtml(SEED_PACKET_POSITION_LABELS[state.debugSeedPosition] ?? "Selected")}</span>` : ""}
+      ${selected ? `<span class="seed-selected-badge">${escapeHtml(selectedPositions.map(getShortSeedPositionLabel).join(" + "))}</span>` : ""}
       ${renderEncounterFace(card, null, game, null, { extraClass: "seed-encounter-face" })}
       ${
         selected
           ? `<div class="seed-position-toolbar" aria-label="Seed packet position">
-              <span>Place in deck</span>
-              ${Object.entries(SEED_PACKET_POSITION_LABELS)
+              <span>Deck slot</span>
+              ${seedPositions
                 .map(
-                  ([position, label]) => `
+                  (position) => `
                     <button
-                      class="seed-position-action ${position === state.debugSeedPosition ? "is-active" : ""}"
+                      class="seed-position-action ${playerSelections[position] === card.card_id ? "is-active" : ""}"
                       data-seed-player-id="${escapeHtml(player.id)}"
                       data-seed-card-id="${escapeHtml(card.card_id)}"
                       data-seed-position="${escapeHtml(position)}"
                       type="button"
                     >
-                      ${escapeHtml(label.replace(" of deck", ""))}
+                      ${escapeHtml(getShortSeedPositionLabel(position))}
                     </button>
                   `
                 )
@@ -5961,21 +6046,34 @@ function renderSeedHandStrips(game, encounterIndex) {
   return `
     <section class="stewards-seed-area" aria-label="Encounter card seeding">
       <header class="stewards-subheader">
-        <h3>Seed Encounter Cards</h3>
-        <strong>${escapeHtml(SEED_PACKET_POSITION_LABELS[state.debugSeedPosition])}</strong>
+        <h3>Seasonal Seed</h3>
+        <strong>${escapeHtml(getSeasonalSeedPositions(game).map(getShortSeedPositionLabel).join(" / "))}</strong>
       </header>
       <div class="seed-player-grid">
         ${game.players
           .map((player) => {
             const cards = getCards(player.hand, encounterIndex);
-            const selectedCard = encounterIndex.get(getDebugSeedSelection(player));
+            const requiredPositions = getRequiredSeasonalSeedPositions(game, player);
+            const playerSelections = getValidSeedSelectionMap(game, player);
+            const selectedCount = Object.keys(playerSelections).length;
+            const selectedNames = requiredPositions
+              .map((position) => {
+                const card = encounterIndex.get(playerSelections[position]);
+                return card ? `${getShortSeedPositionLabel(position)}: ${card.card_name}` : "";
+              })
+              .filter(Boolean);
 
             return `
               <article class="seed-player-strip">
                 <header>
                   <span>${escapeHtml(formatPlayerName(player))}</span>
-                  <strong>${escapeHtml(selectedCard?.card_name ?? "Auto")}</strong>
+                  <strong>${selectedCount}/${requiredPositions.length} selected</strong>
                 </header>
+                ${
+                  selectedNames.length
+                    ? `<p class="seed-selection-summary">${escapeHtml(selectedNames.join(" | "))}</p>`
+                    : `<p class="seed-selection-summary">Choose Top, Middle, and Bottom.</p>`
+                }
                 <div class="seed-card-scroll">
                   ${cards.map((card) => renderSeedHandCard(card, player, game)).join("")}
                 </div>
@@ -6145,7 +6243,14 @@ function renderEncounterPanel(game, encounterIndex) {
   const seeded = game.encounter.seededRounds.includes(game.round);
   const revealed = game.encounter.revealedRounds.includes(game.round);
   const playing = isPlaySessionPlaying();
-  const canSeed = playing && game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded && getSeedablePlayerCount(game) > 0;
+  const requiredSeedCount = getRequiredSeedSelectionCount(game);
+  const selectedSeedCount = getSelectedSeedSelectionCount(game);
+  const canSeed =
+    playing &&
+    game.phase === GAME_PHASES.SEED_ENCOUNTERS &&
+    !seeded &&
+    requiredSeedCount > 0 &&
+    selectedSeedCount === requiredSeedCount;
   const canReveal = playing && game.phase === GAME_PHASES.REVEAL_ENCOUNTERS && !revealed;
   const completedArrivals = game.encounter.completed ?? [];
   const roundEffects = game.encounter.roundEffects ?? [];
@@ -6170,7 +6275,7 @@ function renderEncounterPanel(game, encounterIndex) {
       </div>
 
       <div class="encounter-actions stewards-actions">
-        <button id="seed-encounters" class="secondary-button" type="button" ${canSeed ? "" : "disabled"}>Seed Round</button>
+        <button id="seed-encounters" class="secondary-button" type="button" ${canSeed ? "" : "disabled"}>Seed Season</button>
         <button id="reveal-encounters" class="primary-button" type="button" ${canReveal ? "" : "disabled"}>Reveal Encounters</button>
       </div>
 
@@ -8157,16 +8262,22 @@ function selectSeedCardPosition(playerId, cardId, seedPosition) {
     return;
   }
 
+  const player = state.game?.players.find((candidate) => candidate.id === playerId);
+  const currentSelections = player ? getRawSeedSelectionMap(player) : {};
+  const nextPlayerSelections = Object.fromEntries(
+    Object.entries(currentSelections).filter(([, selectedCardId]) => selectedCardId !== cardId)
+  );
+  nextPlayerSelections[seedPosition] = cardId;
   state.debugSeedSelections = {
     ...state.debugSeedSelections,
-    [playerId]: cardId
+    [playerId]: nextPlayerSelections
   };
   state.debugSeedPosition = seedPosition;
   state.seedContextMenu = null;
   state.lastActionResult = {
     ok: true,
     action: "SELECT_SEED_CARD",
-    message: `Selected ${getEncounterCardName(cardId)} for ${getPlayerName(playerId)}; seed packet position ${SEED_PACKET_POSITION_LABELS[seedPosition] ?? seedPosition}.`
+    message: `Selected ${getEncounterCardName(cardId)} for ${getPlayerName(playerId)}; ${getShortSeedPositionLabel(seedPosition)} seed slot.`
   };
   renderApp();
 }
@@ -8693,8 +8804,7 @@ function runQuickAction(actionName) {
       state.game,
       {
         type: TILE_ACTION_TYPES.SEED_ENCOUNTERS,
-        seedSelections: getDebugSeedSelectionsForAction(state.game),
-        seedPosition: state.debugSeedPosition
+        seedSelectionsByPosition: getDebugSeedSelectionsForAction(state.game)
       },
       { tiles: state.data.tiles }
     );
@@ -8825,7 +8935,12 @@ function bindEvents() {
         return;
       }
 
-      selectSeedCardPosition(cardElement.dataset.playerId, cardElement.dataset.cardId, state.debugSeedPosition);
+      const player = state.game?.players.find((candidate) => candidate.id === cardElement.dataset.playerId);
+      selectSeedCardPosition(
+        cardElement.dataset.playerId,
+        cardElement.dataset.cardId,
+        player ? getNextSeasonalSeedPosition(state.game, player) : SEED_PACKET_POSITIONS.TOP
+      );
     });
     cardElement.addEventListener("contextmenu", (event) =>
       openSeedCardContextMenu(event, cardElement.dataset.playerId, cardElement.dataset.cardId)
@@ -8833,7 +8948,12 @@ function bindEvents() {
     cardElement.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        selectSeedCardPosition(cardElement.dataset.playerId, cardElement.dataset.cardId, state.debugSeedPosition);
+        const player = state.game?.players.find((candidate) => candidate.id === cardElement.dataset.playerId);
+        selectSeedCardPosition(
+          cardElement.dataset.playerId,
+          cardElement.dataset.cardId,
+          player ? getNextSeasonalSeedPosition(state.game, player) : SEED_PACKET_POSITIONS.TOP
+        );
       }
     });
   });
@@ -9066,8 +9186,7 @@ function bindEvents() {
       state.game,
       {
         type: TILE_ACTION_TYPES.SEED_ENCOUNTERS,
-        seedSelections: getDebugSeedSelectionsForAction(state.game),
-        seedPosition: state.debugSeedPosition
+        seedSelectionsByPosition: getDebugSeedSelectionsForAction(state.game)
       },
       { tiles: state.data.tiles }
     );

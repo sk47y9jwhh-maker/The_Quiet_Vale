@@ -79,6 +79,6 @@ test("prototype smoke flow seeds, reveals, places disconnected, upgrades at stew
 
   ({ state, result } = dispatch(state, { type: TILE_ACTION_TYPES.END_ROUND }));
   assert.equal(result.ok, true);
-  assert.equal(state.phase, GAME_PHASES.SEED_ENCOUNTERS);
+  assert.equal(state.phase, GAME_PHASES.REVEAL_ENCOUNTERS);
   assert.equal(state.round, 2);
 });

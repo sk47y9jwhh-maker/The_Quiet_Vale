@@ -138,20 +138,21 @@ function firstCardIdOfType(encounterType) {
   return encounterCards.find((card) => card.encounter_type === encounterType).card_id;
 }
 
-test("seeding removes one hidden card per player and places seeded cards on top of the deck", () => {
+test("seasonal seeding removes top, middle, and bottom cards per player", () => {
   const state = newState(2);
-  const firstPlayerCard = state.players[0].hand[0];
-  const secondPlayerCard = state.players[1].hand[0];
+  const firstPlayerCards = state.players[0].hand.slice(0, 3);
+  const secondPlayerCards = state.players[1].hand.slice(0, 3);
   const originalDeckLength = state.encounter.deck.length;
   const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.SEED_ENCOUNTERS });
 
   assert.equal(result.ok, true);
-  assert.equal(result.seededCount, 2);
+  assert.equal(result.seededCount, 6);
   assert.deepEqual(nextState.encounter.seededRounds, [1]);
-  assert.equal(nextState.players[0].hand.length, 9);
-  assert.equal(nextState.players[1].hand.length, 9);
-  assert.equal(nextState.encounter.deck.length, originalDeckLength + 2);
-  assert.deepEqual(nextState.encounter.deck.slice(0, 2), [secondPlayerCard, firstPlayerCard]);
+  assert.equal(nextState.players[0].hand.length, 6);
+  assert.equal(nextState.players[1].hand.length, 6);
+  assert.equal(nextState.encounter.deck.length, originalDeckLength + 6);
+  assert.deepEqual(nextState.encounter.deck.slice(0, 2), [secondPlayerCards[0], firstPlayerCards[0]]);
+  assert.deepEqual(nextState.encounter.deck.slice(-2), [secondPlayerCards[2], firstPlayerCards[2]]);
   assert.equal(nextState.phase, GAME_PHASES.REVEAL_ENCOUNTERS);
 });
 
@@ -175,26 +176,33 @@ test("seeding skips cleanly when no players have cards in hand", () => {
   assert.equal(nextState.phase, GAME_PHASES.REVEAL_ENCOUNTERS);
 });
 
-test("debug seeding can choose a hand card and insert the packet in the middle of the deck", () => {
+test("seasonal seeding can choose hand cards and insert the middle packet halfway through the deck", () => {
   const state = newState(1);
-  const selectedCard = state.players[0].hand[3];
+  const topCard = state.players[0].hand[0];
+  const middleCard = state.players[0].hand[3];
+  const bottomCard = state.players[0].hand[8];
   const originalDeck = state.encounter.deck;
   const expectedIndex = Math.floor(originalDeck.length / 2);
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.SEED_ENCOUNTERS,
-    seedSelections: {
-      P1: selectedCard
+    seedSelectionsByPosition: {
+      P1: {
+        top: topCard,
+        middle: middleCard,
+        bottom: bottomCard
+      }
     },
-    seedPosition: "middle"
   });
 
   assert.equal(result.ok, true);
-  assert.equal(result.seedPosition, "middle");
-  assert.equal(result.insertIndex, expectedIndex);
-  assert.equal(nextState.encounter.deck[expectedIndex], selectedCard);
-  assert.equal(nextState.players[0].hand.includes(selectedCard), false);
+  assert.deepEqual(result.seedPositions, ["top", "middle", "bottom"]);
+  assert.equal(result.insertIndices.middle, expectedIndex + 1);
+  assert.equal(nextState.encounter.deck[0], topCard);
+  assert.equal(nextState.encounter.deck[expectedIndex + 1], middleCard);
+  assert.equal(nextState.encounter.deck.at(-1), bottomCard);
+  assert.equal(nextState.players[0].hand.includes(middleCard), false);
   assert.deepEqual(
-    nextState.encounter.deck.filter((cardId) => cardId !== selectedCard),
+    nextState.encounter.deck.filter((cardId) => ![topCard, middleCard, bottomCard].includes(cardId)),
     originalDeck
   );
 });
@@ -211,6 +219,19 @@ test("debug seeding rejects a selected card outside the player's hand", () => {
   assert.equal(result.ok, false);
   assert.match(result.errors.join(" "), /not in their hand/);
   assert.equal(nextState, state);
+});
+
+test("seeding is rejected outside seasonal seed rounds", () => {
+  const state = {
+    ...newState(1),
+    phase: GAME_PHASES.SEED_ENCOUNTERS,
+    round: 2
+  };
+  const result = dispatch(state, { type: TILE_ACTION_TYPES.SEED_ENCOUNTERS });
+
+  assert.equal(result.result.ok, false);
+  assert.match(result.result.errors.join(" "), /not a seasonal Encounter seeding round/);
+  assert.equal(result.state, state);
 });
 
 test("seeding can only happen once per round", () => {
@@ -3245,7 +3266,7 @@ test("end-of-round removes Arrival timers and expires failed Arrivals", () => {
   assert.equal(result.ok, true);
   assert.equal(result.timersRemoved, 2);
   assert.equal(result.expiredArrivals.length, 1);
-  assert.equal(nextState.phase, GAME_PHASES.SEED_ENCOUNTERS);
+  assert.equal(nextState.phase, GAME_PHASES.REVEAL_ENCOUNTERS);
   assert.equal(nextState.round, 4);
   assert.deepEqual(nextState.encounter.discard, [expiringArrivalId]);
   assert.equal(nextState.encounter.active.length, 1);

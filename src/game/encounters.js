@@ -1,5 +1,5 @@
 import { createMapIndex, getNeighborCoordinates } from "./map.js";
-import { ENCOUNTER_TYPES, createEncounterIndex, createSeededRandom, shuffle } from "./setup.js";
+import { ENCOUNTER_TYPES, createEncounterIndex, createSeededRandom, isSeasonSeedRound, shuffle } from "./setup.js";
 import { getEffectiveSupportDetails } from "./passives.js";
 import { applyStrainToPlacedTile } from "./strain.js";
 import { createTileIndex, getPlacedTileCoordinates, isOverstrainedPlacedTile } from "./tiles.js";
@@ -2768,6 +2768,42 @@ function getSeedPacketIndex(deckLength, seedPosition) {
   return null;
 }
 
+function getSeasonalSeedPositions(state) {
+  return state.rules?.seasonalSeedPositions ?? [
+    SEED_PACKET_POSITIONS.TOP,
+    SEED_PACKET_POSITIONS.MIDDLE,
+    SEED_PACKET_POSITIONS.BOTTOM
+  ];
+}
+
+function getSeasonalSeedCardsPerPlayer(state) {
+  const cardsPerPlayer = Number(state.rules?.seasonalSeedCardsPerPlayer ?? getSeasonalSeedPositions(state).length);
+  return Number.isFinite(cardsPerPlayer) ? Math.max(0, Math.floor(cardsPerPlayer)) : 0;
+}
+
+function getRequiredSeasonalSeedPositions(state, player) {
+  const validPositions = new Set(Object.values(SEED_PACKET_POSITIONS));
+  const positions = getSeasonalSeedPositions(state).filter((position) => validPositions.has(position));
+  const requiredCount = Math.min(getSeasonalSeedCardsPerPlayer(state), positions.length, player.hand.length);
+  return positions.slice(0, requiredCount);
+}
+
+function getRequestedSeasonalSeedSelections(options, playerId) {
+  const directSelection = options.seedSelectionsByPosition?.[playerId] ?? options.seedSelections?.[playerId];
+
+  if (directSelection && typeof directSelection === "object" && !Array.isArray(directSelection)) {
+    return directSelection;
+  }
+
+  if (typeof directSelection === "string") {
+    return {
+      [options.seedPosition ?? SEED_PACKET_POSITIONS.TOP]: directSelection
+    };
+  }
+
+  return {};
+}
+
 function getEncounterCardIdsInPlay(state) {
   return new Set([
     ...(state.encounter.setup?.selectedStandardPoolIds ?? []),
@@ -2998,17 +3034,13 @@ export function seedEncounterCards(state, options = {}) {
     };
   }
 
-  const seedPosition = options.seedPosition ?? SEED_PACKET_POSITIONS.TOP;
-  const insertIndex = getSeedPacketIndex(state.encounter.deck.length, seedPosition);
-
-  if (insertIndex === null) {
+  if (!isSeasonSeedRound(state.round, state.rules)) {
     return {
       valid: false,
-      errors: [`Unknown seed packet position: ${seedPosition}`]
+      errors: [`Round ${state.round} is not a seasonal Encounter seeding round.`]
     };
   }
 
-  const seedSelections = options.seedSelections ?? {};
   const seeded = [];
   const errors = [];
   const players = state.players.map((player) => {
@@ -3016,17 +3048,26 @@ export function seedEncounterCards(state, options = {}) {
       return player;
     }
 
-    const requestedCardId = seedSelections[player.id];
-    const cardId = requestedCardId || player.hand[0];
-    const selectedIndex = player.hand.indexOf(cardId);
+    const requestedSelections = getRequestedSeasonalSeedSelections(options, player.id);
+    const requiredPositions = getRequiredSeasonalSeedPositions(state, player);
+    const hand = [...player.hand];
+    const playerSeeded = [];
 
-    if (selectedIndex === -1) {
-      errors.push(`${player.name} cannot seed ${cardId}; it is not in their hand.`);
-      return player;
+    for (const seedPosition of requiredPositions) {
+      const requestedCardId = requestedSelections[seedPosition];
+      const cardId = requestedCardId || hand[0];
+      const selectedIndex = hand.indexOf(cardId);
+
+      if (selectedIndex === -1) {
+        errors.push(`${player.name} cannot seed ${cardId}; it is not in their hand or was already chosen.`);
+        return player;
+      }
+
+      hand.splice(selectedIndex, 1);
+      playerSeeded.push({ playerId: player.id, cardId, seedPosition });
     }
 
-    const hand = player.hand.filter((candidate, index) => index !== selectedIndex);
-    seeded.push({ playerId: player.id, cardId });
+    seeded.push(...playerSeeded);
     return {
       ...player,
       hand
@@ -3040,19 +3081,36 @@ export function seedEncounterCards(state, options = {}) {
     };
   }
 
-  const packet = seeded.map((entry) => entry.cardId).reverse();
+  const positions = getSeasonalSeedPositions(state);
+  const cardIdsByPosition = Object.fromEntries(
+    positions.map((position) => [
+      position,
+      seeded.filter((entry) => entry.seedPosition === position).map((entry) => entry.cardId).reverse()
+    ])
+  );
+  const topPacket = cardIdsByPosition[SEED_PACKET_POSITIONS.TOP] ?? [];
+  const middlePacket = cardIdsByPosition[SEED_PACKET_POSITIONS.MIDDLE] ?? [];
+  const bottomPacket = cardIdsByPosition[SEED_PACKET_POSITIONS.BOTTOM] ?? [];
+  const middleIndex = getSeedPacketIndex(state.encounter.deck.length, SEED_PACKET_POSITIONS.MIDDLE);
   const deck = [
-    ...state.encounter.deck.slice(0, insertIndex),
-    ...packet,
-    ...state.encounter.deck.slice(insertIndex)
+    ...topPacket,
+    ...state.encounter.deck.slice(0, middleIndex),
+    ...middlePacket,
+    ...state.encounter.deck.slice(middleIndex),
+    ...bottomPacket
   ];
+  const insertIndices = {
+    [SEED_PACKET_POSITIONS.TOP]: 0,
+    [SEED_PACKET_POSITIONS.MIDDLE]: topPacket.length + middleIndex,
+    [SEED_PACKET_POSITIONS.BOTTOM]: topPacket.length + state.encounter.deck.length + middlePacket.length
+  };
 
   return {
     valid: true,
     players,
     seeded,
-    seedPosition,
-    insertIndex,
+    seedPositions: positions,
+    insertIndices,
     encounter: {
       ...state.encounter,
       deck,

@@ -32,7 +32,10 @@ function dispatch(state, action) {
 }
 
 function advanceToPlayerTurns(state) {
-  state = dispatch(state, { type: TILE_ACTION_TYPES.SEED_ENCOUNTERS }).state;
+  if (state.phase === GAME_PHASES.SEED_ENCOUNTERS) {
+    state = dispatch(state, { type: TILE_ACTION_TYPES.SEED_ENCOUNTERS }).state;
+  }
+
   state = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS }).state;
   return state;
 }
@@ -215,7 +218,7 @@ test("resolving end-of-round effects advances the round and resets actions", () 
 
   assert.equal(result.ok, true);
   assert.equal(result.advancedRound, true);
-  assert.equal(nextState.phase, GAME_PHASES.SEED_ENCOUNTERS);
+  assert.equal(nextState.phase, GAME_PHASES.REVEAL_ENCOUNTERS);
   assert.equal(nextState.round, 2);
   assert.equal(nextState.season, "I");
   assert.equal(nextState.activePlayerId, null);
@@ -225,24 +228,31 @@ test("resolving end-of-round effects advances the round and resets actions", () 
   );
 });
 
-test("end of round skips seeding when all player hands are empty", () => {
-  let state = advanceToPlayerTurns(newState(2));
-  state = {
-    ...state,
-    players: state.players.map((player) => ({
+test("end of round skips seasonal seeding when all player hands are empty", () => {
+  const base = newState(2);
+  const state = {
+    ...base,
+    phase: GAME_PHASES.END_ROUND,
+    round: 5,
+    season: "I",
+    activePlayerId: null,
+    players: base.players.map((player) => ({
       ...player,
+      actionsRemaining: 0,
       hand: []
-    }))
+    })),
+    encounter: {
+      ...base.encounter,
+      seededRounds: [1]
+    }
   };
-  state = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN }).state;
-  state = dispatch(state, { type: TILE_ACTION_TYPES.END_TURN }).state;
   const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.END_ROUND });
 
   assert.equal(result.ok, true);
   assert.equal(result.autoSkippedSeeding, true);
   assert.equal(nextState.phase, GAME_PHASES.REVEAL_ENCOUNTERS);
-  assert.equal(nextState.round, 2);
-  assert.deepEqual(nextState.encounter.seededRounds, [1, 2]);
+  assert.equal(nextState.round, 6);
+  assert.deepEqual(nextState.encounter.seededRounds, [1, 6]);
   assert.match(result.message, /ready to reveal/);
 });
 

@@ -28,8 +28,11 @@ export const STANDARD_RULES = Object.freeze({
   roundsPerSeason: 5,
   totalRounds: 15,
   actionsPerPlayer: 4,
-  hiddenCardsPerPlayer: 10,
-  standardDeckCardsPerPlayer: 5,
+  hiddenCardsPerPlayer: 9,
+  standardDeckCardsPerPlayer: 6,
+  seasonalSeedCardsPerPlayer: 3,
+  seasonalSeedRounds: Object.freeze([1, 6, 11]),
+  seasonalSeedPositions: Object.freeze(["top", "middle", "bottom"]),
   goldenBoonsPerGame: 0,
   councilVariantStartingWarehouseResources: 0,
   arrivalStartTimerTokens: 3,
@@ -61,6 +64,10 @@ export function getSeasonForRound(round) {
   }
 
   return "I";
+}
+
+export function isSeasonSeedRound(round, rules = STANDARD_RULES) {
+  return (rules?.seasonalSeedRounds ?? STANDARD_RULES.seasonalSeedRounds).includes(round);
 }
 
 export function createEncounterIndex(encounterCards) {

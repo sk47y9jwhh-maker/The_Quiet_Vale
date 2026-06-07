@@ -134,5 +134,5 @@ test("end of round resets the Supported use flag", () => {
   assert.equal(result.ok, true);
   assert.equal(placedTile.supported, true);
   assert.equal(placedTile.supportedUsedThisRound, false);
-  assert.equal(nextState.phase, GAME_PHASES.SEED_ENCOUNTERS);
+  assert.equal(nextState.phase, GAME_PHASES.REVEAL_ENCOUNTERS);
 });
