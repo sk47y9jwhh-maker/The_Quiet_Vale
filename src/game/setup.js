@@ -25,13 +25,13 @@ export const STANDARD_RULES = Object.freeze({
   minPlayers: 1,
   maxPlayers: 4,
   seasonCount: 3,
-  roundsPerSeason: 5,
-  totalRounds: 15,
+  roundsPerSeason: 4,
+  totalRounds: 12,
   actionsPerPlayer: 4,
   hiddenCardsPerPlayer: 9,
-  standardDeckCardsPerPlayer: 6,
+  standardDeckCardsPerPlayer: 3,
   seasonalSeedCardsPerPlayer: 3,
-  seasonalSeedRounds: Object.freeze([1, 6, 11]),
+  seasonalSeedRounds: Object.freeze([1, 5, 9]),
   seasonalSeedPositions: Object.freeze(["top", "middle", "bottom"]),
   goldenBoonsPerGame: 0,
   councilVariantStartingWarehouseResources: 0,
@@ -55,11 +55,11 @@ export const STANDARD_RULES = Object.freeze({
 });
 
 export function getSeasonForRound(round) {
-  if (round >= 11) {
+  if (round >= 9) {
     return "III";
   }
 
-  if (round >= 6) {
+  if (round >= 5) {
     return "II";
   }
 
@@ -181,9 +181,9 @@ function createPlayers(playerCount, standardPool, stewardRoleIds) {
       lastInteraction: null,
       stewardHousePlacement: {
         completed: false,
-        tileId: stewardRole?.houseTileId ?? null,
+        tileId: null,
         terrainOptions: [...(stewardRole?.houseTerrainOptions ?? [])],
-        summary: stewardRole?.housePlacementSummary ?? ""
+        summary: stewardRole?.tokenPlacementSummary ?? stewardRole?.housePlacementSummary ?? ""
       },
       openingResourcePlacement: {
         requiredRound: 1,
@@ -216,18 +216,21 @@ function createTileSupply(tiles, stewardRoleIds = []) {
 
   return {
     core: core.map((tile) => {
-      const unlockedBySteward = tile.side === "Basic" && unlockedStewardHouseTileIds.has(tile.tile_id);
-      const availableAtSetup = isDirectlyPlaceableTile(tile) || unlockedBySteward;
+      const removedStewardHouse = tile.subtype === "Steward House";
+      const unlockedBySteward =
+        !removedStewardHouse && tile.side === "Basic" && unlockedStewardHouseTileIds.has(tile.tile_id);
+      const availableAtSetup = !removedStewardHouse && (isDirectlyPlaceableTile(tile) || unlockedBySteward);
 
       return {
         tileId: tile.tile_id,
         name: tile.tile_name,
         side: tile.side,
         category: tile.tile_category,
-        stock: Number(tile.stock ?? 0),
+        stock: removedStewardHouse ? 0 : Number(tile.stock ?? 0),
         available: availableAtSetup ? Number(tile.stock ?? 0) : 0,
         locked: !availableAtSetup,
-        unlockedBySteward: unlockedBySteward ? true : undefined
+        unlockedBySteward: unlockedBySteward ? true : undefined,
+        removedByRules: removedStewardHouse ? true : undefined
       };
     }),
     special: special.map((tile) => ({
@@ -344,12 +347,12 @@ export function createInitialGameState({
         resourcesPerType: getStartingWarehouseResourceCount(playerCount),
         cap: STANDARD_RULES.warehouseCapPerResource
       }),
-      createLogEntry(5, "Assigned Steward roles and unlocked their Houses.", {
+      createLogEntry(5, "Assigned Steward roles and prepared their setup token sites.", {
         stewardRoles: players.map((player) => ({
           playerId: player.id,
           stewardRoleId: player.stewardRoleId,
           stewardRoleName: player.stewardRoleName,
-          stewardHousePlacement: player.stewardHousePlacement.summary,
+          stewardTokenPlacement: player.stewardHousePlacement.summary,
           openingResourcePlacement: player.openingResourcePlacement.summary
         }))
       })

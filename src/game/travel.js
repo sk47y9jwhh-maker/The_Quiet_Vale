@@ -5,6 +5,7 @@ import {
   getPlacedTileCoordinates,
   isOverstrainedPlacedTile
 } from "./tiles.js";
+import { getStewardHouseRole } from "./stewards.js";
 
 export function isTravelTileDefinition(tile) {
   return (
@@ -210,11 +211,62 @@ function getPlayerTravelAnchorTile(state, context = {}) {
   return state.map.placedTiles.find((placedTile) => placedTile.id === placedTileId) ?? null;
 }
 
+function getPlayerTravelAnchorCoordinates(state, context = {}) {
+  const anchorTile = getPlayerTravelAnchorTile(state, context);
+
+  if (anchorTile) {
+    return getPlacedTileCoordinates(anchorTile);
+  }
+
+  const playerId = context.playerId ?? state.activePlayerId;
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  const tileIndex = context.tileIndex ?? createTileIndex(context.tiles ?? []);
+  const legacyStewardHouse = state.map.placedTiles.find((placedTile) => {
+    const tile = tileIndex.get(placedTile.tileId);
+    return getStewardHouseRole(tile)?.id === player?.stewardRoleId;
+  });
+  const coordinate =
+    player?.lastInteraction?.coordinate ??
+    player?.stewardHousePlacement?.coordinate ??
+    player?.stewardHousePlacement?.tokenCoordinate ??
+    legacyStewardHouse?.coordinate ??
+    legacyStewardHouse?.coordinates?.[0] ??
+    null;
+
+  return coordinate ? [coordinate] : [];
+}
+
+function hasPlayerTravelAnchor(state, context = {}) {
+  return Boolean(getPlayerTravelAnchorTile(state, context) || getPlayerTravelAnchorCoordinates(state, context).length > 0);
+}
+
+function coordinatesTouch(state, leftCoordinates, rightCoordinates) {
+  const right = new Set(rightCoordinates);
+
+  if (leftCoordinates.some((coordinate) => right.has(coordinate))) {
+    return true;
+  }
+
+  return hasFootprintAdjacencyToCoordinates(state, leftCoordinates, right);
+}
+
 function getReachableNetworkCoordinates(state, networks, context = {}) {
   const anchorTile = getPlayerTravelAnchorTile(state, context);
 
   if (!anchorTile) {
-    return new Set(networks.flatMap((network) => network.coordinates));
+    const anchorCoordinates = getPlayerTravelAnchorCoordinates(state, context);
+
+    if (anchorCoordinates.length === 0) {
+      return new Set(networks.flatMap((network) => network.coordinates));
+    }
+
+    const reachableNetworks = networks.filter((network) =>
+      coordinatesTouch(state, network.coordinates, anchorCoordinates)
+    );
+    return new Set([
+      ...anchorCoordinates,
+      ...reachableNetworks.flatMap((network) => network.coordinates)
+    ]);
   }
 
   const anchorNetwork = getNetworkForPlacedTile(networks, anchorTile.id);
@@ -231,6 +283,16 @@ function hasFootprintAdjacencyToCoordinates(state, footprintCoordinates, targetC
       targetCoordinates.has(neighborCoordinate)
     )
   );
+}
+
+function hasFootprintContactWithCoordinates(state, footprintCoordinates, targetCoordinates) {
+  const footprint = new Set(footprintCoordinates);
+
+  if ([...targetCoordinates].some((coordinate) => footprint.has(coordinate))) {
+    return true;
+  }
+
+  return hasFootprintAdjacencyToCoordinates(state, footprintCoordinates, targetCoordinates);
 }
 
 export function getRiverCrossingActionCost(state, riverCoordinate, context) {
@@ -268,14 +330,17 @@ export function getRiverCrossingActionCost(state, riverCoordinate, context) {
 export function isPlacementConnectedToTravelNetwork(state, footprintCoordinates, context) {
   const tileIndex = context.tileIndex ?? createTileIndex(context.tiles);
   const networks = buildTravelNetworks(state, { tileIndex });
+  const activeTravelCoordinates = getReachableNetworkCoordinates(state, networks, context);
 
-  if (networks.length === 0) {
+  if (!hasPlayerTravelAnchor(state, context)) {
     return true;
   }
 
-  const activeTravelCoordinates = getReachableNetworkCoordinates(state, networks, context);
+  if (activeTravelCoordinates.size === 0) {
+    return true;
+  }
 
-  return hasFootprintAdjacencyToCoordinates(state, footprintCoordinates, activeTravelCoordinates);
+  return hasFootprintContactWithCoordinates(state, footprintCoordinates, activeTravelCoordinates);
 }
 
 export function isPlacedTileConnectedToTravelNetwork(state, placedTile, context) {
@@ -283,12 +348,12 @@ export function isPlacedTileConnectedToTravelNetwork(state, placedTile, context)
     return false;
   }
 
-  const tileIndex = context.tileIndex ?? createTileIndex(context.tiles);
-  const networks = buildTravelNetworks(state, { tileIndex });
-
-  if (networks.length === 0) {
+  if (!hasPlayerTravelAnchor(state, context)) {
     return true;
   }
+
+  const tileIndex = context.tileIndex ?? createTileIndex(context.tiles);
+  const networks = buildTravelNetworks(state, { tileIndex });
 
   if (getPlayerTravelAnchorTile(state, context)?.id === placedTile.id) {
     return true;
@@ -297,7 +362,8 @@ export function isPlacedTileConnectedToTravelNetwork(state, placedTile, context)
   const anchorTile = getPlayerTravelAnchorTile(state, context);
 
   if (!anchorTile) {
-    return networks.some((network) => network.tileIds.includes(placedTile.id));
+    const reachableCoordinates = getReachableNetworkCoordinates(state, networks, context);
+    return getPlacedTileCoordinates(placedTile).some((coordinate) => reachableCoordinates.has(coordinate));
   }
 
   const anchorNetwork = getNetworkForPlacedTile(networks, anchorTile.id);
@@ -308,7 +374,7 @@ export function calculatePlacementActionCost(state, footprintCoordinates, contex
   const connected = isPlacementConnectedToTravelNetwork(state, footprintCoordinates, context);
   const disconnectedTravelIgnored = Boolean(context.ignoreDisconnectedTravel);
   const placeActionCost = 1;
-  const disconnectedTravelActionCost = connected || disconnectedTravelIgnored ? 0 : 1;
+  const blockedByReachability = !connected && !disconnectedTravelIgnored;
 
   return {
     connected,
@@ -316,21 +382,28 @@ export function calculatePlacementActionCost(state, footprintCoordinates, contex
     disconnectedTravelIgnoreReason: disconnectedTravelIgnored && !connected
       ? context.ignoreDisconnectedTravelReason ?? "ignored"
       : null,
+    blockedByReachability,
     placeActionCost,
-    disconnectedTravelActionCost,
-    total: placeActionCost + disconnectedTravelActionCost
+    disconnectedTravelActionCost: 0,
+    total: placeActionCost
   };
 }
 
 export function calculatePlacedTileActionCost(state, placedTile, context, operationActionKey = "tileActionCost") {
   const connected = isPlacedTileConnectedToTravelNetwork(state, placedTile, context);
-  const disconnectedTravelActionCost = connected ? 0 : 1;
+  const disconnectedTravelIgnored = Boolean(context.ignoreDisconnectedTravel);
+  const blockedByReachability = !connected && !disconnectedTravelIgnored;
 
   return {
     connected,
+    disconnectedTravelIgnored: disconnectedTravelIgnored && !connected,
+    disconnectedTravelIgnoreReason: disconnectedTravelIgnored && !connected
+      ? context.ignoreDisconnectedTravelReason ?? "ignored"
+      : null,
+    blockedByReachability,
     [operationActionKey]: 1,
-    disconnectedTravelActionCost,
-    total: 1 + disconnectedTravelActionCost
+    disconnectedTravelActionCost: 0,
+    total: 1
   };
 }
 

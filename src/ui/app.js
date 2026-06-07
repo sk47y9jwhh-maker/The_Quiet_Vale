@@ -60,6 +60,7 @@ import {
   getStewardHouseRole,
   getStewardRole,
   getStewardPowerDetails,
+  getStewardPowerDetailsForRole,
   isStewardHousePlacementTerrainForRole,
   isOpeningResourceTileForPlayer,
   isStewardHouseTileForPlayer,
@@ -228,6 +229,7 @@ const state = {
   activationGains: {},
   activationExchangeAmounts: {},
   stewardPlacementPowerId: "",
+  stewardActivationPowerId: "",
   stewardUpgradePowerId: "",
   stewardBurdenPowerIds: {},
   stewardExchangePayments: {},
@@ -384,6 +386,7 @@ function getLocalSaveSnapshot() {
     stewardExchangeGains: state.stewardExchangeGains,
     stewardExchangePayments: state.stewardExchangePayments,
     stewardPlacementPowerId: state.stewardPlacementPowerId,
+    stewardActivationPowerId: state.stewardActivationPowerId,
     stewardRoleIds: state.stewardRoleIds,
     stewardUpgradePowerId: state.stewardUpgradePowerId,
     tileFacePreviewSides: state.tileFacePreviewSides,
@@ -732,7 +735,7 @@ function clampNumber(value, min, max) {
 
 function formatPhase(phase) {
   const labels = {
-    [GAME_PHASES.PLACE_STEWARD_HOUSES]: "Place Steward Houses",
+    [GAME_PHASES.PLACE_STEWARD_HOUSES]: "Place Steward Tokens",
     [GAME_PHASES.SEED_ENCOUNTERS]: "Seed Encounters",
     [GAME_PHASES.REVEAL_ENCOUNTERS]: "Reveal Encounters",
     [GAME_PHASES.PLAYER_TURNS]: "Player Turns",
@@ -796,6 +799,7 @@ function resetLocalTestingControls() {
   state.activationGains = {};
   state.activationExchangeAmounts = {};
   state.stewardPlacementPowerId = "";
+  state.stewardActivationPowerId = "";
   state.stewardUpgradePowerId = "";
   state.stewardBurdenPowerIds = {};
   state.stewardExchangePayments = {};
@@ -919,7 +923,7 @@ function startPlaySession() {
   state.lastActionResult = {
     ok: true,
     action: "START_GAME",
-    message: "Playthrough started. Place each Steward House for free, then seed Encounter Cards."
+    message: "Playthrough started. Place each Steward token for free, then seed Encounter Cards."
   };
   renderApp();
 }
@@ -1153,18 +1157,38 @@ function getPlacedTileAnchorCoordinate(placedTile) {
   return placedTile?.coordinate ?? placedTile?.coordinates?.[0] ?? null;
 }
 
-function getPlayersByLastInteraction(game) {
-  return game.players.reduce((playersByPlacedTileId, player) => {
-    const placedTileId = player.lastInteraction?.placedTileId;
+function getPlayerMapMarkerCoordinate(game, player) {
+  const interaction = player?.lastInteraction;
 
-    if (!placedTileId) {
-      return playersByPlacedTileId;
+  if (interaction?.placedTileId) {
+    const placedTile = game.map.placedTiles.find((tile) => tile.id === interaction.placedTileId);
+    const anchorCoordinate = getPlacedTileAnchorCoordinate(placedTile);
+
+    if (anchorCoordinate) {
+      return anchorCoordinate;
+    }
+  }
+
+  return (
+    interaction?.coordinate ??
+    player?.stewardHousePlacement?.tokenCoordinate ??
+    player?.stewardHousePlacement?.coordinate ??
+    null
+  );
+}
+
+function getPlayersByMapCoordinate(game) {
+  return (game.players ?? []).reduce((playersByCoordinate, player) => {
+    const coordinate = getPlayerMapMarkerCoordinate(game, player);
+
+    if (!coordinate) {
+      return playersByCoordinate;
     }
 
-    const players = playersByPlacedTileId.get(placedTileId) ?? [];
+    const players = playersByCoordinate.get(coordinate) ?? [];
     players.push(player);
-    playersByPlacedTileId.set(placedTileId, players);
-    return playersByPlacedTileId;
+    playersByCoordinate.set(coordinate, players);
+    return playersByCoordinate;
   }, new Map());
 }
 
@@ -1174,16 +1198,23 @@ function getPlayerMarkerFill(playerId) {
   return PLAYER_MARKER_FILLS[index % PLAYER_MARKER_FILLS.length];
 }
 
+function formatPlayerMarkerLabel(player) {
+  const playerLabel = player?.id ?? "P?";
+  const roleName = player?.stewardRoleName ?? getStewardRole(player?.stewardRoleId)?.name ?? "Steward";
+
+  return `${playerLabel} ${roleName}`;
+}
+
 function renderPlayerMapMarkers(players, center, game) {
   if (players.length === 0) {
     return "";
   }
 
-  const spacing = 13;
+  const spacing = 22;
   const startX = -((players.length - 1) * spacing) / 2;
 
   return `
-    <g class="player-map-markers" aria-label="Last interaction markers">
+    <g class="player-map-markers" aria-label="Steward token markers">
       ${players
         .map(
           (player, index) => {
@@ -1196,10 +1227,12 @@ function renderPlayerMapMarkers(players, center, game) {
             <g
               class="player-map-marker ${isInactive ? "is-inactive" : "is-active"}"
               transform="translate(${(center.x + startX + index * spacing).toFixed(2)} ${(center.y - 18).toFixed(2)})"
+              aria-label="${escapeHtml(`${formatPlayerMarkerLabel(player)} token`)}"
               style="--marker-fill: ${escapeHtml(getPlayerMarkerFill(player.id))}"
             >
               <circle r="7"></circle>
-              <text y="3">${escapeHtml(player.id)}</text>
+              <text class="player-map-marker-id" y="3">${escapeHtml(player.id)}</text>
+              <text class="player-map-marker-name" y="14">${escapeHtml(player.stewardRoleName ?? "Steward")}</text>
             </g>
           `;
           }
@@ -1262,18 +1295,17 @@ function renderOpeningSiteMarker(center, option) {
 }
 
 function renderStewardHouseSiteMarker(center, option) {
-  const tileName = option?.tile?.tile_name ?? "House";
-  const tileLabel = normalizeMapTileName(tileName).replace(/\s+House$/i, "");
+  const roleName = option?.role?.name ?? option?.pending?.role?.name ?? "Steward";
 
   return `
     <g
       class="steward-house-site-marker"
       transform="translate(${center.x.toFixed(2)} ${(center.y + 12).toFixed(2)})"
-      aria-label="${escapeHtml(`Setup site for ${tileName}`)}"
+      aria-label="${escapeHtml(`Setup site for ${roleName} token`)}"
     >
       <rect x="-24" y="-12" width="48" height="24" rx="8"></rect>
-      <text class="opening-site-main" y="-2">House</text>
-      <text class="opening-site-tile" y="8">${escapeHtml(tileLabel)}</text>
+      <text class="opening-site-main" y="-2">Token</text>
+      <text class="opening-site-tile" y="8">${escapeHtml(roleName)}</text>
     </g>
   `;
 }
@@ -1283,7 +1315,8 @@ function getInteractionActionLabel(type) {
     {
       place: "Placed",
       activate: "Activated",
-      upgrade: "Upgraded"
+      upgrade: "Upgraded",
+      setup_token: "Token"
     }[type] ?? "Touched"
   );
 }
@@ -1291,8 +1324,14 @@ function getInteractionActionLabel(type) {
 function formatPlayerLastInteraction(game, tileIndex, player) {
   const interaction = player.lastInteraction;
 
-  if (!interaction?.placedTileId) {
+  if (!interaction) {
     return "No map action yet";
+  }
+
+  if (!interaction.placedTileId) {
+    return interaction.coordinate
+      ? `${getInteractionActionLabel(interaction.type)} at ${interaction.coordinate}`
+      : "No map action yet";
   }
 
   const placedTile = game.map.placedTiles.find((tile) => tile.id === interaction.placedTileId);
@@ -1315,7 +1354,7 @@ function renderHexMap(mapHexes, game, tileIndex) {
       (placedTile.coordinates ?? [placedTile.coordinate]).map((coordinate) => [coordinate, placedTile])
     )
   );
-  const playersByLastInteraction = getPlayersByLastInteraction(game);
+  const playersByMapCoordinate = getPlayersByMapCoordinate(game);
   const selectedTile = tileIndex.get(state.selectedTileId);
   const previewFootprint = selectedTile
     ? getFootprintCoordinates(selectedCoordinate, selectedTile.size_hexes, state.selectedOrientation, mapHexes)
@@ -1363,10 +1402,7 @@ function renderHexMap(mapHexes, game, tileIndex) {
       const supportDetails = placedTile
         ? getEffectiveSupportDetails(game, placedTile.id, { tileIndex })
         : null;
-      const markerPlayers =
-        isPlacedTileAnchor
-          ? (playersByLastInteraction.get(placedTile.id) ?? [])
-          : [];
+      const markerPlayers = playersByMapCoordinate.get(hex.Coordinate) ?? [];
       const strain = Number(placedTile?.strain ?? 0);
       const hexStyle = [
         getTerrainFillStyle(hex.Terrain),
@@ -1708,28 +1744,21 @@ function getStewardHousePlacementOptionsForCoordinate(game, tileIndex, coordinat
     return [];
   }
 
-  const tile = tileIndex.get(pending.tileId);
   const hex = game.map.hexes.find((candidate) => candidate.Coordinate === coordinate);
-  const supply = [...game.tileSupply.core, ...game.tileSupply.special].find((entry) => entry.tileId === pending.tileId);
 
   if (
-    !tile ||
     !hex ||
     getPlacedTileAt(game, coordinate) ||
     hex.Terrain === "Water" ||
-    !isStewardHousePlacementTerrainForRole(pending.role, hex.Terrain) ||
-    !supply ||
-    supply.locked ||
-    supply.available <= 0
+    !isStewardHousePlacementTerrainForRole(pending.role, hex.Terrain)
   ) {
     return [];
   }
 
   return [
     {
-      tile,
+      role: pending.role,
       coordinate,
-      supply,
       pending,
       blockedReason: ""
     }
@@ -1850,43 +1879,34 @@ function renderStewardHousePlacementMenu(game, tileIndex, coordinate) {
   const pending = getStewardHousePlacementRequirementForActivePlayer(game);
 
   if (!pending) {
-    return `<p class="context-empty-note">No Steward House setup placement is currently pending.</p>`;
+    return `<p class="context-empty-note">No Steward token setup placement is currently pending.</p>`;
   }
 
   if (!option) {
-    return `<p class="context-empty-note">${escapeHtml(`${pending.summary}. Choose a highlighted House hex.`)}</p>`;
+    return `<p class="context-empty-note">${escapeHtml(`${pending.summary}. Choose a highlighted token hex.`)}</p>`;
   }
 
   return `
-    <div class="context-placement-groups" aria-label="Steward House setup placement">
+    <div class="context-placement-groups" aria-label="Steward token setup placement">
       <p class="context-empty-note opening-context-note">${escapeHtml(`${pending.summary}. This placement is free.`)}</p>
       <details class="context-placement-group" open>
-        <summary>Steward House <span>1</span></summary>
+        <summary>Steward Token <span>1</span></summary>
         <div class="context-placement-options">
-          <details class="context-placement-tile type-${slug(option.tile.tile_category)}" style="${escapeHtml(getTileCardAccentStyle(option.tile))}" open>
+          <details class="context-placement-tile type-steward" open>
             <summary>
-              <strong>${escapeHtml(option.tile.tile_name)}</strong>
+              <strong>${escapeHtml(`${pending.role.name} token`)}</strong>
               <small>0 Actions · 0 Resources · ${escapeHtml(option.coordinate)}</small>
             </summary>
             <div class="context-placement-face">
-              ${renderTileEffectPreview(option.tile, {
-                label: "Setup Placement",
-                className: "context-placement-effect",
-                costSummary: [
-                  { label: "Actions", value: "0 Actions" },
-                  { label: "Resources", value: "0" }
-                ]
-              })}
-              ${renderStewardHouseUpgradePreview(option.tile, tileIndex, { compact: true })}
+              <p class="context-empty-note">This sets ${escapeHtml(pending.player.name)}'s starting Steward location and unlocks their once-per-Season Steward Power immediately.</p>
               <button
                 class="map-context-action"
                 data-context-place-steward-house-coordinate="${escapeHtml(option.coordinate)}"
                 type="button"
                 role="menuitem"
               >
-                Place ${escapeHtml(option.tile.tile_name)}
+                Place ${escapeHtml(pending.role.name)} token
               </button>
-              ${renderTileFaceSvg(option.tile, { upgradeTile: findUpgradeTile(option.tile, tileIndex) })}
             </div>
           </details>
         </div>
@@ -4165,7 +4185,7 @@ function getPlacementStewardPowerProviders(game, tile, baseActionCost, tileIndex
     (provider) => provider.details.categories.includes(tile.tile_category)
   );
   const disconnectedProviders =
-    baseActionCost.disconnectedTravelActionCost > 0
+    baseActionCost.blockedByReachability
       ? getAvailableStewardPowerProviders(
           game,
           { tileIndex },
@@ -4185,8 +4205,12 @@ function getPlacementStewardActionPreview(actionCost, provider) {
     return {
       ...actionCost,
       originalTotal: actionCost.originalTotal ?? actionCost.total,
-      disconnectedTravelActionCost: 0,
-      total: Math.max(0, actionCost.total - (actionCost.disconnectedTravelActionCost ?? 0))
+      connected: true,
+      blockedByReachability: false,
+      disconnectedTravelIgnored: true,
+      disconnectedTravelIgnoreReason: "ranger_steward_power",
+      placeActionCost: 0,
+      total: 0
     };
   }
 
@@ -4198,21 +4222,48 @@ function getPlacementStewardActionPreview(actionCost, provider) {
   };
 }
 
-function getUpgradeStewardPowerProviders(game, tile, tileIndex) {
-  if (tile?.tile_source_type !== "Core") {
-    return [];
+function getUpgradeStewardPowerProviders(game, tile, tileIndex, baseActionCost = null) {
+  const providers = [];
+
+  if (tile?.tile_source_type === "Core") {
+    providers.push(
+      ...getAvailableStewardPowerProviders(
+        game,
+        { tileIndex },
+        STEWARD_POWER_TYPES.FREE_CORE_UPGRADE_ACTION
+      )
+    );
   }
 
-  return getAvailableStewardPowerProviders(
-    game,
-    { tileIndex },
-    STEWARD_POWER_TYPES.FREE_CORE_UPGRADE_ACTION
-  );
+  if (baseActionCost?.blockedByReachability) {
+    providers.push(
+      ...getAvailableStewardPowerProviders(
+        game,
+        { tileIndex },
+        STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION
+      )
+    );
+  }
+
+  return uniqueStewardPowerProviders(providers);
 }
 
 function getUpgradeStewardActionPreview(actionCost, provider) {
   if (!actionCost || !provider) {
     return actionCost;
+  }
+
+  if (provider.details.type === STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION) {
+    return {
+      ...actionCost,
+      originalTotal: actionCost.originalTotal ?? actionCost.total,
+      connected: true,
+      blockedByReachability: false,
+      disconnectedTravelIgnored: true,
+      disconnectedTravelIgnoreReason: "ranger_steward_power",
+      upgradeActionCost: 0,
+      total: 0
+    };
   }
 
   return {
@@ -4223,11 +4274,50 @@ function getUpgradeStewardActionPreview(actionCost, provider) {
   };
 }
 
+function getActivationStewardPowerProviders(game, tileIndex, baseActionCost = null) {
+  if (!baseActionCost?.blockedByReachability) {
+    return [];
+  }
+
+  return getAvailableStewardPowerProviders(
+    game,
+    { tileIndex },
+    STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION
+  );
+}
+
+function getActivationStewardActionPreview(actionCost, provider) {
+  if (!actionCost || !provider) {
+    return actionCost;
+  }
+
+  return {
+    ...actionCost,
+    originalTotal: actionCost.originalTotal ?? actionCost.total,
+    connected: true,
+    blockedByReachability: false,
+    disconnectedTravelIgnored: true,
+    disconnectedTravelIgnoreReason: "ranger_steward_power",
+    activationActionCost: 0,
+    total: 0
+  };
+}
+
 function getBurdenStewardPowerProviders(game, tileIndex) {
   return getAvailableStewardPowerProviders(
     game,
     { tileIndex },
     STEWARD_POWER_TYPES.FREE_BURDEN_RESOLUTION_ACTION
+  );
+}
+
+function getActiveStewardExchangeProvider(game, tileIndex) {
+  return (
+    getAvailableStewardPowerProviders(
+      game,
+      { tileIndex },
+      STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
+    )[0] ?? null
   );
 }
 
@@ -5124,9 +5214,7 @@ function renderMapDebugPanel(data, countValidation, mapValidation, game, tileInd
   const selectedHex = mapHexes.find((hex) => hex.Coordinate === state.selectedCoordinate) ?? mapHexes[0];
   const placedTile = getPlacedTileAt(game, selectedHex.Coordinate);
   const placedTileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
-  const selectedLastInteractionPlayers = placedTile
-    ? (getPlayersByLastInteraction(game).get(placedTile.id) ?? [])
-    : [];
+  const selectedLastInteractionPlayers = getPlayersByMapCoordinate(game).get(selectedHex.Coordinate) ?? [];
   const supportDetails = placedTile ? getEffectiveSupportDetails(game, placedTile.id, { tileIndex }) : null;
   const travelNetworks = buildTravelNetworks(game, { tileIndex });
   const selectedNetwork = placedTile ? getNetworkForPlacedTile(travelNetworks, placedTile.id) : null;
@@ -5479,8 +5567,8 @@ function getGuideInstruction(game, tileIndex, encounterIndex) {
   if (game.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
     const houseText = activePlayer ? formatPendingStewardHousePlacement(game, activePlayer) : "";
     return houseText
-      ? `${formatPlayerName(activePlayer)} places their Steward House for free: ${houseText}. Click a highlighted House hex.`
-      : "Place each Steward House for free, then seed Encounter cards.";
+      ? `${formatPlayerName(activePlayer)} places their Steward token for free: ${houseText}. Click a highlighted token hex.`
+      : "Place each Steward token for free, then seed Encounter cards.";
   }
 
   if (game.phase === GAME_PHASES.SEED_ENCOUNTERS && !seeded) {
@@ -5531,7 +5619,7 @@ function getGuideInstruction(game, tileIndex, encounterIndex) {
   }
 
   if (game.map.placedTiles.length === 0) {
-    return "The Vale is empty. Click a highlighted Start hex to place the required opening Resource tile.";
+    return "The Vale is ready. Place the first tile from the active Steward's token network.";
   }
 
   return `${formatPlayerName(activePlayer)} has ${activePlayer.actionsRemaining} Action${activePlayer.actionsRemaining === 1 ? "" : "s"}. Place a tile, use a tile, upgrade, or handle an Encounter card.`;
@@ -5570,7 +5658,7 @@ function getPlayerAidPrompt(game, tileIndex, encounterIndex) {
 
   if (game.phase !== GAME_PHASES.PLAYER_TURNS || !activePlayer) {
     if (game.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
-      return "Highlighted House hexes are legal free setup sites for the active Steward House.";
+      return "Highlighted token hexes are legal free setup sites for the active Steward.";
     }
 
     return "";
@@ -5596,11 +5684,6 @@ function getPlayerAidPrompt(game, tileIndex, encounterIndex) {
     return arrivalHint;
   }
 
-  const stewardHouseHint = getStewardHouseGuideHint(game, tileIndex, activePlayer);
-  if (stewardHouseHint) {
-    return stewardHouseHint;
-  }
-
   const selectedTileHint = getGuideSelectedTileHint(game, tileIndex);
   if (selectedTileHint) {
     return selectedTileHint;
@@ -5612,7 +5695,7 @@ function getPlayerAidPrompt(game, tileIndex, encounterIndex) {
   }
 
   if (game.map.placedTiles.length === 0) {
-    return "Opening Resource tiles give the settlement its first reliable production source.";
+    return "The first placed tile starts from the active Steward's token location.";
   }
 
   return "";
@@ -5683,11 +5766,11 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
 
     return {
       tone: "setup",
-      label: "Steward House",
-      title: activePlayer ? `${formatPlayerName(activePlayer)} places their House` : "Place Steward Houses",
+      label: "Steward Token",
+      title: activePlayer ? `${formatPlayerName(activePlayer)} places their token` : "Place Steward Tokens",
       detail: houseText
-        ? `${houseText}. Click a highlighted House hex to place it for 0 Actions and 0 Resources.`
-        : "Place each Steward House for free before seeding Encounter cards."
+        ? `${houseText}. Click a highlighted token hex to place it for 0 Actions and 0 Resources.`
+        : "Place each Steward token for free before seeding Encounter cards."
     };
   }
 
@@ -5753,7 +5836,7 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
     return {
       tone: "urgent",
       label: "Opening",
-      title: `${formatPlayerName(activePlayer)} must place their opening Resource tile`,
+      title: `${formatPlayerName(activePlayer)} must place their required opening tile`,
       detail: `${openingText}. Click a highlighted Start hex to place it automatically.`
     };
   }
@@ -5895,7 +5978,7 @@ function renderTurnPanel(game, tileIndex) {
       ? "Game Complete"
       : "Player Turns Locked";
   const phaseNote = {
-    [GAME_PHASES.PLACE_STEWARD_HOUSES]: "Place each Steward House for free before seeding Encounter Cards.",
+    [GAME_PHASES.PLACE_STEWARD_HOUSES]: "Place each Steward token for free before seeding Encounter Cards.",
     [GAME_PHASES.SEED_ENCOUNTERS]: "Choose one Top, one Middle, and one Bottom seed card for each player.",
     [GAME_PHASES.REVEAL_ENCOUNTERS]: "Reveal Encounters before turns open.",
     [GAME_PHASES.END_ROUND]: "Resolve end-of-round effects to advance.",
@@ -6424,14 +6507,16 @@ function renderPlacementConnectionLabel(actionCost) {
   }
 
   if (actionCost.disconnectedTravelIgnored) {
-    return "Opening move: no travel";
+    return actionCost.disconnectedTravelIgnoreReason === "ranger_steward_power"
+      ? "Ranger reach"
+      : "Setup reach";
   }
 
   if (actionCost.connected) {
     return "Connected";
   }
 
-  return actionCost.disconnectedTravelActionCost > 0 ? "Disconnected: +1 travel" : "Disconnected: travel waived";
+  return actionCost.blockedByReachability ? "Out of network" : "Reach waived";
 }
 
 function parseResourceCostForDisplay(costText) {
@@ -6663,7 +6748,15 @@ function getMapActivationActionStatus(game, placedTile, tileDefinition, tileInde
     },
     "activationActionCost"
   );
-  const actionCost = getDiscountedDisconnectedTravelActionCost(game, "activation", baseActionCost).actionCost;
+  const discountedActionCost = getDiscountedDisconnectedTravelActionCost(game, "activation", baseActionCost).actionCost;
+  const activationProviders = getActivationStewardPowerProviders(game, tileIndex, discountedActionCost);
+  const selectedActivationProvider =
+    activationProviders.find((provider) => provider.placedTile.id === state.stewardActivationPowerId) ?? null;
+  const actionCost = getActivationStewardActionPreview(discountedActionCost, selectedActivationProvider);
+
+  if (actionCost.blockedByReachability) {
+    return { blockedReason: "Out of connected network" };
+  }
 
   if (activePlayer.actionsRemaining < actionCost.total) {
     return {
@@ -6736,7 +6829,7 @@ function getMapUpgradeActionStatus(game, placedTile, tileDefinition, upgradeTile
     "upgrade",
     tileActionDiscount.actionCost
   );
-  const stewardPowerProviders = getUpgradeStewardPowerProviders(game, validation.tile, tileIndex);
+  const stewardPowerProviders = getUpgradeStewardPowerProviders(game, validation.tile, tileIndex, travelDiscount.actionCost);
   const selectedStewardPowerId = getSelectedStewardPowerId(
     state.stewardUpgradePowerId,
     stewardPowerProviders
@@ -6747,6 +6840,10 @@ function getMapUpgradeActionStatus(game, placedTile, tileDefinition, upgradeTile
     travelDiscount.actionCost,
     selectedStewardPowerProvider
   );
+
+  if (actionCost.blockedByReachability) {
+    return { blockedReason: "Out of connected network" };
+  }
 
   if (activePlayer.actionsRemaining < actionCost.total) {
     return {
@@ -7018,6 +7115,7 @@ function renderResourceExchangePaymentControl(game, placedTileId, activationDeta
 
 function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded = false } = {}) {
   const networks = buildTravelNetworks(game, { tileIndex });
+  const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
   const selectedPlacedTile = getPlacedTileAt(game, state.selectedCoordinate);
   const selectedNetwork = selectedPlacedTile ? getNetworkForPlacedTile(networks, selectedPlacedTile.id) : null;
   const crossing = getRiverCrossingActionCost(game, state.selectedCoordinate, { tileIndex });
@@ -7029,13 +7127,39 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
   const upgradeTile = selectedTileDefinition ? findUpgradeTile(selectedTileDefinition, tileIndex) : null;
   const upgradeCost = upgradeTile ? parseResourceCostForDisplay(upgradeTile.upgrade_cost) : null;
   const activationActionCost = selectedPlacedTile
-    ? calculatePlacedTileActionCost(game, selectedPlacedTile, { tileIndex }, "activationActionCost")
+    ? calculatePlacedTileActionCost(
+        game,
+        selectedPlacedTile,
+        { tileIndex, playerId: activePlayer?.id ?? game.activePlayerId },
+        "activationActionCost"
+      )
     : null;
-  const displayedActivationActionCost = activationActionCost
+  const discountedActivationActionCost = activationActionCost
     ? getDiscountedDisconnectedTravelActionCost(game, "activation", activationActionCost).actionCost
     : null;
+  const activationStewardPowerProviders = getActivationStewardPowerProviders(
+    game,
+    tileIndex,
+    discountedActivationActionCost
+  );
+  const selectedActivationStewardPowerId = getSelectedStewardPowerId(
+    state.stewardActivationPowerId,
+    activationStewardPowerProviders
+  );
+  const selectedActivationStewardPowerProvider =
+    activationStewardPowerProviders.find((provider) => provider.placedTile.id === selectedActivationStewardPowerId) ??
+    null;
+  const displayedActivationActionCost = getActivationStewardActionPreview(
+    discountedActivationActionCost,
+    selectedActivationStewardPowerProvider
+  );
   const baseUpgradeActionCost = upgradeTile
-    ? calculatePlacedTileActionCost(game, selectedPlacedTile, { tileIndex }, "upgradeActionCost")
+    ? calculatePlacedTileActionCost(
+        game,
+        selectedPlacedTile,
+        { tileIndex, playerId: activePlayer?.id ?? game.activePlayerId },
+        "upgradeActionCost"
+      )
     : null;
   const upgradeActionCost = upgradeTile
     ? getDiscountedDisconnectedTravelActionCost(
@@ -7045,7 +7169,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
       ).actionCost
     : null;
   const upgradeStewardPowerProviders = upgradeTile
-    ? getUpgradeStewardPowerProviders(game, selectedTileDefinition, tileIndex)
+    ? getUpgradeStewardPowerProviders(game, selectedTileDefinition, tileIndex, upgradeActionCost)
     : [];
   const selectedUpgradeStewardPowerId = getSelectedStewardPowerId(
     state.stewardUpgradePowerId,
@@ -7061,15 +7185,8 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
   const upgradeLabel = upgradeTile
     ? `${upgradeTile.tile_name} (${upgradeCost?.error ? "unsupported cost" : renderCost(upgradeCost.cost)})`
     : "None";
-  const selectedStewardPowerDetails = selectedTileDefinition ? getStewardPowerDetails(selectedTileDefinition) : null;
-  const selectedStewardExchangeProvider =
-    selectedPlacedTile && selectedStewardPowerDetails?.type === STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
-      ? getAvailableStewardPowerProviders(
-          game,
-          { tileIndex },
-          STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
-        ).find((provider) => provider.placedTile.id === selectedPlacedTile.id) ?? null
-      : null;
+  const selectedStewardExchangeProvider = getActiveStewardExchangeProvider(game, tileIndex);
+  const selectedStewardPowerDetails = selectedStewardExchangeProvider?.details ?? null;
   const openingRequirement = getOpeningPlacementRequirementForActivePlayer(game);
   const normalTurnActionsOpen = !openingRequirement;
   const activation = selectedTileDefinition ? getActivationForDisplay(selectedTileDefinition) : null;
@@ -7140,20 +7257,32 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
       : [];
   const upgradeCostDiscountReady = upgradeCostDiscountChoices.every((resource) => Boolean(resource));
   const selectedStewardExchangePayments =
-    selectedPlacedTile && selectedStewardPowerDetails?.type === STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
-      ? getStewardExchangePaymentChoices(selectedPlacedTile.id, selectedStewardPowerDetails)
+    selectedStewardExchangeProvider && selectedStewardPowerDetails?.type === STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
+      ? getStewardExchangePaymentChoices(selectedStewardExchangeProvider.placedTile.id, selectedStewardPowerDetails)
       : [];
   const selectedStewardExchangeGains =
-    selectedPlacedTile && selectedStewardPowerDetails?.type === STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
-      ? getStewardExchangeGainChoices(selectedPlacedTile.id, selectedStewardPowerDetails)
+    selectedStewardExchangeProvider && selectedStewardPowerDetails?.type === STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
+      ? getStewardExchangeGainChoices(selectedStewardExchangeProvider.placedTile.id, selectedStewardPowerDetails)
       : [];
   const stewardExchangeReady =
     selectedStewardPowerDetails?.type !== STEWARD_POWER_TYPES.RESOURCE_EXCHANGE ||
     (selectedStewardExchangePayments.every(Boolean) && selectedStewardExchangeGains.every(Boolean));
   const playOpen = isPlaySessionPlaying();
+  const activationReachable = !displayedActivationActionCost?.blockedByReachability;
+  const upgradeReachable = !displayedUpgradeActionCost?.blockedByReachability;
+  const activationActionsReady = Boolean(
+    activePlayer &&
+    displayedActivationActionCost &&
+    activePlayer.actionsRemaining >= displayedActivationActionCost.total
+  );
+  const upgradeActionsReady = Boolean(
+    activePlayer &&
+    displayedUpgradeActionCost &&
+    activePlayer.actionsRemaining >= displayedUpgradeActionCost.total
+  );
   const canUseStewardExchange =
     playOpen &&
-    Boolean(selectedPlacedTile && game.activePlayerId) &&
+    Boolean(game.activePlayerId) &&
     game.phase === GAME_PHASES.PLAYER_TURNS &&
     normalTurnActionsOpen &&
     Boolean(selectedStewardExchangeProvider) &&
@@ -7165,6 +7294,8 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
     game.phase === GAME_PHASES.PLAYER_TURNS &&
     normalTurnActionsOpen &&
     !isOverstrainedPlacedTile(selectedPlacedTile) &&
+    activationReachable &&
+    activationActionsReady &&
     (!needsStrainActivationTarget || selectedActivationTargetIds.length > 0) &&
     (!needsArrivalTimerTarget || Boolean(selectedArrivalTimerTargetId)) &&
     (!needsBurdenTarget || Boolean(selectedBurdenTargetId)) &&
@@ -7176,6 +7307,8 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
     game.phase === GAME_PHASES.PLAYER_TURNS &&
     normalTurnActionsOpen &&
     !isOverstrainedPlacedTile(selectedPlacedTile) &&
+    upgradeReachable &&
+    upgradeActionsReady &&
     upgradeCostDiscountReady;
   const selectedTileName = selectedPlacedTile
     ? getTileNameByPlacedId(game, tileIndex, selectedPlacedTile.id)
@@ -7239,7 +7372,18 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
           ? renderResourceExchangePaymentControl(game, selectedPlacedTile.id, activationDetails)
           : ""
       }
-      ${renderStewardExchangeControls(game, selectedPlacedTile, selectedStewardPowerDetails, canUseStewardExchange)}
+      ${renderStewardExchangeControls(
+        game,
+        selectedStewardExchangeProvider?.placedTile ?? null,
+        selectedStewardPowerDetails,
+        canUseStewardExchange
+      )}
+      ${renderStewardPowerSelect({
+        id: "steward-activation-power",
+        label: "Activation Steward Power",
+        providers: activationStewardPowerProviders,
+        selectedId: selectedActivationStewardPowerId
+      })}
       ${renderStewardPowerSelect({
         id: "steward-upgrade-power",
         label: "Upgrade Steward Power",
@@ -7291,9 +7435,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
 
 function renderStewardHouseSetupPlacementPanel(game, tileIndex, encounterIndex, pending) {
   const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
-  const houseTile = tileIndex.get(pending.tileId);
-  const supply = [...game.tileSupply.core, ...game.tileSupply.special].find((entry) => entry.tileId === pending.tileId) ?? null;
-  const upgradeTile = houseTile ? findUpgradeTile(houseTile, tileIndex) : null;
+  const powerDetails = getStewardPowerDetailsForRole(pending.role.id);
 
   return `
     <section id="placement-panel" class="state-panel placement-panel tile-console-panel">
@@ -7301,29 +7443,11 @@ function renderStewardHouseSetupPlacementPanel(game, tileIndex, encounterIndex, 
         <h2>Tiles</h2>
         <span>Setup</span>
       </header>
-      <p class="phase-note opening-note">${escapeHtml(`${formatPlayerName(activePlayer)} places ${houseTile?.tile_name ?? "their Steward House"} for free. Click a highlighted House hex.`)}</p>
-      ${
-        houseTile
-          ? `
-            ${renderTileEffectPreview(houseTile, {
-              label: "Free Setup Placement",
-              costSummary: [
-                { label: "Actions", value: "0 Actions" },
-                { label: "Resources", value: "0" }
-              ]
-            })}
-            ${renderStewardHouseUpgradePreview(houseTile, tileIndex)}
-            ${renderTileWireframeCard(houseTile, {
-              supply,
-              selected: true,
-              disabled: false,
-              upgradeTile,
-              previewSide: getTileFacePreviewSide(houseTile.tile_id),
-              title: "Steward House"
-            })}
-          `
-          : `<p class="empty-note">No Steward House tile found for this Steward.</p>`
-      }
+      <p class="phase-note opening-note">${escapeHtml(`${formatPlayerName(activePlayer)} places their ${pending.role.name} token for free. Click a highlighted token hex.`)}</p>
+      <div class="tile-effect-preview">
+        <strong>${escapeHtml(`${pending.role.name} Steward Power`)}</strong>
+        <p>${escapeHtml(powerDetails?.label ?? "Once per Season Steward Power")}. Available immediately once the token is placed.</p>
+      </div>
       ${renderPlacementResult(state.lastActionResult)}
       ${renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded: true })}
     </section>
@@ -7371,6 +7495,7 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
     ? getPlacementCostDiscountChoices(selectedTile.tile_id, cost, placementResourceDiscount)
     : [];
   const placementCostDiscountReady = placementCostDiscountChoices.every((resource) => Boolean(resource));
+  const placementReachable = !displayedActionCost?.blockedByReachability;
   const hasEnoughActions = Boolean(activePlayer && displayedActionCost && activePlayer.actionsRemaining >= displayedActionCost.total);
   const hasEnoughStockForPlacement = !isStablesTile(selectedTile) || (selectedSupply?.available ?? 0) >= 2;
   const placementBlockedReason = !selectedTile
@@ -7381,6 +7506,8 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
         ? "Needs both Stables copies"
       : !placementCostDiscountReady
         ? "Choose discount resource"
+        : !placementReachable
+          ? "Out of connected network"
         : !hasEnoughActions
           ? `Needs ${displayedActionCost?.total ?? 0} Actions`
           : "";
@@ -7389,6 +7516,7 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
     Boolean(selectedTile && activePlayer && actionCost && game.phase === GAME_PHASES.PLAYER_TURNS) &&
     hasEnoughStockForPlacement &&
     placementCostDiscountReady &&
+    placementReachable &&
     hasEnoughActions &&
     tileMatchesActiveOpeningRequirement(game, selectedTile);
   const selectedPlacementControls = renderSelectedTilePlacementControls({
@@ -8305,8 +8433,17 @@ function upgradePlacedTile(placedTileId) {
   const upgradeTile = tileDefinition ? findUpgradeTile(tileDefinition, tileIndex) : null;
   const upgradeCost = upgradeTile ? parseResourceCostForDisplay(upgradeTile.upgrade_cost) : null;
   const upgradeResourceDiscount = getPendingUpgradeResourceDiscount(state.game, tileDefinition);
+  const activePlayer = state.game.players.find((player) => player.id === state.game.activePlayerId);
+  const baseUpgradeActionCost = placedTile
+    ? calculatePlacedTileActionCost(
+        state.game,
+        placedTile,
+        { tileIndex, playerId: activePlayer?.id ?? state.game.activePlayerId },
+        "upgradeActionCost"
+      )
+    : null;
   const upgradeStewardPowerProviders = upgradeTile
-    ? getUpgradeStewardPowerProviders(state.game, tileDefinition, tileIndex)
+    ? getUpgradeStewardPowerProviders(state.game, tileDefinition, tileIndex, baseUpgradeActionCost)
     : [];
   const stewardPowerPlacedTileId = getSelectedStewardPowerId(
     state.stewardUpgradePowerId,
@@ -8428,7 +8565,8 @@ function activatePlacedTile(placedTileId) {
       targetPlacedTileIds,
       targetActiveEncounterId,
       payment,
-      gains
+      gains,
+      stewardPowerPlacedTileId: state.stewardActivationPowerId
     },
     { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
   );
@@ -8449,6 +8587,7 @@ function activatePlacedTile(placedTileId) {
     const activationExchangeAmounts = { ...state.activationExchangeAmounts };
     delete activationExchangeAmounts[placedTile.id];
     state.activationExchangeAmounts = activationExchangeAmounts;
+    state.stewardActivationPowerId = "";
   }
 
   renderApp();
@@ -9729,7 +9868,9 @@ function bindEvents() {
   });
 
   root.querySelector("#steward-exchange-count")?.addEventListener("change", (event) => {
-    const placedTile = getPlacedTileAt(state.game, state.selectedCoordinate);
+    const tileIndex = createTileIndex(state.data.tiles);
+    const provider = getActiveStewardExchangeProvider(state.game, tileIndex);
+    const placedTile = provider?.placedTile ?? null;
     const amount = Number(event.target.value);
 
     if (!placedTile) {
@@ -9786,7 +9927,9 @@ function bindEvents() {
       return;
     }
 
-    const placedTile = getPlacedTileAt(state.game, state.selectedCoordinate);
+    const tileIndex = createTileIndex(state.data.tiles);
+    const provider = getActiveStewardExchangeProvider(state.game, tileIndex);
+    const placedTile = provider?.placedTile ?? null;
 
     if (!placedTile) {
       return;
@@ -9907,6 +10050,11 @@ function bindEvents() {
 
   root.querySelector("#steward-upgrade-power")?.addEventListener("change", (event) => {
     state.stewardUpgradePowerId = event.target.value;
+    renderApp();
+  });
+
+  root.querySelector("#steward-activation-power")?.addEventListener("change", (event) => {
+    state.stewardActivationPowerId = event.target.value;
     renderApp();
   });
 

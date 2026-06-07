@@ -7,6 +7,7 @@ export const STEWARD_ROLES = Object.freeze([
     houseTileId: "core_vanguard_house_basic",
     houseTerrainOptions: Object.freeze(["Woodland"]),
     housePlacementSummary: "Place Vanguard House on Woodland",
+    tokenPlacementSummary: "Place Vanguard token on Woodland",
     openingResourceTileIds: Object.freeze(["core_forest_basic"]),
     openingSummary: "Place Forest on Woodland"
   }),
@@ -16,6 +17,7 @@ export const STEWARD_ROLES = Object.freeze([
     houseTileId: "core_sentinel_house_basic",
     houseTerrainOptions: Object.freeze(["Mountains"]),
     housePlacementSummary: "Place Sentinel House on Mountains",
+    tokenPlacementSummary: "Place Sentinel token on Mountains",
     openingResourceTileIds: Object.freeze(["core_mine_basic"]),
     openingSummary: "Place Mine on Mountains"
   }),
@@ -25,6 +27,7 @@ export const STEWARD_ROLES = Object.freeze([
     houseTileId: "core_ranger_house_basic",
     houseTerrainOptions: Object.freeze(["Heaths"]),
     housePlacementSummary: "Place Ranger House on Heaths",
+    tokenPlacementSummary: "Place Ranger token on Heaths",
     openingResourceTileIds: Object.freeze(["core_wildlands_basic"]),
     openingSummary: "Place Wildlands on Heaths"
   }),
@@ -34,6 +37,7 @@ export const STEWARD_ROLES = Object.freeze([
     houseTileId: "core_knight_house_basic",
     houseTerrainOptions: Object.freeze(["Arable Land"]),
     housePlacementSummary: "Place Knight House on Arable Land",
+    tokenPlacementSummary: "Place Knight token on Arable Land",
     openingResourceTileIds: Object.freeze(["core_farm_basic"]),
     openingSummary: "Place Farm on Arable Land"
   }),
@@ -43,6 +47,7 @@ export const STEWARD_ROLES = Object.freeze([
     houseTileId: "core_warden_house_basic",
     houseTerrainOptions: Object.freeze(["Ruins"]),
     housePlacementSummary: "Place Warden House on Ruins",
+    tokenPlacementSummary: "Place Warden token on Ruins",
     openingResourceTileIds: Object.freeze(["core_dig_site_basic"]),
     openingSummary: "Place Dig Site on Ruins"
   }),
@@ -52,6 +57,7 @@ export const STEWARD_ROLES = Object.freeze([
     houseTileId: "core_quartermaster_house_basic",
     houseTerrainOptions: Object.freeze(["Woodland", "Mountains", "Heaths", "Arable Land", "Ruins"]),
     housePlacementSummary: "Place Quartermaster House on any Steward terrain",
+    tokenPlacementSummary: "Place Quartermaster token on any Steward terrain",
     openingResourceTileIds: Object.freeze([
       "core_forest_basic",
       "core_mine_basic",
@@ -172,16 +178,16 @@ export function getPendingStewardHousePlacement(state, playerId = state.activePl
   return {
     player,
     role,
-    tileId: role.houseTileId,
+    tileId: null,
     terrainOptions: [...(role.houseTerrainOptions ?? [])],
-    summary: role.housePlacementSummary
+    summary: role.tokenPlacementSummary ?? role.housePlacementSummary
   };
 }
 
-export function markStewardHousePlacementComplete(player, placedTile) {
+export function markStewardHousePlacementComplete(player, placedToken) {
   const role = getStewardRole(player?.stewardRoleId);
 
-  if (!role || role.houseTileId !== placedTile?.tileId) {
+  if (!role || !placedToken?.coordinate) {
     return player;
   }
 
@@ -190,9 +196,10 @@ export function markStewardHousePlacementComplete(player, placedTile) {
     stewardHousePlacement: {
       ...(player.stewardHousePlacement ?? {}),
       completed: true,
-      placedTileId: placedTile.id,
-      tileId: placedTile.tileId,
-      coordinate: placedTile.coordinate ?? placedTile.coordinates?.[0] ?? null
+      placedTileId: null,
+      tileId: null,
+      coordinate: placedToken.coordinate,
+      tokenCoordinate: placedToken.coordinate
     }
   };
 }
@@ -283,7 +290,7 @@ export function getStewardPowerDetails(tile) {
   if (/when you place a tile in a disconnected empty hex, you may ignore the Travel action required/i.test(benefit)) {
     return {
       type: STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION,
-      label: "Ignore disconnected Travel action"
+      label: "Travel anywhere"
     };
   }
 
@@ -308,6 +315,46 @@ export function getStewardPowerDetails(tile) {
   return null;
 }
 
+export function getStewardPowerDetailsForRole(roleId) {
+  switch (roleId) {
+    case "vanguard":
+      return {
+        type: STEWARD_POWER_TYPES.FREE_PLACEMENT_ACTION,
+        categories: ["Travel", "Resource"],
+        label: "Free Travel/Resource placement"
+      };
+    case "knight":
+      return {
+        type: STEWARD_POWER_TYPES.FREE_PLACEMENT_ACTION,
+        categories: ["Housing"],
+        label: "Free Housing placement"
+      };
+    case "sentinel":
+      return {
+        type: STEWARD_POWER_TYPES.FREE_CORE_UPGRADE_ACTION,
+        label: "Free Core upgrade"
+      };
+    case "ranger":
+      return {
+        type: STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION,
+        label: "Travel anywhere"
+      };
+    case "quartermaster":
+      return {
+        type: STEWARD_POWER_TYPES.RESOURCE_EXCHANGE,
+        maxAmount: 3,
+        label: "Warehouse exchange"
+      };
+    case "warden":
+      return {
+        type: STEWARD_POWER_TYPES.FREE_BURDEN_RESOLUTION_ACTION,
+        label: "Free Burden resolution"
+      };
+    default:
+      return null;
+  }
+}
+
 export function isStewardPowerUsedThisSeason(placedTile, season) {
   return (placedTile?.stewardPowerSeasons ?? []).includes(season);
 }
@@ -323,30 +370,81 @@ export function markStewardPowerUsed(placedTile, season) {
   };
 }
 
+export function isPlayerStewardPowerUsedThisSeason(player, season, type) {
+  return Boolean((player?.stewardPowerSeasons?.[type] ?? []).includes(season));
+}
+
+export function markPlayerStewardPowerUsed(player, season, type) {
+  if (!player || !type || isPlayerStewardPowerUsedThisSeason(player, season, type)) {
+    return player;
+  }
+
+  return {
+    ...player,
+    stewardPowerSeasons: {
+      ...(player.stewardPowerSeasons ?? {}),
+      [type]: [...(player.stewardPowerSeasons?.[type] ?? []), season]
+    }
+  };
+}
+
 export function getAvailableStewardPowerProviders(state, context = {}, type, predicate = () => true) {
   const tileIndex = context.tileIndex ?? createTileIndex(context.tiles ?? []);
   const playerId = context.playerId ?? state.activePlayerId;
   const player = state.players.find((candidate) => candidate.id === playerId);
+  const role = getStewardRole(player?.stewardRoleId);
+  const details = getStewardPowerDetailsForRole(role?.id);
 
-  return state.map.placedTiles
-    .map((placedTile) => {
-      const tile = tileIndex.get(placedTile.tileId);
-      const details = getStewardPowerDetails(tile);
+  if (
+    !player ||
+    !role ||
+    !details ||
+    details.type !== type ||
+    isPlayerStewardPowerUsedThisSeason(player, state.season, details.type)
+  ) {
+    return [];
+  }
+
+  const placedTile = {
+    id: `steward-power-${player.id}-${role.id}`,
+    tileId: `steward_power_${role.id}`,
+    coordinate: player.stewardHousePlacement?.coordinate ?? player.lastInteraction?.coordinate ?? null,
+    coordinates: [player.stewardHousePlacement?.coordinate ?? player.lastInteraction?.coordinate ?? null].filter(Boolean),
+    stewardPowerProvider: true
+  };
+  const provider = {
+    player,
+    role,
+    placedTile,
+    tile: {
+      tile_id: placedTile.tileId,
+      tile_name: `${role.name} Steward`,
+      tile_category: "Steward",
+      side: "Power"
+    },
+    details
+  };
+  const legacyProviders = state.map.placedTiles
+    .map((legacyPlacedTile) => {
+      const legacyTile = tileIndex.get(legacyPlacedTile.tileId);
+      const legacyDetails = getStewardPowerDetails(legacyTile);
 
       return {
-        placedTile,
-        tile,
-        details
+        player,
+        role,
+        placedTile: legacyPlacedTile,
+        tile: legacyTile,
+        details: legacyDetails
       };
     })
     .filter(
-      (provider) =>
-        provider.details?.type === type &&
-        isStewardHouseTileForPlayer(provider.tile, player) &&
-        !isOverstrainedPlacedTile(provider.placedTile) &&
-        !isStewardPowerUsedThisSeason(provider.placedTile, state.season) &&
-        predicate(provider)
+      (legacyProvider) =>
+        legacyProvider.details?.type === type &&
+        isStewardHouseTileForPlayer(legacyProvider.tile, player) &&
+        !isOverstrainedPlacedTile(legacyProvider.placedTile)
     );
+
+  return [provider, ...legacyProviders].filter(predicate);
 }
 
 export function getRequestedStewardPowerProvider(state, context = {}, placedTileId, type, predicate = () => true) {

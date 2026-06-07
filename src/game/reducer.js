@@ -53,6 +53,7 @@ import {
   isOpeningResourceTileForPlayer,
   markOpeningResourcePlacementComplete,
   markStewardHousePlacementComplete,
+  markPlayerStewardPowerUsed,
   markStewardPowerUsed
 } from "./stewards.js";
 import {
@@ -144,6 +145,30 @@ function markPlayerMapInteraction(state, playerId, placedTile, type) {
   };
 }
 
+function markPlayerTokenMapInteraction(state, playerId, coordinate, type) {
+  if (!coordinate) {
+    return state;
+  }
+
+  return {
+    ...state,
+    players: state.players.map((player) =>
+      player.id === playerId
+        ? {
+            ...player,
+            lastInteraction: {
+              type,
+              placedTileId: null,
+              coordinate,
+              round: state.round,
+              season: state.season
+            }
+          }
+        : player
+    )
+  };
+}
+
 function markPlayerOpeningResourcePlacement(state, playerId, placedTile) {
   return {
     ...state,
@@ -163,62 +188,33 @@ function markPlayerStewardHousePlacement(state, playerId, placedTile) {
 }
 
 function validateStewardHouseSetupPlacement(state, action, context, pendingPlacement) {
-  const tileIndex = context.tileIndex ?? createTileIndex(context.tiles ?? []);
   const mapIndex = createMapIndex(state.map.hexes);
-  const tile = tileIndex.get(action.tileId ?? pendingPlacement?.tileId);
   const hex = mapIndex.get(action.coordinate);
-  const supplyEntry = tile ? getTileSupplyEntry(state, tile.tile_id) : null;
   const errors = [];
 
   if (!pendingPlacement) {
-    errors.push("No Steward House placement is currently pending.");
-  }
-
-  if (!tile) {
-    errors.push(`Unknown Steward House tile: ${action.tileId ?? pendingPlacement?.tileId ?? "none"}.`);
-  } else {
-    if (tile.tile_id !== pendingPlacement?.tileId) {
-      errors.push(`${pendingPlacement?.role?.name ?? "This Steward"} must place their own Steward House.`);
-    }
-
-    if (tile.subtype !== "Steward House" || tile.side !== "Basic") {
-      errors.push(`${tile.tile_name} is not a basic Steward House.`);
-    }
+    errors.push("No Steward token placement is currently pending.");
   }
 
   if (!hex) {
     errors.push(`Unknown map coordinate: ${action.coordinate}.`);
   } else if (!isStewardHousePlacementTerrainForRole(pendingPlacement?.role, hex.Terrain)) {
-    errors.push(`${pendingPlacement?.role?.name ?? "This Steward"} must place their House on ${pendingPlacement?.terrainOptions?.join(" or ") ?? "their setup terrain"}.`);
+    errors.push(`${pendingPlacement?.role?.name ?? "This Steward"} must place their token on ${pendingPlacement?.terrainOptions?.join(" or ") ?? "their setup terrain"}.`);
   }
 
   if (hex?.Terrain === "Water") {
-    errors.push("Steward Houses cannot be placed on River hexes.");
+    errors.push("Steward tokens cannot start on River hexes.");
   }
 
   if (getPlacedTileAt(state, action.coordinate)) {
     errors.push(`${action.coordinate} already has a placed tile.`);
   }
 
-  if (!supplyEntry) {
-    errors.push(`${tile?.tile_name ?? "Steward House"} is not in the tile supply.`);
-  } else {
-    if (supplyEntry.locked) {
-      errors.push(`${tile.tile_name} is not unlocked for this setup.`);
-    }
-
-    if (supplyEntry.available <= 0) {
-      errors.push(`${tile.tile_name} has no remaining stock.`);
-    }
-  }
-
   return {
     valid: errors.length === 0,
     errors,
-    tile,
     hex,
-    footprintCoordinates: action.coordinate ? [action.coordinate] : [],
-    supplyEntry
+    footprintCoordinates: action.coordinate ? [action.coordinate] : []
   };
 }
 
@@ -229,7 +225,7 @@ function placeStewardHouse(state, action, context) {
       result: {
         ok: false,
         action: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
-        errors: ["Steward Houses can only be placed during the Place Steward Houses setup phase."]
+        errors: ["Steward tokens can only be placed during the Steward token setup phase."]
       }
     };
   }
@@ -249,19 +245,15 @@ function placeStewardHouse(state, action, context) {
   }
 
   const player = pendingPlacement.player;
-  const placedTile = createPlacedTileRecord(
-    state,
-    {
-      ...action,
-      tileId: validation.tile.tile_id,
-      orientation: action.orientation
-    },
-    validation
-  );
+  const placedToken = {
+    coordinate: action.coordinate,
+    roleId: player.stewardRoleId,
+    playerId: player.id
+  };
   const actionState = markPlayerStewardHousePlacement(
-    markPlayerMapInteraction(state, player.id, placedTile, "place"),
+    markPlayerTokenMapInteraction(state, player.id, placedToken.coordinate, "setup_token"),
     player.id,
-    placedTile
+    placedToken
   );
   const nextPendingPlayer = actionState.players.find((candidate) => !candidate.stewardHousePlacement?.completed);
   const setupComplete = !nextPendingPlayer;
@@ -269,25 +261,16 @@ function placeStewardHouse(state, action, context) {
     ...actionState,
     phase: setupComplete ? GAME_PHASES.SEED_ENCOUNTERS : GAME_PHASES.PLACE_STEWARD_HOUSES,
     activePlayerId: setupComplete ? null : nextPendingPlayer.id,
-    map: {
-      ...actionState.map,
-      placedTiles: [...actionState.map.placedTiles, placedTile]
-    },
-    tileSupply: updateTileSupply(actionState, validation.tile.tile_id, (entry) => ({
-      ...entry,
-      available: entry.available - 1
-    })),
     log: [
       ...actionState.log,
       createActionLogEntry(
         actionState,
         "setup",
-        `${player.name} placed ${validation.tile.tile_name} on ${placedTile.coordinate}.`,
+        `${player.name} placed their ${pendingPlacement.role.name} token on ${placedToken.coordinate}.`,
         {
           playerId: player.id,
           stewardRoleId: player.stewardRoleId,
-          tileId: validation.tile.tile_id,
-          coordinate: placedTile.coordinate,
+          coordinate: placedToken.coordinate,
           setupComplete
         }
       )
@@ -299,13 +282,13 @@ function placeStewardHouse(state, action, context) {
     result: {
       ok: true,
       action: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
-      message: `Placed ${validation.tile.tile_name} on ${placedTile.coordinate} for free.`,
-      placedTile,
-      placedTiles: [placedTile],
+      message: `Placed ${pendingPlacement.role.name} token on ${placedToken.coordinate}.`,
+      placedToken,
+      placedTiles: [],
       actionCost: {
         connected: true,
         disconnectedTravelIgnored: true,
-        disconnectedTravelIgnoreReason: "steward_house_setup",
+        disconnectedTravelIgnoreReason: "steward_token_setup",
         placeActionCost: 0,
         disconnectedTravelActionCost: 0,
         total: 0
@@ -378,9 +361,11 @@ function createStewardPowerUse(provider, actionCost, operation) {
     source: "steward_power",
     type: provider.details.type,
     operation,
-    providerPlacedTileId: provider.placedTile.id,
-    providerTileId: provider.placedTile.tileId,
-    providerTileName: provider.tile?.tile_name ?? provider.placedTile.tileId,
+    providerPlayerId: provider.player?.id ?? null,
+    providerRoleId: provider.role?.id ?? null,
+    providerPlacedTileId: provider.placedTile?.id ?? null,
+    providerTileId: provider.placedTile?.tileId ?? provider.tile?.tile_id ?? null,
+    providerTileName: provider.tile?.tile_name ?? provider.placedTile?.tileId ?? "Steward Power",
     actionCost
   };
 }
@@ -411,6 +396,16 @@ function markStewardPowerProviderUsed(placedTiles, stewardPower, season) {
   );
 }
 
+function markPlayerStewardPowerProviderUsed(players, stewardPower, season) {
+  if (!stewardPower?.providerPlayerId || !stewardPower?.type) {
+    return players;
+  }
+
+  return players.map((player) =>
+    player.id === stewardPower.providerPlayerId ? markPlayerStewardPowerUsed(player, season, stewardPower.type) : player
+  );
+}
+
 function getRequestedPlacementStewardPowerProvider(state, action, context, tile, baseActionCost) {
   if (!action.stewardPowerPlacedTileId) {
     return {
@@ -430,7 +425,7 @@ function getRequestedPlacementStewardPowerProvider(state, action, context, tile,
     state,
     context,
     STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION,
-    () => baseActionCost.disconnectedTravelActionCost > 0
+    () => baseActionCost.blockedByReachability === true
   );
   const provider = [...placementProviders, ...disconnectedProviders].find(
     (candidate) => candidate.placedTile.id === action.stewardPowerPlacedTileId
@@ -447,6 +442,102 @@ function getRequestedPlacementStewardPowerProvider(state, action, context, tile,
         provider: null,
         errors: ["Selected Steward Power is not available for this placement."]
       };
+}
+
+function getRequestedUpgradeStewardPowerProvider(state, action, context, tile, baseActionCost) {
+  if (!action.stewardPowerPlacedTileId) {
+    return {
+      valid: true,
+      provider: null,
+      errors: []
+    };
+  }
+
+  const upgradeProviders = getAvailableStewardPowerProviders(
+    state,
+    context,
+    STEWARD_POWER_TYPES.FREE_CORE_UPGRADE_ACTION,
+    () => tile.tile_source_type === "Core"
+  );
+  const rangerProviders = getAvailableStewardPowerProviders(
+    state,
+    context,
+    STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION,
+    () => baseActionCost.blockedByReachability === true
+  );
+  const provider = [...upgradeProviders, ...rangerProviders].find(
+    (candidate) => candidate.placedTile.id === action.stewardPowerPlacedTileId
+  );
+
+  return provider
+    ? {
+        valid: true,
+        provider,
+        errors: []
+      }
+    : {
+        valid: false,
+        provider: null,
+        errors: ["Selected Steward Power is not available for this upgrade."]
+      };
+}
+
+function getRequestedReachabilityStewardPowerProvider(state, action, context, baseActionCost, operationLabel) {
+  if (!action.stewardPowerPlacedTileId) {
+    return {
+      valid: true,
+      provider: null,
+      errors: []
+    };
+  }
+
+  const providers = getAvailableStewardPowerProviders(
+    state,
+    context,
+    STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION,
+    () => baseActionCost.blockedByReachability === true
+  );
+  const provider = providers.find((candidate) => candidate.placedTile.id === action.stewardPowerPlacedTileId);
+
+  return provider
+    ? {
+        valid: true,
+        provider,
+        errors: []
+      }
+    : {
+        valid: false,
+        provider: null,
+        errors: [`Selected Steward Power is not available for this ${operationLabel}.`]
+      };
+}
+
+function allowStewardReachabilityBypass(actionCost, provider) {
+  if (provider?.details.type !== STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION) {
+    return actionCost;
+  }
+
+  const nextActionCost = {
+    ...actionCost,
+    originalTotal: actionCost.originalTotal ?? actionCost.total,
+    connected: true,
+    blockedByReachability: false,
+    disconnectedTravelIgnored: true,
+    disconnectedTravelIgnoreReason: "ranger_steward_power",
+    total: 0
+  };
+
+  for (const actionKey of ["placeActionCost", "activationActionCost", "upgradeActionCost", "tileActionCost"]) {
+    if (Object.hasOwn(nextActionCost, actionKey)) {
+      nextActionCost[actionKey] = 0;
+    }
+  }
+
+  return nextActionCost;
+}
+
+function getReachabilityBlockError(player, tileName, operation) {
+  return `${player.name}'s Steward is not connected to ${tileName}. Place or use tiles on that Steward's connected network.`;
 }
 
 function describeResourceAmounts(amounts, amountKey = "amount") {
@@ -1555,12 +1646,7 @@ function placeTile(state, action, context) {
     "placement",
     (currentActionCost) =>
       stewardPowerProvider.provider?.details.type === STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION
-        ? {
-            ...currentActionCost,
-            originalTotal: currentActionCost.originalTotal ?? currentActionCost.total,
-            disconnectedTravelActionCost: 0,
-            total: Math.max(0, currentActionCost.total - currentActionCost.disconnectedTravelActionCost)
-          }
+        ? allowStewardReachabilityBypass(currentActionCost, stewardPowerProvider.provider)
         : {
             ...currentActionCost,
             originalTotal: currentActionCost.originalTotal ?? currentActionCost.total,
@@ -1570,6 +1656,18 @@ function placeTile(state, action, context) {
   );
   actionCost = stewardPowerReduction.actionCost;
   const stewardPower = stewardPowerReduction.stewardPower;
+
+  if (actionCost.blockedByReachability) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.PLACE_TILE,
+        errors: [getReachabilityBlockError(player, validation.tile.tile_name, "place")],
+        actionCost
+      }
+    };
+  }
 
   if (player.actionsRemaining < actionCost.total) {
     return {
@@ -1627,6 +1725,11 @@ function placeTile(state, action, context) {
     stewardPower,
     actionState.season
   );
+  const playersAfterStewardPower = markPlayerStewardPowerProviderUsed(
+    actionState.players,
+    stewardPower,
+    actionState.season
+  );
   const encounterAfterPlacementDiscount = applyPlacementCostReductionUse(
     actionState.encounter,
     validation.placementCostReduction
@@ -1641,6 +1744,7 @@ function placeTile(state, action, context) {
   );
   const nextState = {
     ...actionState,
+    players: playersAfterStewardPower,
     map: {
       ...actionState.map,
       placedTiles: [...placedTilesAfterStewardPower, ...placedTiles]
@@ -1745,13 +1849,51 @@ function activateTile(state, action, context) {
     },
     "activationActionCost"
   );
+  const stewardPowerProvider = getRequestedReachabilityStewardPowerProvider(
+    state,
+    action,
+    context,
+    baseActionCost,
+    "activation"
+  );
+
+  if (!stewardPowerProvider.valid) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.ACTIVATE_TILE,
+        errors: stewardPowerProvider.errors
+      }
+    };
+  }
+
   const travelDiscount = getDiscountedDisconnectedTravelActionCost(
     state,
     "activation",
     baseActionCost
   );
-  const actionCost = travelDiscount.actionCost;
+  const stewardPowerReduction = applyStewardPowerActionReduction(
+    travelDiscount.actionCost,
+    stewardPowerProvider.provider,
+    "activation",
+    (currentActionCost) => allowStewardReachabilityBypass(currentActionCost, stewardPowerProvider.provider)
+  );
+  const actionCost = stewardPowerReduction.actionCost;
+  const stewardPower = stewardPowerReduction.stewardPower;
   const disconnectedTravelActionDiscount = travelDiscount.actionCostDiscount;
+
+  if (actionCost.blockedByReachability) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.ACTIVATE_TILE,
+        errors: [getReachabilityBlockError(player, validation.tile.tile_name, "activate")],
+        actionCost
+      }
+    };
+  }
 
   if (player.actionsRemaining < actionCost.total) {
     return {
@@ -1775,6 +1917,11 @@ function activateTile(state, action, context) {
   );
   const actionState = {
     ...interactionState,
+    players: markPlayerStewardPowerProviderUsed(interactionState.players, stewardPower, interactionState.season),
+    map: {
+      ...interactionState.map,
+      placedTiles: markStewardPowerProviderUsed(interactionState.map.placedTiles, stewardPower, interactionState.season)
+    },
     encounter: applyActionCostDiscountUse(interactionState.encounter, disconnectedTravelActionDiscount)
   };
 
@@ -2188,12 +2335,12 @@ function upgradeTile(state, action, context) {
   let actionCost = travelDiscount.actionCost;
   const actionCostDiscount = actionDiscount.actionCostDiscount;
   const disconnectedTravelActionDiscount = travelDiscount.actionCostDiscount;
-  const stewardPowerProvider = getRequestedStewardPowerProvider(
+  const stewardPowerProvider = getRequestedUpgradeStewardPowerProvider(
     state,
+    action,
     context,
-    action.stewardPowerPlacedTileId,
-    STEWARD_POWER_TYPES.FREE_CORE_UPGRADE_ACTION,
-    () => validation.tile.tile_source_type === "Core"
+    validation.tile,
+    actionCost
   );
 
   if (!stewardPowerProvider.valid) {
@@ -2211,15 +2358,30 @@ function upgradeTile(state, action, context) {
     actionCost,
     stewardPowerProvider.provider,
     "upgrade",
-    (currentActionCost) => ({
-      ...currentActionCost,
-      originalTotal: currentActionCost.originalTotal ?? currentActionCost.total,
-      upgradeActionCost: 0,
-      total: Math.max(0, currentActionCost.total - (currentActionCost.upgradeActionCost ?? currentActionCost.total))
-    })
+    (currentActionCost) =>
+      stewardPowerProvider.provider?.details.type === STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION
+        ? allowStewardReachabilityBypass(currentActionCost, stewardPowerProvider.provider)
+        : {
+            ...currentActionCost,
+            originalTotal: currentActionCost.originalTotal ?? currentActionCost.total,
+            upgradeActionCost: 0,
+            total: Math.max(0, currentActionCost.total - (currentActionCost.upgradeActionCost ?? currentActionCost.total))
+          }
   );
   actionCost = stewardPowerReduction.actionCost;
   const stewardPower = stewardPowerReduction.stewardPower;
+
+  if (actionCost.blockedByReachability) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.UPGRADE_TILE,
+        errors: [getReachabilityBlockError(player, validation.tile.tile_name, "upgrade")],
+        actionCost
+      }
+    };
+  }
 
   if (player.actionsRemaining < actionCost.total) {
     return {
@@ -2273,6 +2435,7 @@ function upgradeTile(state, action, context) {
   );
   const nextState = {
     ...actionState,
+    players: markPlayerStewardPowerProviderUsed(actionState.players, stewardPower, actionState.season),
     map: {
       ...actionState.map,
       placedTiles: markStewardPowerProviderUsed(
@@ -2426,6 +2589,7 @@ function useStewardPower(state, action, context) {
   );
   const nextState = {
     ...state,
+    players: markPlayerStewardPowerProviderUsed(state.players, stewardPower, state.season),
     warehouse: resourceGain.warehouse,
     map: {
       ...state.map,
@@ -3685,6 +3849,7 @@ function resolveBurden(state, action, context) {
   const relief = applyBurdenResolutionStrainRelief(actionState, context);
   const nextState = {
     ...relief.state,
+    players: markPlayerStewardPowerProviderUsed(relief.state.players, stewardPower, relief.state.season),
     map: {
       ...relief.state.map,
       placedTiles: markStewardPowerProviderUsed(relief.state.map.placedTiles, stewardPower, relief.state.season)
@@ -3924,12 +4089,108 @@ function resolveEndRoundEncounters(state) {
   };
 }
 
+function applyExpiredArrivalStrain(state, expiredArrivals, context) {
+  if (!expiredArrivals.length) {
+    return {
+      state,
+      applications: []
+    };
+  }
+
+  let workingState = state;
+  const applications = [];
+
+  for (const arrival of expiredArrivals) {
+    const target = sortPlacedTilesById(workingState.map.placedTiles)
+      .filter((placedTile) => (placedTile.strain ?? 0) < STRAIN_MAX_PER_TILE)
+      .sort((left, right) => {
+        const strainDifference = (left.strain ?? 0) - (right.strain ?? 0);
+        if (strainDifference !== 0) {
+          return strainDifference;
+        }
+
+        return Number(left.id.replace(/\D+/g, "")) - Number(right.id.replace(/\D+/g, ""));
+      })[0];
+
+    if (!target) {
+      applications.push({
+        activeEncounterId: arrival.id,
+        cardId: arrival.cardId,
+        cardName: getEncounterCardName(context, arrival.cardId),
+        requestedStrain: 1,
+        strainAdded: 0,
+        strainPrevented: 0,
+        blockedByMax: 0,
+        noValidTarget: true,
+        reason: "arrival_expired"
+      });
+      continue;
+    }
+
+    const support = getEffectiveSupportDetails(workingState, target.id, context);
+    const result = applyStrainToPlacedTile(target, 1, {
+      supported: support.supported
+    });
+
+    if (!result.valid) {
+      applications.push({
+        activeEncounterId: arrival.id,
+        cardId: arrival.cardId,
+        cardName: getEncounterCardName(context, arrival.cardId),
+        targetPlacedTileId: target.id,
+        targetTileId: target.tileId,
+        requestedStrain: 1,
+        strainAdded: 0,
+        strainPrevented: 0,
+        blockedByMax: 1,
+        noValidTarget: false,
+        reason: "arrival_expired",
+        errors: result.errors
+      });
+      continue;
+    }
+
+    workingState = {
+      ...workingState,
+      map: {
+        ...workingState.map,
+        placedTiles: workingState.map.placedTiles.map((placedTile) =>
+          placedTile.id === target.id ? result.placedTile : placedTile
+        )
+      }
+    };
+    applications.push({
+      activeEncounterId: arrival.id,
+      cardId: arrival.cardId,
+      cardName: getEncounterCardName(context, arrival.cardId),
+      targetPlacedTileId: target.id,
+      targetTileId: target.tileId,
+      targetTileName: getTileName(context, target.tileId),
+      before: target.strain ?? 0,
+      after: result.placedTile.strain,
+      requestedStrain: 1,
+      strainAdded: result.strainAdded,
+      strainPrevented: result.strainPrevented,
+      blockedByMax: result.blockedByMax,
+      becameOverstrained: result.becameOverstrained,
+      supportProviders: support.providers,
+      noValidTarget: false,
+      reason: "arrival_expired"
+    });
+  }
+
+  return {
+    state: workingState,
+    applications
+  };
+}
+
 function getEncounterIndex(context) {
   return context.encounterCards ? new Map(context.encounterCards.map((card) => [card.card_id, card])) : new Map();
 }
 
 function isSeasonStartReapplicationRound(round) {
-  return round === 6 || round === 11;
+  return round === 5 || round === 9;
 }
 
 function reapplySeasonStartBurdens(state, activeStates, nextRound, nextSeason, context) {
@@ -4023,68 +4284,6 @@ function sortPlacedTilesById(placedTiles) {
   });
 }
 
-function applyEndOfSeasonResourceGain(state) {
-  if (state.round !== state.rules.roundsPerSeason) {
-    return {
-      state,
-      effect: null
-    };
-  }
-
-  let remaining = 10;
-  const resources = { ...state.warehouse.resources };
-  const applied = [];
-
-  while (remaining > 0) {
-    const candidates = state.rules.resources
-      .filter((resource) => resources[resource] < state.warehouse.cap)
-      .sort((left, right) => {
-        const amountDifference = resources[left] - resources[right];
-        return amountDifference !== 0 ? amountDifference : state.rules.resources.indexOf(left) - state.rules.resources.indexOf(right);
-      });
-
-    const resource = candidates[0];
-    if (!resource) {
-      break;
-    }
-
-    const before = resources[resource];
-    resources[resource] += 1;
-    remaining -= 1;
-    const existing = applied.find((entry) => entry.resource === resource);
-
-    if (existing) {
-      existing.amount += 1;
-      existing.after = resources[resource];
-    } else {
-      applied.push({
-        resource,
-        before,
-        after: resources[resource],
-        amount: 1
-      });
-    }
-  }
-
-  return {
-    state: {
-      ...state,
-      warehouse: {
-        ...state.warehouse,
-        resources
-      }
-    },
-    effect: {
-      type: "end_season_resource_gain",
-      season: "I",
-      round: state.round,
-      requestedResources: 10,
-      resourcesGained: applied.reduce((total, entry) => total + entry.amount, 0),
-      applied
-    }
-  };
-}
-
 function getAdjacentPlacedTileCandidates(state, placedTile) {
   const mapIndex = createMapIndex(state.map.hexes);
   const ownCoordinates = new Set(getPlacedTileCoordinates(placedTile));
@@ -4110,7 +4309,7 @@ function getAdjacentPlacedTileCandidates(state, placedTile) {
 }
 
 function applyEndOfSeasonOverstrainedSpread(state, context) {
-  if (state.round !== state.rules.roundsPerSeason * 2) {
+  if (![state.rules.roundsPerSeason, state.rules.roundsPerSeason * 2].includes(state.round)) {
     return {
       state,
       effect: null
@@ -4186,7 +4385,7 @@ function applyEndOfSeasonOverstrainedSpread(state, context) {
     state: workingState,
     effect: {
       type: "end_season_overstrained_spread",
-      season: "II",
+      season: state.season,
       round: state.round,
       applications,
       strainAdded: applications.reduce((total, application) => total + application.strainAdded, 0),
@@ -4198,12 +4397,11 @@ function applyEndOfSeasonOverstrainedSpread(state, context) {
 }
 
 function applyEndOfSeasonEffects(state, context) {
-  const resources = applyEndOfSeasonResourceGain(state);
-  const spread = applyEndOfSeasonOverstrainedSpread(resources.state, context);
+  const spread = applyEndOfSeasonOverstrainedSpread(state, context);
 
   return {
     state: spread.state,
-    effects: [resources.effect, spread.effect].filter(Boolean)
+    effects: [spread.effect].filter(Boolean)
   };
 }
 
@@ -4245,15 +4443,21 @@ function endRound(state, context) {
     }
   };
   const encounterResolution = resolveEndRoundEncounters(stateAfterArrivalTimerEffects);
+  const stateAfterEncounterResolution = {
+    ...stateAfterArrivalTimerEffects,
+    encounter: {
+      ...stateAfterArrivalTimerEffects.encounter,
+      active: encounterResolution.active,
+      discard: encounterResolution.discard
+    }
+  };
+  const expiredArrivalStrain = applyExpiredArrivalStrain(
+    stateAfterEncounterResolution,
+    encounterResolution.expiredArrivals,
+    context
+  );
   const seasonEffects = applyEndOfSeasonEffects(
-    {
-      ...stateAfterArrivalTimerEffects,
-      encounter: {
-        ...stateAfterArrivalTimerEffects.encounter,
-        active: encounterResolution.active,
-        discard: encounterResolution.discard
-      }
-    },
+    expiredArrivalStrain.state,
     context
   );
   const nextRound = state.round + 1;
@@ -4321,6 +4525,7 @@ function endRound(state, context) {
           autoSkippedSeeding: shouldSkipSeeding,
           timersRemoved: encounterResolution.timersRemoved,
           expiredArrivalIds: encounterResolution.expiredArrivals.map((arrival) => arrival.cardId),
+          expiredArrivalStrain: expiredArrivalStrain.applications,
           reappliedBurdenIds: burdenReapplication.reappliedBurdens.map((burden) => burden.cardId),
           seasonEffects: seasonEffects.effects
         }
@@ -4347,6 +4552,17 @@ function endRound(state, context) {
         round: burden.round,
         season: burden.season
       })),
+      ...expiredArrivalStrain.applications.map((application, index) =>
+        createActionLogEntry(
+          state,
+          "strain",
+          application.noValidTarget
+            ? `${application.cardName} expired, but there was no valid tile for its Strain.`
+            : `${application.cardName} expired and added ${application.strainAdded} Strain to ${application.targetTileName}.`,
+          application,
+          1 + seasonEffects.effects.length + burdenReapplication.reappliedBurdens.length + index
+        )
+      ),
       ...(shouldSkipSeeding
         ? [
             {
@@ -4358,7 +4574,10 @@ function endRound(state, context) {
                   seededCount: 0,
                   skippedNoCards: true
                 },
-                1 + seasonEffects.effects.length + burdenReapplication.reappliedBurdens.length
+                1 +
+                  seasonEffects.effects.length +
+                  burdenReapplication.reappliedBurdens.length +
+                  expiredArrivalStrain.applications.length
               ),
               round: nextRound,
               season: nextSeason
@@ -4379,6 +4598,7 @@ function endRound(state, context) {
       autoSkippedSeeding: shouldSkipSeeding,
       timersRemoved: encounterResolution.timersRemoved,
       expiredArrivals: encounterResolution.expiredArrivals,
+      expiredArrivalStrain: expiredArrivalStrain.applications,
       reappliedBurdens: burdenReapplication.reappliedBurdens,
       seasonEffects: seasonEffects.effects
     }

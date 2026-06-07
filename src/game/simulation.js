@@ -373,6 +373,7 @@ function recordDispatchResult(summary, round, result) {
 
   if (result.action === TILE_ACTION_TYPES.END_ROUND) {
     summary.arrivals_expired += result.expiredArrivals?.length ?? 0;
+    addStrainApplications(summary, round, result.expiredArrivalStrain ?? []);
 
     for (const burden of result.reappliedBurdens ?? []) {
       recordBurdenApplication(summary, round, burden.effect);
@@ -1926,12 +1927,6 @@ function buildStewardHouseSetupPlacementCandidates(state, context) {
     return [];
   }
 
-  const tile = context.tileIndex.get(pending.tileId);
-
-  if (!tile) {
-    return [];
-  }
-
   const occupied = new Set(
     state.map.placedTiles.flatMap((placedTile) => getPlacedTileCoordinates(placedTile))
   );
@@ -1942,7 +1937,6 @@ function buildStewardHouseSetupPlacementCandidates(state, context) {
     .filter((hex) => isStewardHousePlacementTerrainForRole(pending.role, hex.Terrain))
     .map((hex) => ({
       type: TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE,
-      tileId: tile.tile_id,
       coordinate: hex.Coordinate
     }));
 }

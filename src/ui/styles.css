@@ -951,8 +951,30 @@ h3 {
   font-weight: 900;
 }
 
+.player-map-marker .player-map-marker-id {
+  fill: #ffffff;
+  font-size: 5.4px;
+  font-weight: 950;
+}
+
+.player-map-marker .player-map-marker-name {
+  fill: #17201c;
+  font-size: 4.8px;
+  font-weight: 950;
+  letter-spacing: 0;
+  paint-order: stroke;
+  stroke: rgba(255, 252, 244, 0.96);
+  stroke-linejoin: round;
+  stroke-width: 2.4px;
+}
+
 .player-map-marker.is-inactive text {
   fill: #f7f1e5;
+}
+
+.player-map-marker.is-inactive .player-map-marker-name {
+  fill: #56584f;
+  stroke: rgba(255, 252, 244, 0.82);
 }
 
 .support-map-marker {
