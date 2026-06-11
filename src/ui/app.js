@@ -213,6 +213,11 @@ const TABLE_WORKSPACE_LABELS = Object.freeze({
   [TABLE_WORKSPACES.STEWARDS]: "Stewards"
 });
 
+const HEADER_MENUS = Object.freeze({
+  SETUP: "setup",
+  STEWARDS: "stewards"
+});
+
 const LOCAL_SAVE_KEY = "the-quiet-vale-playtest-state-v1";
 const LOCAL_SAVE_VERSION = 4;
 
@@ -232,6 +237,7 @@ const state = {
   revealHiddenSetup: false,
   blindTestMode: true,
   activeWorkspace: TABLE_WORKSPACES.ENCOUNTERS,
+  openHeaderMenu: "",
   stewardRoleIds: normalizeStewardRoleIds(1),
   debugSeedSelections: {},
   debugSeedPosition: SEED_PACKET_POSITIONS.TOP,
@@ -5268,7 +5274,7 @@ function renderSetupControls() {
 function renderHeaderTableAction() {
   if (isPlaySessionSetup()) {
     return `
-      <details class="header-setup-menu">
+      <details class="header-setup-menu" data-header-menu="${HEADER_MENUS.SETUP}" ${state.openHeaderMenu === HEADER_MENUS.SETUP ? "open" : ""}>
         <summary class="header-rulebook-link header-table-action header-setup-summary">Setup</summary>
         <div class="header-setup-popover">
           ${renderSetupControls()}
@@ -5857,7 +5863,7 @@ function renderHeaderStewardMenu(tileIndex, encounterIndex) {
   const players = getHeaderStewardMenuPlayers();
 
   return `
-    <details class="header-setup-menu header-steward-menu">
+    <details class="header-setup-menu header-steward-menu" data-header-menu="${HEADER_MENUS.STEWARDS}" ${state.openHeaderMenu === HEADER_MENUS.STEWARDS ? "open" : ""}>
       <summary class="header-rulebook-link header-table-action header-setup-summary">Stewards</summary>
       <div class="header-setup-popover header-steward-popover">
         <section class="steward-menu-panel" aria-label="Player and Steward abilities">
@@ -10093,7 +10099,8 @@ function runStewardMenuAction(button) {
   }
 
   if (command === "open-setup") {
-    root.querySelector(".header-setup-menu:not(.header-steward-menu)")?.setAttribute("open", "");
+    state.openHeaderMenu = HEADER_MENUS.SETUP;
+    renderApp();
     return;
   }
 
@@ -10118,7 +10125,35 @@ function runStewardMenuAction(button) {
   focusPlayArea(target);
 }
 
+function bindHeaderMenuEvents() {
+  root.querySelectorAll("[data-header-menu]").forEach((menu) => {
+    menu.addEventListener("toggle", () => {
+      if (!menu.isConnected) {
+        return;
+      }
+
+      const menuId = menu.dataset.headerMenu ?? "";
+
+      if (menu.open) {
+        state.openHeaderMenu = menuId;
+        root.querySelectorAll("[data-header-menu]").forEach((candidate) => {
+          if (candidate !== menu && candidate.open) {
+            candidate.open = false;
+          }
+        });
+        return;
+      }
+
+      if (state.openHeaderMenu === menuId) {
+        state.openHeaderMenu = "";
+      }
+    });
+  });
+}
+
 function bindEvents() {
+  bindHeaderMenuEvents();
+
   root.querySelectorAll("[data-coordinate]").forEach((element) => {
     const placePending = element.classList.contains("hex");
 
