@@ -27,9 +27,9 @@ from export_styled_rulebook_from_docx import (
 )
 
 
-RULEBOOK_VERSION = "v0.6"
-OUTPUT = OUT_DIR / "The_Quiet_Vale_Playtester_Rulebook_Styled_Draft_v0_6.pdf"
-MANIFEST = OUT_DIR / "manifest_playtester_v0_6.txt"
+RULEBOOK_VERSION = "v0.7"
+OUTPUT = OUT_DIR / "The_Quiet_Vale_Playtester_Rulebook_Styled_Draft_v0_7.pdf"
+MANIFEST = OUT_DIR / "manifest_playtester_v0_7.txt"
 
 
 PLAYTEST_STYLES = {
@@ -322,7 +322,7 @@ def build_story(doc) -> list:
     story.extend(
         numbered(
             [
-                "Lay out the Game Map, Stewards Board, Warehouse Board, and Round Timer.",
+                "Lay out the Redesigned Basic Map v0.2, Stewards Board, Warehouse Board, and Round Timer.",
                 "Each player chooses a unique Steward and takes that Steward's Player Aid and Steward token.",
                 "Set the shared Warehouse using the player-count table.",
                 "Build the balanced Encounter pool, deal 9 hidden Encounter Cards to each player, and deal 3 standard Encounter Cards per player to the Encounter Deck. Golden Boons are not currently supported by the online prototype.",
@@ -333,6 +333,7 @@ def build_story(doc) -> list:
     )
     story.append(heading("Starting Warehouse", 2))
     story.append(docx_table_to_flowable(table_by_index(doc, 0)))
+    story.append(compact_rule_box("Locked map", "Online playtests use Redesigned Basic Map v0.2. Older map options are retained only as repository reference files and are not selectable during setup."))
     story.append(heading("Steward Token Setup", 2))
     story.append(steward_house_setup_table())
     story.append(compact_rule_box("Steward powers", "Steward House tiles are not used in this playtest version. Each Steward has their once-per-Season power from the start of the game. Only that Steward may use their own power."))
@@ -525,7 +526,7 @@ def build_pdf(source: Path, output: Path):
                 f"PDF: {output.name}",
                 f"Source DOCX: {source}",
                 f"Pages: {pages}",
-                "Trim approach: table-facing rules only; opening flavour text preserved; current Steward token setup, seasonal seeding, reachability, support, and scoring rules reflected.",
+                "Trim approach: table-facing rules only; opening flavour text preserved; current Steward token setup, locked v0.2 map, seasonal seeding, reachability, support, and scoring rules reflected.",
                 "",
             ]
         ),

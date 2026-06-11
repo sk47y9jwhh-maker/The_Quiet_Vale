@@ -87,19 +87,14 @@ const DATA_PATHS = {
   rulesConfig: "./src/data/rules_config.json"
 };
 
+const DEFAULT_MAP_ID = "redesigned-basic-map-v0-2";
+
 const MAP_OPTIONS = Object.freeze([
   Object.freeze({
-    id: "redesigned-basic-map-v0-2",
+    id: DEFAULT_MAP_ID,
     name: "Redesigned Basic Map v0.2",
     status: "Default locked map",
     path: "./src/data/redesigned_basic_map_v0_2.json",
-    locked: true
-  }),
-  Object.freeze({
-    id: "redesigned-basic-map-v0-1",
-    name: "Redesigned Basic Map v0.1",
-    status: "Previous reference map",
-    path: "./src/data/redesigned_basic_map_v0_1.json",
     locked: true
   })
 ]);
@@ -228,7 +223,7 @@ const state = {
   game: null,
   playSessionState: PLAY_SESSION_STATES.SETUP,
   selectedCoordinate: "C7",
-  selectedMapId: "redesigned-basic-map-v0-2",
+  selectedMapId: DEFAULT_MAP_ID,
   selectedTileId: null,
   selectedOrientation: HEX_DIRECTIONS[0].id,
   playerCount: 1,
@@ -597,9 +592,7 @@ function restoreLocalPlaytestState() {
       }
     });
 
-    if (!state.data.mapOptions?.some((option) => option.id === state.selectedMapId)) {
-      state.selectedMapId = state.data.mapOptions?.[0]?.id ?? state.selectedMapId;
-    }
+    state.selectedMapId = DEFAULT_MAP_ID;
 
     refreshActiveMapData();
     syncSelectedCoordinate();
@@ -3533,15 +3526,15 @@ function renderCardList(cardIds, encounterIndex, options = {}) {
   const cards = getCards(cardIds, encounterIndex);
 
   return `
-    <ol class="card-list">
+    <ol class="card-list encounter-pile-card-list">
       ${cards
         .map((card, index) => {
-          const order = `<span class="card-order">${ordered ? index + 1 : ""}</span>`;
           return `
-            <li class="card-row type-${slug(card.encounter_type)}">
-              ${order}
-              <span class="card-name">${escapeHtml(card.card_name)}</span>
-              <span class="card-type">${escapeHtml(card.encounter_type)}</span>
+            <li class="encounter-pile-card type-${slug(card.encounter_type)}">
+              ${ordered ? `<span class="encounter-pile-order">${index + 1}</span>` : ""}
+              <div class="encounter-card-main">
+                ${renderEncounterFace(card, null, state.game, null, { extraClass: "pile-encounter-face" })}
+              </div>
               ${showSource ? renderEncounterSourceText(card, season) : ""}
             </li>
           `;
@@ -5192,7 +5185,7 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
 }
 
 function renderSetupControls() {
-  const mapOptions = state.data?.mapOptions ?? [];
+  const selectedMap = getSelectedMapOption();
   const setupOpen = isPlaySessionSetup();
   const playing = isPlaySessionPlaying();
   const ended = isPlaySessionEnded();
@@ -5207,24 +5200,10 @@ function renderSetupControls() {
     <section id="setup-panel" class="state-panel setup-panel">
       <h2>Setup</h2>
       <p class="setup-session-note session-${escapeHtml(state.playSessionState)}">${escapeHtml(setupNote)}</p>
-      ${
-        mapOptions.length > 1
-          ? `<label class="stacked-field">
-              <span>Map</span>
-              <select id="map-option" aria-label="Map option" ${inputDisabled}>
-                ${mapOptions
-                  .map(
-                    (option) =>
-                      `<option value="${escapeHtml(option.id)}" ${option.id === state.selectedMapId ? "selected" : ""}>${escapeHtml(option.name)}</option>`
-                  )
-                  .join("")}
-              </select>
-            </label>`
-          : `<div class="setup-static-row">
-              <span>Map</span>
-              <strong>${escapeHtml(mapOptions[0]?.name ?? "Redesigned Basic Map v0.2")}</strong>
-            </div>`
-      }
+      <div class="setup-static-row">
+        <span>Map</span>
+        <strong>${escapeHtml(selectedMap?.name ?? "Redesigned Basic Map v0.2")}</strong>
+      </div>
       <label class="stacked-field">
         <span>Players</span>
         <select id="player-count" aria-label="Players" ${inputDisabled}>
@@ -7002,19 +6981,21 @@ function renderRecentEncounterStories(game, encounterIndex) {
   }
 
   return `
-    <ol class="encounter-chronicle-list">
+    <ol class="encounter-chronicle-list encounter-pile-card-list">
       ${recentReveals
         .map((entry) => {
           const card = encounterIndex.get(entry.data.cardId);
+          const encounterType = card?.encounter_type ?? entry.data.encounterType;
 
           return `
-            <li class="encounter-chronicle-item type-${slug(card?.encounter_type ?? entry.data.encounterType)}">
-              <header>
+            <li class="encounter-pile-card encounter-chronicle-item type-${slug(encounterType)}">
+              <div class="encounter-card-main">
+                ${renderEncounterFace(card, null, game, null, { extraClass: "pile-encounter-face" })}
+              </div>
+              <p class="current-reveal-result">
                 <span>Round ${entry.round} - Season ${escapeHtml(entry.season)}</span>
-                <strong>${escapeHtml(card?.card_name ?? entry.data.cardName ?? entry.data.cardId)}</strong>
-              </header>
-              ${renderEncounterFlavorText(card, { compact: true })}
-              ${renderEncounterSourceText(card, entry.season, getRevealPrototypeText(entry.data))}
+                <strong>${escapeHtml(getRevealPrototypeText(entry.data) || "Revealed.")}</strong>
+              </p>
             </li>
           `;
         })
@@ -10151,6 +10132,32 @@ function bindHeaderMenuEvents() {
   });
 }
 
+function closeOpenHeaderMenu() {
+  if (!state.openHeaderMenu) {
+    return false;
+  }
+
+  state.openHeaderMenu = "";
+  root.querySelectorAll("[data-header-menu][open]").forEach((menu) => {
+    menu.open = false;
+  });
+  return true;
+}
+
+function handleHeaderMenuClickAway(event) {
+  if (!state.openHeaderMenu) {
+    return;
+  }
+
+  const target = event.target;
+
+  if (target instanceof Element && target.closest("[data-header-menu]")) {
+    return;
+  }
+
+  closeOpenHeaderMenu();
+}
+
 function bindEvents() {
   bindHeaderMenuEvents();
 
@@ -10318,18 +10325,6 @@ function bindEvents() {
       createGame();
       renderApp();
     });
-  });
-
-  root.querySelector("#map-option")?.addEventListener("change", (event) => {
-    if (!isPlaySessionSetup()) {
-      return;
-    }
-
-    state.selectedMapId = event.target.value;
-    refreshActiveMapData();
-    syncSelectedCoordinate();
-    createGame();
-    renderApp();
   });
 
   root.querySelector("#setup-seed")?.addEventListener("input", (event) => {
@@ -11398,6 +11393,7 @@ function bindEvents() {
 
 document.addEventListener("keydown", handleGlobalEscape);
 root.addEventListener("click", handleRootClickAwayFromPlacementPreview);
+root.addEventListener("click", handleHeaderMenuClickAway);
 
 renderApp();
 

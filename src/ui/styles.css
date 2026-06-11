@@ -3369,6 +3369,54 @@ textarea {
   list-style: none;
 }
 
+.encounter-pile-card-list {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--encounter-card-width)), 1fr));
+  align-items: start;
+  justify-items: center;
+  gap: 12px;
+  max-height: min(700px, 72vh);
+  padding-right: 2px;
+}
+
+.encounter-pile-card {
+  position: relative;
+  display: grid;
+  gap: 7px;
+  width: var(--encounter-card-width);
+  max-width: 100%;
+  border-color: transparent;
+  background: transparent;
+  justify-items: center;
+}
+
+.encounter-pile-card.encounter-chronicle-item {
+  padding: 0;
+  border-left: 0;
+  background: transparent;
+}
+
+.pile-encounter-face {
+  width: 100%;
+  box-shadow: 0 7px 16px rgba(29, 37, 33, 0.08);
+}
+
+.encounter-pile-order {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid rgba(215, 189, 103, 0.7);
+  border-radius: 50%;
+  background: #202726;
+  color: #d7bd67;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
 .encounter-active-list {
   max-height: none;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr));
