@@ -86,6 +86,7 @@ export const STEWARD_POWER_TYPES = Object.freeze({
   FREE_CORE_UPGRADE_ACTION: "free_core_upgrade_action",
   IGNORE_DISCONNECTED_TRAVEL_ACTION: "ignore_disconnected_travel_action",
   RESOURCE_EXCHANGE: "resource_exchange",
+  STARTING_RESOURCE_EXCHANGE: "starting_resource_exchange",
   FREE_BURDEN_RESOLUTION_ACTION: "free_burden_resolution_action",
   SUPPRESS_BURDEN: "suppress_burden"
 });

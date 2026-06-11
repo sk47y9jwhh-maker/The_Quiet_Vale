@@ -34,6 +34,17 @@ function newState(playerCount = 1, options = {}) {
   };
 }
 
+function newSetupState(playerCount = 1, options = {}) {
+  return createInitialGameState({
+    playerCount,
+    seed: "stewards",
+    encounterCards,
+    tiles,
+    mapHexes,
+    stewardRoles: options.stewardRoles ?? []
+  });
+}
+
 function dispatch(state, action) {
   return dispatchGameAction(state, action, { tiles, encounterCards });
 }
@@ -504,4 +515,46 @@ test("Quartermaster Home exchanges Warehouse resources once per Season", () => {
 
   assert.equal(repeat.result.ok, false);
   assert.match(repeat.result.errors.join(" "), /Steward Power is not available/);
+});
+
+test("Quartermaster setup exchange works before first Season I seeding", () => {
+  const state = withWarehouseResources(newSetupState(1, { stewardRoles: ["quartermaster"] }), {
+    Wood: 2,
+    Stone: 1
+  });
+
+  assert.equal(state.phase, GAME_PHASES.SEED_ENCOUNTERS);
+
+  const exchanged = dispatch(state, {
+    type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+    stewardPowerType: STEWARD_POWER_TYPES.STARTING_RESOURCE_EXCHANGE,
+    playerId: "P1",
+    payment: [
+      { resource: "Wood", amount: 1 },
+      { resource: "Stone", amount: 1 }
+    ],
+    gains: [
+      { resource: "Food", amount: 1 },
+      { resource: "Metal", amount: 1 }
+    ]
+  });
+
+  assert.equal(exchanged.result.ok, true);
+  assert.equal(exchanged.state.warehouse.resources.Wood, 1);
+  assert.equal(exchanged.state.warehouse.resources.Stone, 0);
+  assert.equal(exchanged.state.warehouse.resources.Food, 1);
+  assert.equal(exchanged.state.warehouse.resources.Metal, 1);
+  assert.equal(exchanged.state.players[0].stewardStartingBenefitUsed, true);
+  assert.equal(exchanged.state.players[0].stewardPowerSeasons?.[STEWARD_POWER_TYPES.RESOURCE_EXCHANGE], undefined);
+
+  const repeat = dispatch(exchanged.state, {
+    type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+    stewardPowerType: STEWARD_POWER_TYPES.STARTING_RESOURCE_EXCHANGE,
+    playerId: "P1",
+    payment: [{ resource: "Wood", amount: 1 }],
+    gains: [{ resource: "Food", amount: 1 }]
+  });
+
+  assert.equal(repeat.result.ok, false);
+  assert.match(repeat.result.errors.join(" "), /already been used/);
 });

@@ -533,6 +533,125 @@ function markPlayerStartingBenefitUsed(players, playerId, benefit) {
   );
 }
 
+function getQuartermasterStartingExchangePlayer(state, playerId) {
+  if (playerId) {
+    return state.players.find((player) => player.id === playerId) ?? null;
+  }
+
+  return (
+    state.players.find((player) => player.id === state.activePlayerId && player.stewardRoleId === "quartermaster") ??
+    state.players.find((player) => player.stewardRoleId === "quartermaster") ??
+    null
+  );
+}
+
+function useQuartermasterStartingExchange(state, action) {
+  const player = getQuartermasterStartingExchangePlayer(state, action.playerId);
+  const payment = summarizeResourcePayment(action.payment ?? []);
+  const gains = summarizeResourcePayment(action.gains ?? []);
+  const totalPaid = payment.reduce((total, entry) => total + entry.amount, 0);
+  const totalGained = gains.reduce((total, entry) => total + entry.amount, 0);
+  const errors = [];
+
+  if (!player) {
+    errors.push(`Unknown player: ${action.playerId ?? state.activePlayerId ?? "Quartermaster"}`);
+  } else if (player.stewardRoleId !== "quartermaster") {
+    errors.push("Only the Quartermaster can use the setup Warehouse exchange.");
+  } else if (player.stewardStartingBenefitUsed) {
+    errors.push("Quartermaster setup exchange has already been used.");
+  }
+
+  if (
+    state.phase !== GAME_PHASES.SEED_ENCOUNTERS ||
+    state.round !== 1 ||
+    state.season !== "I" ||
+    state.encounter.seededRounds.includes(1)
+  ) {
+    errors.push("Quartermaster setup exchange must be used before the first Season I seeding.");
+  }
+
+  for (const { resource, amount } of [...payment, ...gains]) {
+    if (!state.rules.resources.includes(resource)) {
+      errors.push(`${resource} is not a valid Warehouse resource.`);
+    }
+
+    if (!Number.isInteger(amount) || amount <= 0) {
+      errors.push("Quartermaster setup exchange amounts must be positive whole numbers.");
+    }
+  }
+
+  if (totalPaid < 1 || totalPaid > 2) {
+    errors.push("Choose 1-2 resources to exchange.");
+  }
+
+  if (totalGained !== totalPaid) {
+    errors.push("Choose the same number of resources to gain as you pay.");
+  }
+
+  if (errors.length === 0 && !canAffordCost(state.warehouse, payment)) {
+    errors.push("Quartermaster needs the chosen resources available in the Warehouse.");
+  }
+
+  if (errors.length > 0) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+        errors,
+        payment,
+        gains
+      }
+    };
+  }
+
+  const warehouseAfterPayment = spendWarehouseResources(state.warehouse, payment);
+  const resourceGain = gainWarehouseResources(warehouseAfterPayment, gains);
+  const nextState = {
+    ...state,
+    players: state.players.map((candidate) =>
+      candidate.id === player.id
+        ? {
+            ...candidate,
+            stewardStartingBenefitUsed: true
+          }
+        : candidate
+    ),
+    warehouse: resourceGain.warehouse,
+    log: [
+      ...state.log,
+      createActionLogEntry(state, "steward_power", "Quartermaster exchanged Warehouse resources before first seeding.", {
+        playerId: player.id,
+        stewardRoleId: player.stewardRoleId,
+        payment,
+        gains,
+        applied: resourceGain.applied
+      })
+    ]
+  };
+
+  return {
+    state: nextState,
+    result: {
+      ok: true,
+      action: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+      message: `Quartermaster exchanged ${describeResourceAmounts(payment)} for ${describeResourceAmounts(gains)} before first seeding.`,
+      stewardStartingBenefit: {
+        source: "steward_starting_benefit",
+        type: STEWARD_POWER_TYPES.STARTING_RESOURCE_EXCHANGE,
+        playerId: player.id,
+        roleId: player.stewardRoleId,
+        payment,
+        gains,
+        applied: resourceGain.applied
+      },
+      payment,
+      gains,
+      applied: resourceGain.applied
+    }
+  };
+}
+
 function applyStewardPowerActionReduction(actionCost, provider, operation, reduceCost) {
   if (!provider) {
     return {
@@ -3058,6 +3177,10 @@ function upgradeTile(state, action, context) {
 }
 
 function useStewardPower(state, action, context) {
+  if ((action.stewardPowerType ?? action.powerType) === STEWARD_POWER_TYPES.STARTING_RESOURCE_EXCHANGE) {
+    return useQuartermasterStartingExchange(state, action);
+  }
+
   if (state.phase !== GAME_PHASES.PLAYER_TURNS) {
     return {
       state,
