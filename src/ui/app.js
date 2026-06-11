@@ -5124,10 +5124,103 @@ function renderHeaderTableAction() {
   return `<button id="end-game" class="header-rulebook-link header-table-action is-danger" type="button">End Game</button>`;
 }
 
+function getHeaderStewardMenuPlayers() {
+  const gamePlayers = state.game?.players ?? [];
+  const roleIds = isPlaySessionSetup()
+    ? normalizeStewardRoleIds(state.playerCount, state.stewardRoleIds)
+    : gamePlayers.map((player) => player.stewardRoleId);
+
+  return roleIds.map((roleId, index) => {
+    const player = gamePlayers[index] ?? null;
+    const role = getStewardRole(player?.stewardRoleId ?? roleId);
+    const power = getStewardPowerDetailsForRole(role?.id);
+    const tokenCoordinate =
+      player?.stewardHousePlacement?.tokenCoordinate ??
+      player?.stewardHousePlacement?.coordinate ??
+      "";
+    const powerUsed = Boolean(
+      power?.type &&
+      state.game?.season &&
+      player?.stewardPowerSeasons?.[power.type]?.includes(state.game.season)
+    );
+
+    return {
+      id: player?.id ?? `P${index + 1}`,
+      name: player?.name ?? `Player ${index + 1}`,
+      role,
+      power,
+      tokenCoordinate,
+      powerUsed,
+      active: Boolean(player && state.game?.activePlayerId === player.id && isPlaySessionPlaying())
+    };
+  });
+}
+
+function renderHeaderStewardMenu() {
+  const players = getHeaderStewardMenuPlayers();
+
+  return `
+    <details class="header-setup-menu header-steward-menu">
+      <summary class="header-rulebook-link header-table-action header-setup-summary">Stewards</summary>
+      <div class="header-setup-popover header-steward-popover">
+        <section class="steward-menu-panel" aria-label="Player and Steward abilities">
+          <header>
+            <p class="eyebrow">Player Stewards</p>
+            <h2>Tokens, Powers, Bonuses</h2>
+          </header>
+          <div class="steward-menu-grid">
+            ${players
+              .map((player) => {
+                const role = player.role;
+                const powerStatus = isPlaySessionSetup()
+                  ? "Ready after setup"
+                  : player.powerUsed
+                    ? `Used in Season ${state.game?.season ?? ""}`.trim()
+                    : "Ready this Season";
+                const statusClass = player.powerUsed ? "is-used" : "is-ready";
+
+                return `
+                  <article class="steward-menu-card ${player.active ? "is-active" : ""}">
+                    <header>
+                      <span>${escapeHtml(player.id)}</span>
+                      <strong>${escapeHtml(role?.name ?? "Steward")}</strong>
+                      <small>${escapeHtml(player.name)}</small>
+                    </header>
+                    <dl class="steward-menu-list">
+                      <div>
+                        <dt>Token</dt>
+                        <dd>${escapeHtml(player.tokenCoordinate || role?.tokenPlacementSummary || "Place during setup")}</dd>
+                      </div>
+                      <div>
+                        <dt>First use</dt>
+                        <dd>${escapeHtml(role?.startingBenefit ?? "No starting benefit listed")}</dd>
+                      </div>
+                      <div>
+                        <dt>Power</dt>
+                        <dd>${escapeHtml(player.power?.label ?? "No once-per-season power listed")}</dd>
+                      </div>
+                      <div>
+                        <dt>Bonus</dt>
+                        <dd>${escapeHtml(role?.objectiveSummary ?? "No scoring bonus listed")}</dd>
+                      </div>
+                    </dl>
+                    <p class="steward-menu-status ${statusClass}">${escapeHtml(powerStatus)}</p>
+                  </article>
+                `;
+              })
+              .join("")}
+          </div>
+        </section>
+      </div>
+    </details>
+  `;
+}
+
 function renderHeaderActions() {
   return `
     <div class="header-actions">
       <a class="header-rulebook-link" href="./rulebook.pdf" target="_blank" rel="noopener">View Rulebook</a>
+      ${renderHeaderStewardMenu()}
       ${renderHeaderTableAction()}
     </div>
   `;

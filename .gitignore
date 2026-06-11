@@ -6,3 +6,5 @@ coverage/
 .env
 .env.*
 ownership_proof/
+__pycache__/
+*.py[cod]
