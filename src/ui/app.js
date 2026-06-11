@@ -196,6 +196,18 @@ const PLAY_SESSION_LABELS = Object.freeze({
   [PLAY_SESSION_STATES.ENDED]: "Ended"
 });
 
+const TABLE_WORKSPACES = Object.freeze({
+  ENCOUNTERS: "encounters",
+  TILES: "tiles",
+  STEWARDS: "stewards"
+});
+
+const TABLE_WORKSPACE_LABELS = Object.freeze({
+  [TABLE_WORKSPACES.ENCOUNTERS]: "Encounters",
+  [TABLE_WORKSPACES.TILES]: "Tiles",
+  [TABLE_WORKSPACES.STEWARDS]: "Stewards"
+});
+
 const LOCAL_SAVE_KEY = "the-quiet-vale-playtest-state-v1";
 const LOCAL_SAVE_VERSION = 4;
 
@@ -214,6 +226,7 @@ const state = {
   showDebugLabels: false,
   revealHiddenSetup: false,
   blindTestMode: true,
+  activeWorkspace: TABLE_WORKSPACES.ENCOUNTERS,
   stewardRoleIds: normalizeStewardRoleIds(1),
   debugSeedSelections: {},
   debugSeedPosition: SEED_PACKET_POSITIONS.TOP,
@@ -280,9 +293,77 @@ function rememberGameStateForUndo(action = "table action") {
       playSessionState: state.playSessionState,
       selectedCoordinate: state.selectedCoordinate,
       selectedTileId: state.selectedTileId,
-      selectedOrientation: state.selectedOrientation
+      selectedOrientation: state.selectedOrientation,
+      activeWorkspace: state.activeWorkspace
     }
   ];
+}
+
+function getRecommendedWorkspace(game = state.game) {
+  if (!game) {
+    return TABLE_WORKSPACES.ENCOUNTERS;
+  }
+
+  if (isPlaySessionSetup() || game.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
+    return TABLE_WORKSPACES.STEWARDS;
+  }
+
+  if (game.phase === GAME_PHASES.SEED_ENCOUNTERS || game.phase === GAME_PHASES.REVEAL_ENCOUNTERS) {
+    return TABLE_WORKSPACES.ENCOUNTERS;
+  }
+
+  if (game.phase === GAME_PHASES.END_ROUND || game.phase === GAME_PHASES.COMPLETE || isPlaySessionEnded()) {
+    return TABLE_WORKSPACES.ENCOUNTERS;
+  }
+
+  if (getPendingBurdenRevealChoices(game).length > 0) {
+    return TABLE_WORKSPACES.ENCOUNTERS;
+  }
+
+  return TABLE_WORKSPACES.TILES;
+}
+
+function isValidTableWorkspace(workspace) {
+  return Object.values(TABLE_WORKSPACES).includes(workspace);
+}
+
+function getActiveWorkspace(game = state.game) {
+  return isValidTableWorkspace(state.activeWorkspace) ? state.activeWorkspace : getRecommendedWorkspace(game);
+}
+
+function getWorkspaceAfterAction(nextGame, result) {
+  if (!result?.ok) {
+    return getActiveWorkspace(nextGame);
+  }
+
+  const action = result.action ?? "";
+
+  if (action === TILE_ACTION_TYPES.PLACE_STEWARD_HOUSE) {
+    return getRecommendedWorkspace(nextGame);
+  }
+
+  if (
+    action === TILE_ACTION_TYPES.SEED_ENCOUNTERS ||
+    action === TILE_ACTION_TYPES.REVEAL_ENCOUNTERS ||
+    action === TILE_ACTION_TYPES.END_ROUND ||
+    action.includes("ENCOUNTER") ||
+    action.includes("BURDEN") ||
+    action.includes("ARRIVAL") ||
+    action.includes("BOON")
+  ) {
+    return TABLE_WORKSPACES.ENCOUNTERS;
+  }
+
+  if (
+    action === TILE_ACTION_TYPES.PLACE_TILE ||
+    action === TILE_ACTION_TYPES.UPGRADE_TILE ||
+    action === TILE_ACTION_TYPES.ACTIVATE_TILE ||
+    action === TILE_ACTION_TYPES.END_TURN
+  ) {
+    return TABLE_WORKSPACES.TILES;
+  }
+
+  return getActiveWorkspace(nextGame);
 }
 
 function applyGameOutcome(nextGame, result, action = result?.action ?? "table action") {
@@ -292,6 +373,7 @@ function applyGameOutcome(nextGame, result, action = result?.action ?? "table ac
 
   state.game = nextGame;
   state.lastActionResult = result;
+  state.activeWorkspace = getWorkspaceAfterAction(nextGame, result);
 }
 
 function canUndoLastAction() {
@@ -317,6 +399,7 @@ function undoLastAction() {
   state.selectedCoordinate = previous.selectedCoordinate ?? state.selectedCoordinate;
   state.selectedTileId = previous.selectedTileId ?? state.selectedTileId;
   state.selectedOrientation = previous.selectedOrientation ?? state.selectedOrientation;
+  state.activeWorkspace = previous.activeWorkspace ?? getRecommendedWorkspace(state.game);
   resetLocalTestingControls();
   syncSelectedCoordinate();
   syncSelectedTile();
@@ -354,6 +437,7 @@ function getLocalSaveSnapshot() {
     activationGains: state.activationGains,
     activationPayments: state.activationPayments,
     activationTargets: state.activationTargets,
+    activeWorkspace: state.activeWorkspace,
     arrivalRequirementDiscounts: state.arrivalRequirementDiscounts,
     boonExchangeAmounts: state.boonExchangeAmounts,
     boonExchangeGains: state.boonExchangeGains,
@@ -926,6 +1010,7 @@ function startPlaySession() {
   state.seedContextMenu = null;
   state.pendingPlacementPreview = null;
   state.pendingPairedPlacement = null;
+  state.activeWorkspace = TABLE_WORKSPACES.STEWARDS;
   state.lastActionResult = {
     ok: true,
     action: "START_GAME",
@@ -955,6 +1040,7 @@ function endPlaySession() {
   state.seedContextMenu = null;
   state.pendingPlacementPreview = null;
   state.pendingPairedPlacement = null;
+  state.activeWorkspace = TABLE_WORKSPACES.ENCOUNTERS;
   state.lastActionResult = {
     ok: true,
     action: "END_GAME",
@@ -981,6 +1067,7 @@ function resetPlaySession() {
   state.seedContextMenu = null;
   state.pendingPlacementPreview = null;
   state.pendingPairedPlacement = null;
+  state.activeWorkspace = TABLE_WORKSPACES.STEWARDS;
   state.lastActionResult = {
     ok: true,
     action: "RESET_GAME",
@@ -5610,6 +5697,64 @@ function renderStewardMenuFocus(players) {
   `;
 }
 
+function renderStewardMenuCard(player, tileIndex, encounterIndex) {
+  const role = player.role;
+  const powerUse = getStewardMenuPowerUseState(player, tileIndex);
+  const powerStatus = isPlaySessionSetup()
+    ? "Ready after setup"
+    : player.powerUsed
+      ? `Used in Season ${state.game?.season ?? ""}`.trim()
+      : "Ready this Season";
+  const statusClass = player.powerUsed ? "is-used" : "is-ready";
+
+  return `
+    <article class="steward-menu-card ${player.active ? "is-active" : ""}">
+      <header>
+        <span>${escapeHtml(player.id)}</span>
+        <strong>${escapeHtml(role?.name ?? "Steward")}</strong>
+        <small>${escapeHtml(player.name)}</small>
+      </header>
+      <dl class="steward-menu-list">
+        <div>
+          <dt>Token</dt>
+          <dd>${escapeHtml(player.tokenCoordinate || role?.tokenPlacementSummary || "Place during setup")}</dd>
+        </div>
+        <div>
+          <dt>First use</dt>
+          <dd>${escapeHtml(role?.startingBenefit ?? "No starting benefit listed")}</dd>
+        </div>
+        <div>
+          <dt>Power</dt>
+          <dd>${escapeHtml(player.power?.label ?? "No once-per-season power listed")}</dd>
+        </div>
+        <div>
+          <dt>Use now</dt>
+          <dd>${escapeHtml(powerUse.detail)}</dd>
+        </div>
+        <div>
+          <dt>Bonus</dt>
+          <dd>${escapeHtml(role?.objectiveSummary ?? "No scoring bonus listed")}</dd>
+        </div>
+      </dl>
+      ${renderQuartermasterStartingExchangeControls(state.game, player)}
+      ${renderWardenSuppressionControls(state.game, tileIndex, encounterIndex, player)}
+      <div class="steward-menu-footer">
+        <p class="steward-menu-status ${statusClass}">${escapeHtml(powerStatus)}</p>
+        ${
+          powerUse.action
+            ? `<button class="steward-menu-button" type="button"
+                data-steward-menu-action="${escapeHtml(powerUse.action.command)}"
+                data-steward-menu-target="${escapeHtml(powerUse.action.target ?? "")}"
+                data-steward-menu-provider-id="${escapeHtml(powerUse.action.providerId ?? "")}">
+                ${escapeHtml(powerUse.action.label)}
+              </button>`
+            : ""
+        }
+      </div>
+    </article>
+  `;
+}
+
 function renderHeaderStewardMenu(tileIndex, encounterIndex) {
   const players = getHeaderStewardMenuPlayers();
 
@@ -5624,65 +5769,7 @@ function renderHeaderStewardMenu(tileIndex, encounterIndex) {
           </header>
           ${renderStewardMenuFocus(players)}
           <div class="steward-menu-grid">
-            ${players
-              .map((player) => {
-                const role = player.role;
-                const powerUse = getStewardMenuPowerUseState(player, tileIndex);
-                const powerStatus = isPlaySessionSetup()
-                  ? "Ready after setup"
-                  : player.powerUsed
-                    ? `Used in Season ${state.game?.season ?? ""}`.trim()
-                    : "Ready this Season";
-                const statusClass = player.powerUsed ? "is-used" : "is-ready";
-
-                return `
-                  <article class="steward-menu-card ${player.active ? "is-active" : ""}">
-                    <header>
-                      <span>${escapeHtml(player.id)}</span>
-                      <strong>${escapeHtml(role?.name ?? "Steward")}</strong>
-                      <small>${escapeHtml(player.name)}</small>
-                    </header>
-                    <dl class="steward-menu-list">
-                      <div>
-                        <dt>Token</dt>
-                        <dd>${escapeHtml(player.tokenCoordinate || role?.tokenPlacementSummary || "Place during setup")}</dd>
-                      </div>
-                      <div>
-                        <dt>First use</dt>
-                        <dd>${escapeHtml(role?.startingBenefit ?? "No starting benefit listed")}</dd>
-                      </div>
-                      <div>
-                        <dt>Power</dt>
-                        <dd>${escapeHtml(player.power?.label ?? "No once-per-season power listed")}</dd>
-                      </div>
-                      <div>
-                        <dt>Use now</dt>
-                        <dd>${escapeHtml(powerUse.detail)}</dd>
-                      </div>
-                      <div>
-                        <dt>Bonus</dt>
-                        <dd>${escapeHtml(role?.objectiveSummary ?? "No scoring bonus listed")}</dd>
-                      </div>
-                    </dl>
-                    ${renderQuartermasterStartingExchangeControls(state.game, player)}
-                    ${renderWardenSuppressionControls(state.game, tileIndex, encounterIndex, player)}
-                    <div class="steward-menu-footer">
-                      <p class="steward-menu-status ${statusClass}">${escapeHtml(powerStatus)}</p>
-                      ${
-                        powerUse.action
-                          ? `<button class="steward-menu-button" type="button"
-                              data-steward-menu-action="${escapeHtml(powerUse.action.command)}"
-                              data-steward-menu-target="${escapeHtml(powerUse.action.target ?? "")}"
-                              data-steward-menu-provider-id="${escapeHtml(powerUse.action.providerId ?? "")}">
-                              ${escapeHtml(powerUse.action.label)}
-                            </button>`
-                          : ""
-                      }
-                    </div>
-                  </article>
-                `;
-              })
-              .join("")}
+            ${players.map((player) => renderStewardMenuCard(player, tileIndex, encounterIndex)).join("")}
           </div>
         </section>
       </div>
@@ -6609,6 +6696,7 @@ function autoSkipEmptySeedPhase() {
   state.debugSeedSelections = {};
   state.contextMenu = null;
   state.seedContextMenu = null;
+  state.activeWorkspace = TABLE_WORKSPACES.ENCOUNTERS;
   return true;
 }
 
@@ -6969,6 +7057,104 @@ function renderEncounterPanel(game, encounterIndex) {
           </article>
         </div>
       </details>
+    </section>
+  `;
+}
+
+function getTableWorkspaceBadge(workspace, game, tileIndex) {
+  if (workspace === TABLE_WORKSPACES.ENCOUNTERS) {
+    const activeCount = game.encounter.active.length;
+    const pendingChoices = getPendingBurdenRevealChoices(game).length;
+
+    if (pendingChoices > 0) {
+      return `${pendingChoices} choice${pendingChoices === 1 ? "" : "s"}`;
+    }
+
+    return activeCount > 0 ? `${activeCount} in play` : formatPhase(game.phase);
+  }
+
+  if (workspace === TABLE_WORKSPACES.TILES) {
+    const selectedTile = tileIndex.get(state.selectedTileId);
+
+    return selectedTile ? selectedTile.tile_name : state.selectedCoordinate;
+  }
+
+  const activePlayer = game.players.find((player) => player.id === game.activePlayerId);
+
+  return activePlayer ? formatPlayerName(activePlayer) : `${game.players.length} steward${game.players.length === 1 ? "" : "s"}`;
+}
+
+function renderTableWorkspaceTabs(game, tileIndex) {
+  const activeWorkspace = getActiveWorkspace(game);
+
+  return `
+    <nav class="table-workspace-tabs" aria-label="Table workspace">
+      ${Object.values(TABLE_WORKSPACES)
+        .map((workspace) => {
+          const selected = workspace === activeWorkspace;
+
+          return `
+            <button
+              class="table-workspace-tab ${selected ? "is-active" : ""}"
+              type="button"
+              data-workspace-tab="${escapeHtml(workspace)}"
+              aria-pressed="${selected ? "true" : "false"}"
+            >
+              <span>${escapeHtml(TABLE_WORKSPACE_LABELS[workspace])}</span>
+              <strong>${escapeHtml(getTableWorkspaceBadge(workspace, game, tileIndex))}</strong>
+            </button>
+          `;
+        })
+        .join("")}
+    </nav>
+  `;
+}
+
+function renderStewardWorkspacePanel(game, tileIndex, encounterIndex) {
+  const players = getHeaderStewardMenuPlayers();
+
+  return `
+    <section id="steward-workspace-panel" class="state-panel steward-workspace-panel" aria-label="Player and Steward abilities">
+      <div class="stewards-board-header">
+        <div>
+          <p class="eyebrow">Player Stewards</p>
+          <h2>Tokens, Powers, Bonuses</h2>
+        </div>
+        <ul class="stewards-board-status">
+          <li><span>Round</span><strong>${game.round}/${game.rules.roundsPerSeason * 3}</strong></li>
+          <li><span>Season</span><strong>${escapeHtml(game.season)}</strong></li>
+          <li><span>Players</span><strong>${game.players.length}</strong></li>
+        </ul>
+      </div>
+      ${renderStewardMenuFocus(players)}
+      <div class="steward-menu-grid steward-workspace-grid">
+        ${players.map((player) => renderStewardMenuCard(player, tileIndex, encounterIndex)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderTableWorkspace(game, tileIndex, encounterIndex) {
+  const activeWorkspace = getActiveWorkspace(game);
+  const panel =
+    activeWorkspace === TABLE_WORKSPACES.TILES
+      ? renderTilePlacementPanel(game, tileIndex, encounterIndex)
+      : activeWorkspace === TABLE_WORKSPACES.STEWARDS
+        ? renderStewardWorkspacePanel(game, tileIndex, encounterIndex)
+        : renderEncounterPanel(game, encounterIndex);
+
+  return `
+    <section id="table-workspace" class="table-workspace is-${escapeHtml(activeWorkspace)}" aria-label="Main table workspace">
+      <header class="table-workspace-header">
+        <div>
+          <p class="eyebrow">Table Workspace</p>
+          <h2>${escapeHtml(TABLE_WORKSPACE_LABELS[activeWorkspace])}</h2>
+        </div>
+        ${renderTableWorkspaceTabs(game, tileIndex)}
+      </header>
+      <div class="table-workspace-body is-${escapeHtml(activeWorkspace)}">
+        ${panel}
+      </div>
     </section>
   `;
 }
@@ -8200,6 +8386,7 @@ function renderSelectedTilePlacementControls({
   });
   const discountControls = renderPlacementCostDiscountChoices(selectedTile, cost, placementResourceDiscount);
   const selectedTileIndex = state.data?.tiles ? createTileIndex(state.data.tiles) : new Map();
+  const selectedUpgradeTile = findUpgradeTile(selectedTile, selectedTileIndex);
 
   return `
     <div class="tile-wire-placement-panel">
@@ -8245,6 +8432,9 @@ function renderSelectedTilePlacementControls({
         <div><dt>Actions</dt><dd>${escapeHtml(renderActionCountLabel(displayedActionCost))}</dd></div>
         <div><dt>Resources</dt><dd>${escapeHtml(renderCost(previewCost))}</dd></div>
       </dl>
+      <div class="selected-placement-face" aria-label="${escapeHtml(`${selectedTile.tile_name} tile face preview`)}">
+        ${renderTileFaceSvg(selectedTile, { upgradeTile: selectedUpgradeTile })}
+      </div>
       ${renderTileEffectPreview(selectedTile, {
         label: "Cost & Effect",
         costSummary: [
@@ -8699,6 +8889,7 @@ function renderApp() {
   autoSkipEmptySeedPhase();
   const encounterIndex = createEncounterIndex(state.data.encounterCards);
   const tileIndex = createTileIndex(state.data.tiles);
+  state.activeWorkspace = getActiveWorkspace(state.game);
 
   root.innerHTML = `
     <main class="app-shell ${state.blindTestMode ? "is-blind-test" : "is-table-tools"}">
@@ -8727,11 +8918,8 @@ function renderApp() {
               ariaLabel: "Warehouse resources for map and Encounter decisions"
             })}
           </div>
-          <aside class="play-side-rail" aria-label="Primary play controls">
-            ${renderTilePlacementPanel(state.game, tileIndex, encounterIndex)}
-          </aside>
         </section>
-        ${renderEncounterPanel(state.game, encounterIndex)}
+        ${renderTableWorkspace(state.game, tileIndex, encounterIndex)}
         ${renderGameDashboard(state.game, encounterIndex)}
         ${
           state.blindTestMode
@@ -9844,6 +10032,20 @@ function bindEvents() {
 
   root.querySelectorAll("[data-current-action]").forEach((button) => {
     button.addEventListener("click", () => runCurrentAction(button.dataset.currentAction));
+  });
+
+  root.querySelectorAll("[data-workspace-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!isValidTableWorkspace(button.dataset.workspaceTab)) {
+        return;
+      }
+
+      rememberTileTrayScroll();
+      state.activeWorkspace = button.dataset.workspaceTab;
+      state.contextMenu = null;
+      state.seedContextMenu = null;
+      renderApp();
+    });
   });
 
   root.querySelectorAll("[data-steward-menu-action]").forEach((button) => {

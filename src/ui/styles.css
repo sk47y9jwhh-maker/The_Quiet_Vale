@@ -810,6 +810,8 @@ h3 {
 #placement-panel,
 #selected-tile-panel,
 #encounter-panel,
+#steward-workspace-panel,
+#table-workspace,
 #simulation-panel,
 #table-review-panel,
 #debug-panel {
@@ -825,7 +827,7 @@ h3 {
 
 .play-top-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 430px);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   align-items: stretch;
 }
@@ -860,6 +862,145 @@ h3 {
 
 .play-bottom-tools .simulation-panel {
   max-height: none;
+}
+
+.table-workspace {
+  display: grid;
+  gap: 12px;
+}
+
+.table-workspace-header {
+  display: grid;
+  grid-template-columns: minmax(180px, auto) minmax(0, 1fr);
+  gap: 14px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid rgba(185, 147, 79, 0.32);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(246, 237, 220, 0.96), rgba(229, 215, 186, 0.94)),
+    repeating-linear-gradient(90deg, rgba(82, 65, 38, 0.045) 0, rgba(82, 65, 38, 0.045) 1px, transparent 1px, transparent 12px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+
+.table-workspace-header h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.1rem;
+}
+
+.table-workspace-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.table-workspace-tab {
+  display: grid;
+  gap: 3px;
+  min-height: 54px;
+  padding: 9px 11px;
+  border: 1px solid rgba(126, 104, 68, 0.3);
+  border-radius: 7px;
+  background: rgba(255, 250, 240, 0.72);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.table-workspace-tab:hover,
+.table-workspace-tab:focus-visible,
+.table-workspace-tab.is-active {
+  border-color: rgba(38, 51, 45, 0.72);
+  outline: none;
+  box-shadow: inset 0 0 0 1px rgba(38, 51, 45, 0.14), 0 8px 16px rgba(24, 32, 28, 0.08);
+}
+
+.table-workspace-tab.is-active {
+  background:
+    linear-gradient(180deg, rgba(46, 61, 53, 0.96), rgba(30, 39, 35, 0.96)),
+    var(--slate);
+  color: #fff7e8;
+}
+
+.table-workspace-tab span {
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.table-workspace-tab strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 0.8rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-workspace-body {
+  min-width: 0;
+}
+
+.steward-workspace-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-color: rgba(185, 147, 79, 0.32);
+  background:
+    linear-gradient(180deg, rgba(255, 250, 240, 0.98), rgba(239, 226, 201, 0.96)),
+    repeating-linear-gradient(90deg, rgba(109, 84, 45, 0.035) 0, rgba(109, 84, 45, 0.035) 1px, transparent 1px, transparent 10px);
+}
+
+.steward-workspace-grid {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.table-workspace-body.is-tiles #placement-panel {
+  grid-template-columns: minmax(330px, 430px) minmax(0, 1fr);
+  align-items: start;
+  padding: 16px;
+}
+
+.table-workspace-body.is-tiles #placement-panel > .tile-console-header,
+.table-workspace-body.is-tiles #placement-panel > .phase-note,
+.table-workspace-body.is-tiles #placement-panel > .tile-selected-details {
+  grid-column: 1 / -1;
+}
+
+.table-workspace-body.is-tiles #placement-panel > .tile-wire-placement-panel {
+  position: sticky;
+  top: 12px;
+  grid-column: 1;
+}
+
+.table-workspace-body.is-tiles #placement-panel > .tile-tray {
+  grid-column: 2;
+  grid-row: 2 / span 5;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  max-height: min(760px, 74vh);
+  padding-right: 4px;
+}
+
+.table-workspace-body.is-tiles #placement-panel > .result-message,
+.table-workspace-body.is-tiles #placement-panel > .empty-note {
+  grid-column: 1;
+}
+
+.selected-placement-face {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  border: 1px solid rgba(38, 51, 45, 0.18);
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 247, 0.72), rgba(232, 222, 196, 0.5));
+}
+
+.selected-placement-face .tile-face-svg {
+  width: min(100%, 390px);
 }
 
 .workspace {
@@ -4993,6 +5134,28 @@ summary {
 
   .current-action-buttons .testing-action {
     flex: 1 1 150px;
+  }
+
+  .table-workspace-header,
+  .table-workspace-body.is-tiles #placement-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .table-workspace-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .table-workspace-body.is-tiles #placement-panel > .tile-wire-placement-panel,
+  .table-workspace-body.is-tiles #placement-panel > .tile-tray,
+  .table-workspace-body.is-tiles #placement-panel > .result-message,
+  .table-workspace-body.is-tiles #placement-panel > .empty-note {
+    position: static;
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .table-workspace-body.is-tiles #placement-panel > .tile-tray {
+    max-height: none;
   }
 
   .workspace {
