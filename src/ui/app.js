@@ -4311,6 +4311,14 @@ function getBurdenStewardPowerProviders(game, tileIndex) {
   );
 }
 
+function getWardenBurdenSuppressionProviders(game, tileIndex) {
+  return getAvailableStewardPowerProviders(
+    game,
+    { tileIndex },
+    STEWARD_POWER_TYPES.SUPPRESS_BURDEN
+  );
+}
+
 function getActiveStewardExchangeProvider(game, tileIndex) {
   return (
     getAvailableStewardPowerProviders(
@@ -4375,61 +4383,7 @@ function renderStewardExchangeControls(game, placedTile, details, canUseStewardE
     return "";
   }
 
-  const selectedPayments = getStewardExchangePaymentChoices(placedTile.id, details);
-  const selectedGains = getStewardExchangeGainChoices(placedTile.id, details);
-
-  return `
-    <div class="steward-exchange-controls">
-      <label class="stacked-field activation-exchange-count">
-        <span>Steward Exchange Count</span>
-        <select id="steward-exchange-count" aria-label="Steward exchange count">
-          ${Array.from({ length: details.maxAmount }, (_, index) => index + 1)
-            .map(
-              (amount) =>
-                `<option value="${amount}" ${amount === selectedPayments.length ? "selected" : ""}>${amount}</option>`
-            )
-            .join("")}
-        </select>
-      </label>
-      <div class="burden-payment-grid activation-payment-grid" aria-label="Steward exchange payment resources">
-        ${selectedPayments
-          .map(
-            (selectedResource, index) => `
-              <select class="steward-exchange-payment-resource" data-placed-tile-id="${escapeHtml(placedTile.id)}" data-payment-index="${index}" aria-label="Steward exchange payment resource ${index + 1}">
-                <option value="">Pay...</option>
-                ${game.rules.resources
-                  .map(
-                    (resource) =>
-                      `<option value="${escapeHtml(resource)}" ${resource === selectedResource ? "selected" : ""}>${escapeHtml(resource)}</option>`
-                  )
-                  .join("")}
-              </select>
-            `
-          )
-          .join("")}
-      </div>
-      <div class="burden-payment-grid activation-gain-grid" aria-label="Steward exchange gain resources">
-        ${selectedGains
-          .map(
-            (selectedResource, index) => `
-              <select class="steward-exchange-gain-resource" data-placed-tile-id="${escapeHtml(placedTile.id)}" data-gain-index="${index}" aria-label="Steward exchange gain resource ${index + 1}">
-                <option value="">Gain...</option>
-                ${game.rules.resources
-                  .map(
-                    (resource) =>
-                      `<option value="${escapeHtml(resource)}" ${resource === selectedResource ? "selected" : ""}>${escapeHtml(resource)}</option>`
-                  )
-                  .join("")}
-              </select>
-            `
-          )
-          .join("")}
-      </div>
-      <div class="button-row steward-power-buttons">
-        <button id="use-steward-exchange" class="secondary-button" type="button" ${canUseStewardExchange ? "" : "disabled"}>Use Steward Power</button>
-      </div>
-    </div>
-  `;
+  return "";
 }
 
 function getActivationPaymentAction(placedTileId) {
@@ -4911,6 +4865,11 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
           const burdenStewardPowerProviders = burdenResolution?.supported
             ? getBurdenStewardPowerProviders(game, tileIndex)
             : [];
+          const wardenSuppressionProviders =
+            activeState.encounterType === ENCOUNTER_TYPES.BURDEN && !activeState.resolved
+              ? getWardenBurdenSuppressionProviders(game, tileIndex)
+              : [];
+          const selectedWardenSuppressionProvider = wardenSuppressionProviders[0] ?? null;
           const selectedBurdenStewardPowerId = getSelectedStewardPowerId(
             state.stewardBurdenPowerIds[activeState.id] ?? "",
             burdenStewardPowerProviders
@@ -4968,6 +4927,13 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
             Boolean(burdenRevealChoice) &&
             game.phase === GAME_PHASES.PLAYER_TURNS &&
             canAffordCost(game.warehouse, getBurdenChoicePaymentCost(activeState));
+          const canSuppressBurden =
+            playOpen &&
+            activeState.encounterType === ENCOUNTER_TYPES.BURDEN &&
+            game.phase === GAME_PHASES.PLAYER_TURNS &&
+            normalTurnActionsOpen &&
+            Boolean(selectedWardenSuppressionProvider) &&
+            !activeState.suppressedByStewardPower;
           const canResolveBoon =
             playOpen &&
             Boolean(boonStrainRelief || boonExchange || boonStewardHelp || goldenScroll || goldenSignet) &&
@@ -5032,6 +4998,11 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
                 ${
                   burdenResolution?.supported
                     ? `<button class="mini-action-button resolve-burden" data-active-encounter-id="${escapeHtml(activeState.id)}" type="button" ${canResolveBurden ? "" : "disabled"}>Resolve</button>`
+                    : ""
+                }
+                ${
+                  selectedWardenSuppressionProvider
+                    ? `<button class="mini-action-button suppress-burden" data-active-encounter-id="${escapeHtml(activeState.id)}" data-steward-power-provider-id="${escapeHtml(selectedWardenSuppressionProvider.placedTile.id)}" type="button" ${canSuppressBurden ? "" : "disabled"}>${activeState.suppressedByStewardPower ? "Ignored this round" : "Ignore this round"}</button>`
                     : ""
                 }
                 ${
@@ -9561,6 +9532,29 @@ function bindEvents() {
         delete state.burdenResolutionDiscounts[activeEncounterId];
         delete state.stewardBurdenPowerIds[activeEncounterId];
       }
+      renderApp();
+    });
+  });
+
+  root.querySelectorAll(".suppress-burden").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!isPlaySessionPlaying()) {
+        setBlockedPlaySessionResult("USE_STEWARD_POWER");
+        renderApp();
+        return;
+      }
+
+      const { state: nextGame, result } = dispatchGameAction(
+        state.game,
+        {
+          type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+          stewardPowerType: STEWARD_POWER_TYPES.SUPPRESS_BURDEN,
+          activeEncounterId: button.dataset.activeEncounterId,
+          placedTileId: button.dataset.stewardPowerProviderId
+        },
+        { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
+      );
+      applyGameOutcome(nextGame, result);
       renderApp();
     });
   });

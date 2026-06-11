@@ -9,8 +9,8 @@ export const MAP_COLUMN_LETTERS = Object.freeze(Array.from({ length: 14 }, (_, i
 export const MAP_ROW_NUMBERS = Object.freeze(Array.from({ length: 9 }, (_, index) => index + 1));
 
 export const EXPECTED_SOURCE_COUNTS = Object.freeze({
-  encounterCards: 80,
-  tiles: 77,
+  encounterCards: 84,
+  tiles: 79,
   mapHexes: 126,
   riverRules: 11
 });
@@ -525,10 +525,43 @@ export function validateMapOption(hexes, options = {}) {
 export function validateApprovedMap(hexes) {
   return validateMapOption(hexes, {
     label: "Approved map",
-    expectedRows: MAP_ROWS,
-    expectedColumns: MAP_COLUMNS,
-    expectedCoordinateConvention: COORDINATE_CONVENTIONS.ROW_LETTER_COLUMN_NUMBER,
+    expectedRows: MAP_ROW_NUMBERS,
+    expectedColumns: MAP_COLUMN_LETTERS,
+    expectedCoordinateConvention: COORDINATE_CONVENTIONS.COLUMN_LETTER_ROW_NUMBER,
     expectedHexes: EXPECTED_SOURCE_COUNTS.mapHexes,
-    expectedRiverComponents: 1
+    expectedRiverComponents: 1,
+    expectedTerrain: {
+      Grasslands: 75,
+      Water: 21,
+      Woodland: 6,
+      Mountains: 6,
+      Heaths: 6,
+      "Arable Land": 6,
+      Ruins: 6
+    },
+    expectedRiverCoordinates: [
+      "D1",
+      "D2",
+      "E3",
+      "F3",
+      "E4",
+      "G4",
+      "H4",
+      "E5",
+      "I5",
+      "J5",
+      "E6",
+      "K6",
+      "L6",
+      "E7",
+      "L7",
+      "E8",
+      "F8",
+      "M8",
+      "N8",
+      "G9",
+      "H9"
+    ],
+    requireWaterFeatureRiver: true
   });
 }

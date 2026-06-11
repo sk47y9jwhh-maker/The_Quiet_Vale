@@ -42,7 +42,12 @@ import {
 } from "./encounters.js";
 import { applyStrainToPlacedTile, resetRoundSupportUsage, setPlacedTileSupported } from "./strain.js";
 import { calculateScore } from "./scoring.js";
-import { validateActivateTile } from "./activation.js";
+import {
+  getAdjacentPlacedTiles as getActivationAdjacentPlacedTiles,
+  getPlacementSupportEffect,
+  getTravelNetworkSupportTargets,
+  validateActivateTile
+} from "./activation.js";
 import {
   STEWARD_POWER_TYPES,
   getAvailableStewardPowerProviders,
@@ -191,6 +196,12 @@ function validateStewardHouseSetupPlacement(state, action, context, pendingPlace
   const mapIndex = createMapIndex(state.map.hexes);
   const hex = mapIndex.get(action.coordinate);
   const errors = [];
+  const rangerAdjacentHeathsStart =
+    pendingPlacement?.role?.id === "ranger" &&
+    hex?.Terrain !== "Water" &&
+    getNeighborCoordinates(action.coordinate, mapIndex).some(
+      (neighborCoordinate) => mapIndex.get(neighborCoordinate)?.Terrain === "Heaths"
+    );
 
   if (!pendingPlacement) {
     errors.push("No Steward token placement is currently pending.");
@@ -198,7 +209,10 @@ function validateStewardHouseSetupPlacement(state, action, context, pendingPlace
 
   if (!hex) {
     errors.push(`Unknown map coordinate: ${action.coordinate}.`);
-  } else if (!isStewardHousePlacementTerrainForRole(pendingPlacement?.role, hex.Terrain)) {
+  } else if (
+    !isStewardHousePlacementTerrainForRole(pendingPlacement?.role, hex.Terrain) &&
+    !rangerAdjacentHeathsStart
+  ) {
     errors.push(`${pendingPlacement?.role?.name ?? "This Steward"} must place their token on ${pendingPlacement?.terrainOptions?.join(" or ") ?? "their setup terrain"}.`);
   }
 
@@ -352,6 +366,77 @@ function createStablesPairActionCost() {
   };
 }
 
+function categoryMatchesSupportTarget(tile, categories = []) {
+  return (
+    !categories?.length ||
+    categories.includes(tile?.tile_category) ||
+    categories.includes(tile?.internal_role_tag)
+  );
+}
+
+function applyPlacementSupportEffects(state, placedTiles, context = {}) {
+  const tileIndex = context.tileIndex ?? createTileIndex(context.tiles ?? []);
+  let workingState = {
+    ...state,
+    map: {
+      ...state.map,
+      placedTiles: [...state.map.placedTiles, ...placedTiles]
+    }
+  };
+  const applications = [];
+
+  for (const sourcePlacedTile of placedTiles) {
+    const sourceDefinition = tileIndex.get(sourcePlacedTile.tileId);
+    const supportEffect = getPlacementSupportEffect(sourceDefinition);
+
+    if (!supportEffect) {
+      continue;
+    }
+
+    const candidates =
+      supportEffect.type === "give_supported_travel_network"
+        ? getTravelNetworkSupportTargets(workingState, sourcePlacedTile, tileIndex)
+        : getActivationAdjacentPlacedTiles(workingState, sourcePlacedTile)
+            .filter((candidate) => !isOverstrainedPlacedTile(candidate))
+            .filter((candidate) => !candidate.supported)
+            .filter((candidate) => categoryMatchesSupportTarget(tileIndex.get(candidate.tileId), supportEffect.targetCategories));
+
+    const targets = sortPlacedTilesById(candidates).slice(0, supportEffect.maxTargets ?? candidates.length);
+
+    if (targets.length === 0) {
+      continue;
+    }
+
+    const targetIds = new Set(targets.map((target) => target.id));
+    workingState = {
+      ...workingState,
+      map: {
+        ...workingState.map,
+        placedTiles: workingState.map.placedTiles.map((placedTile) =>
+          targetIds.has(placedTile.id) ? setPlacedTileSupported(placedTile, true) : placedTile
+        )
+      }
+    };
+
+    for (const target of targets) {
+      applications.push({
+        sourcePlacedTileId: sourcePlacedTile.id,
+        sourceTileId: sourcePlacedTile.tileId,
+        sourceTileName: sourceDefinition?.tile_name ?? sourcePlacedTile.tileId,
+        targetPlacedTileId: target.id,
+        targetTileId: target.tileId,
+        targetTileName: getTileName(context, target.tileId),
+        supportType: supportEffect.type
+      });
+    }
+  }
+
+  return {
+    placedTiles: workingState.map.placedTiles,
+    applications
+  };
+}
+
 function createStewardPowerUse(provider, actionCost, operation) {
   if (!provider) {
     return null;
@@ -368,6 +453,84 @@ function createStewardPowerUse(provider, actionCost, operation) {
     providerTileName: provider.tile?.tile_name ?? provider.placedTile?.tileId ?? "Steward Power",
     actionCost
   };
+}
+
+function reduceFirstAffordableResource(cost, preferredResource = null) {
+  const target = preferredResource
+    ? cost.find((entry) => entry.resource === preferredResource && entry.amount > 0)
+    : cost.find((entry) => entry.amount > 0);
+
+  if (!target) {
+    return null;
+  }
+
+  const reducedCost = cost
+    .map((entry) =>
+      entry.resource === target.resource
+        ? {
+            ...entry,
+            amount: Math.max(0, entry.amount - 1)
+          }
+        : entry
+    )
+    .filter((entry) => entry.amount > 0);
+
+  return {
+    originalCost: cost,
+    cost: reducedCost,
+    reduction: [{ amount: 1, resource: target.resource }]
+  };
+}
+
+function getStewardStartingCostReduction(player, tile, operation, cost, action = {}) {
+  if (!player || player.stewardStartingBenefitUsed || cost.length === 0) {
+    return null;
+  }
+
+  const roleId = player.stewardRoleId;
+  const qualifies =
+    (roleId === "vanguard" && operation === "placement" && ["Travel", "Resource"].includes(tile.tile_category)) ||
+    (roleId === "knight" && operation === "placement" && tile.tile_category === "Housing") ||
+    (roleId === "sentinel" && operation === "upgrade");
+
+  if (!qualifies) {
+    return null;
+  }
+
+  const reduced = reduceFirstAffordableResource(cost, action.stewardStartingBenefitResource);
+  if (!reduced) {
+    return null;
+  }
+
+  return {
+    source: "steward_starting_benefit",
+    roleId,
+    operation,
+    ...reduced
+  };
+}
+
+function shouldApplyWardenStartingSupport(player, operation) {
+  return (
+    player?.stewardRoleId === "warden" &&
+    !player.stewardStartingBenefitUsed &&
+    operation === "placement"
+  );
+}
+
+function markPlayerStartingBenefitUsed(players, playerId, benefit) {
+  if (!benefit) {
+    return players;
+  }
+
+  return players.map((player) =>
+    player.id === playerId
+      ? {
+          ...player,
+          stewardStartingBenefitUsed: true
+        }
+      : player
+  );
 }
 
 function applyStewardPowerActionReduction(actionCost, provider, operation, reduceCost) {
@@ -425,7 +588,9 @@ function getRequestedPlacementStewardPowerProvider(state, action, context, tile,
     state,
     context,
     STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION,
-    () => baseActionCost.blockedByReachability === true
+    (provider) =>
+      baseActionCost.blockedByReachability === true &&
+      (!provider.details.categories || provider.details.categories.includes(tile.tile_category))
   );
   const provider = [...placementProviders, ...disconnectedProviders].find(
     (candidate) => candidate.placedTile.id === action.stewardPowerPlacedTileId
@@ -523,15 +688,9 @@ function allowStewardReachabilityBypass(actionCost, provider) {
     connected: true,
     blockedByReachability: false,
     disconnectedTravelIgnored: true,
-    disconnectedTravelIgnoreReason: "ranger_steward_power",
-    total: 0
+    disconnectedTravelIgnoreReason: `${provider.role?.id ?? "steward"}_steward_power`,
+    total: actionCost.total
   };
-
-  for (const actionKey of ["placeActionCost", "activationActionCost", "upgradeActionCost", "tileActionCost"]) {
-    if (Object.hasOwn(nextActionCost, actionKey)) {
-      nextActionCost[actionKey] = 0;
-    }
-  }
 
   return nextActionCost;
 }
@@ -570,9 +729,148 @@ function summarizeResourcePayment(payment = []) {
   return [...amounts.entries()].map(([resource, amount]) => ({ resource, amount }));
 }
 
+function subtractResourceAmounts(cost, reduction) {
+  return cost
+    .map((entry) => {
+      const reductionEntry = reduction.find((candidate) => candidate.resource === entry.resource);
+
+      return reductionEntry
+        ? {
+            ...entry,
+            amount: entry.amount - reductionEntry.amount
+          }
+        : entry;
+    })
+    .filter((entry) => entry.amount > 0);
+}
+
+function resolveStewardResourceSubstitution(state, action, context, cost, operation) {
+  const providerId =
+    action.stewardResourceSubstitutionPowerId ??
+    action.resourceSubstitutionStewardPowerPlacedTileId ??
+    action.resourceSubstitutionPowerId ??
+    "";
+
+  if (!providerId || cost.length === 0) {
+    return {
+      valid: true,
+      errors: [],
+      cost,
+      substitution: null,
+      stewardPower: null
+    };
+  }
+
+  const stewardPowerProvider = getRequestedStewardPowerProvider(
+    state,
+    {
+      ...context,
+      allowAnyPlayer: true
+    },
+    providerId,
+    STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
+  );
+
+  if (!stewardPowerProvider.valid || !stewardPowerProvider.provider) {
+    return {
+      valid: false,
+      errors: stewardPowerProvider.errors.length
+        ? stewardPowerProvider.errors
+        : ["Choose an available Quartermaster substitution."],
+      cost,
+      substitution: null,
+      stewardPower: null
+    };
+  }
+
+  const selectedResources = (action.stewardResourceSubstitutionResources ?? action.substitutedCostResources ?? [])
+    .filter(Boolean);
+  const payment = summarizeResourcePayment(
+    action.stewardResourceSubstitutionPayment ?? action.substitutionPayment ?? []
+  );
+  const reduction = summarizeResourcePayment(
+    selectedResources.map((resource) => ({
+      resource,
+      amount: 1
+    }))
+  );
+  const amountSubstituted = reduction.reduce((total, entry) => total + entry.amount, 0);
+  const amountPaid = payment.reduce((total, entry) => total + entry.amount, 0);
+  const maxAmount = stewardPowerProvider.provider.details.maxAmount ?? 3;
+  const errors = [];
+
+  if (amountSubstituted < 1 || amountSubstituted > maxAmount) {
+    errors.push(`Choose 1-${maxAmount} resources from the cost for Quartermaster to substitute.`);
+  }
+
+  if (amountPaid !== amountSubstituted) {
+    errors.push("Choose the same number of replacement resources to pay.");
+  }
+
+  for (const entry of reduction) {
+    const costEntry = cost.find((candidate) => candidate.resource === entry.resource);
+
+    if (!costEntry) {
+      errors.push(`${entry.resource} is not part of this cost.`);
+    } else if (entry.amount > costEntry.amount) {
+      errors.push(`This cost only contains ${costEntry.amount} ${entry.resource}.`);
+    }
+  }
+
+  for (const { resource, amount } of payment) {
+    if (!state.rules.resources.includes(resource)) {
+      errors.push(`${resource} is not a valid Warehouse resource.`);
+    }
+
+    if (!Number.isInteger(amount) || amount <= 0) {
+      errors.push("Quartermaster replacement amounts must be positive whole numbers.");
+    }
+  }
+
+  const substitutedCost = summarizeResourcePayment([...subtractResourceAmounts(cost, reduction), ...payment]);
+
+  if (errors.length === 0 && !canAffordCost(state.warehouse, substitutedCost)) {
+    errors.push(`Quartermaster substitution would cost ${describeResourceAmounts(substitutedCost)}, which is not available in the Warehouse.`);
+  }
+
+  if (errors.length > 0) {
+    return {
+      valid: false,
+      errors,
+      cost,
+      substitution: null,
+      stewardPower: null
+    };
+  }
+
+  const stewardPower = createStewardPowerUse(
+    stewardPowerProvider.provider,
+    { total: 0 },
+    `${operation}_resource_substitution`
+  );
+
+  return {
+    valid: true,
+    errors: [],
+    cost: substitutedCost,
+    substitution: {
+      source: "steward_power",
+      type: STEWARD_POWER_TYPES.RESOURCE_EXCHANGE,
+      originalCost: cost,
+      cost: substitutedCost,
+      reduction,
+      payment,
+      amountSubstituted,
+      stewardPower
+    },
+    stewardPower
+  };
+}
+
 function parseArrivalResourceAmounts(text) {
   const errors = [];
   const cost = String(text ?? "")
+    .replace(/^Pay\s+/i, "")
     .replace(/\.$/, "")
     .split(/\n|,|\s+and\s+/i)
     .map((part) => part.trim())
@@ -1227,6 +1525,7 @@ function getBurdenChoicePayment(effect, decisions) {
 function applyBurdenChoiceStrain(state, effect, decisions, context) {
   let workingState = state;
   const applications = [];
+  const strainAmount = Number(effect.strainAmount ?? 1);
 
   for (const decision of decisions) {
     if (decision.mode !== "strain") {
@@ -1239,8 +1538,8 @@ function applyBurdenChoiceStrain(state, effect, decisions, context) {
     }
 
     const support = getEffectiveSupportDetails(workingState, placedTile.id, context);
-    const result = applyStrainToPlacedTile(placedTile, 1, {
-      supported: support.supported
+    const result = applyStrainToPlacedTile(placedTile, strainAmount, {
+      supportDetails: support
     });
 
     if (!result.valid) {
@@ -1263,7 +1562,7 @@ function applyBurdenChoiceStrain(state, effect, decisions, context) {
       tileName: getTileName(context, placedTile.tileId),
       before: placedTile.strain ?? 0,
       after: result.placedTile.strain,
-      requestedStrain: 1,
+      requestedStrain: strainAmount,
       strainAdded: result.strainAdded,
       strainPrevented: result.strainPrevented,
       blockedByMax: result.blockedByMax,
@@ -1408,21 +1707,58 @@ function resolveBurdenChoice(state, action, context) {
   }
 
   const payment = getBurdenChoicePayment(effect, decisions.decisions);
-  if (!canAffordCost(state.warehouse, payment)) {
+  const stewardResourceSubstitution = resolveStewardResourceSubstitution(
+    state,
+    action,
+    context,
+    payment,
+    "burden_choice"
+  );
+
+  if (!stewardResourceSubstitution.valid) {
     return {
       state,
       result: {
         ok: false,
         action: TILE_ACTION_TYPES.RESOLVE_BURDEN_CHOICE,
-        errors: [`${effect.cardName} needs ${describeResourceAmounts(payment)} available in the Warehouse.`],
+        errors: stewardResourceSubstitution.errors,
         payment
+      }
+    };
+  }
+
+  const finalPayment = stewardResourceSubstitution.cost;
+
+  if (!canAffordCost(state.warehouse, finalPayment)) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.RESOLVE_BURDEN_CHOICE,
+        errors: [`${effect.cardName} needs ${describeResourceAmounts(finalPayment)} available in the Warehouse.`],
+        payment: finalPayment,
+        basePayment: payment,
+        stewardResourceSubstitution: stewardResourceSubstitution.substitution
       }
     };
   }
 
   const paidState = {
     ...state,
-    warehouse: spendWarehouseResources(state.warehouse, payment)
+    players: markPlayerStewardPowerProviderUsed(
+      state.players,
+      stewardResourceSubstitution.stewardPower,
+      state.season
+    ),
+    map: {
+      ...state.map,
+      placedTiles: markStewardPowerProviderUsed(
+        state.map.placedTiles,
+        stewardResourceSubstitution.stewardPower,
+        state.season
+      )
+    },
+    warehouse: spendWarehouseResources(state.warehouse, finalPayment)
   };
   const choiceApplication =
     effect.type === "arrival_pay_or_timer_choice"
@@ -1432,7 +1768,9 @@ function resolveBurdenChoice(state, action, context) {
     ...effect,
     resolved: true,
     decisions: decisions.decisions,
-    payment,
+    payment: finalPayment,
+    basePayment: payment,
+    stewardResourceSubstitution: stewardResourceSubstitution.substitution,
     applications: choiceApplication.applications,
     strainAdded: choiceApplication.applications.reduce((total, application) => total + (application.strainAdded ?? 0), 0),
     strainPrevented: choiceApplication.applications.reduce(
@@ -1445,7 +1783,7 @@ function resolveBurdenChoice(state, action, context) {
       0
     )
   };
-  const paidText = payment.length ? `paid ${describeResourceAmounts(payment)}` : "";
+  const paidText = finalPayment.length ? `paid ${describeResourceAmounts(finalPayment)}` : "";
   const strainedNames = choiceApplication.applications
     .filter((application) => application.strainAdded > 0 || application.strainPrevented > 0)
     .map((application) => application.tileName);
@@ -1484,7 +1822,9 @@ function resolveBurdenChoice(state, action, context) {
         activeEncounterId: activeBurden.id,
         cardId: activeBurden.cardId,
         effect: resolvedEffect,
-        payment,
+        payment: finalPayment,
+        basePayment: payment,
+        stewardResourceSubstitution: stewardResourceSubstitution.substitution,
         decisions: decisions.decisions
       })
     ]
@@ -1497,7 +1837,9 @@ function resolveBurdenChoice(state, action, context) {
       action: TILE_ACTION_TYPES.RESOLVE_BURDEN_CHOICE,
       message: `Applied ${effect.cardName}: ${summary}.`,
       effect: resolvedEffect,
-      payment,
+      payment: finalPayment,
+      basePayment: payment,
+      stewardResourceSubstitution: stewardResourceSubstitution.substitution,
       decisions: decisions.decisions,
       applications: choiceApplication.applications
     }
@@ -1543,7 +1885,14 @@ function placeTile(state, action, context) {
     };
   }
 
-  const validation = validatePlaceTile(state, action, context);
+  const validation = validatePlaceTile(
+    state,
+    {
+      ...action,
+      deferAffordabilityCheck: Boolean(action.stewardResourceSubstitutionPowerId)
+    },
+    context
+  );
 
   if (!validation.valid) {
     return {
@@ -1557,6 +1906,42 @@ function placeTile(state, action, context) {
   }
 
   const pairedStablesPlacement = isStablesPlacementTile(validation.tile);
+  const stewardStartingCostReduction = getStewardStartingCostReduction(
+    player,
+    validation.tile,
+    "placement",
+    validation.cost,
+    action
+  );
+  const placementCostBeforeStewardSubstitution = stewardStartingCostReduction?.cost ?? validation.cost;
+  const stewardResourceSubstitution = resolveStewardResourceSubstitution(
+    state,
+    action,
+    context,
+    placementCostBeforeStewardSubstitution,
+    "placement"
+  );
+
+  if (!stewardResourceSubstitution.valid) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.PLACE_TILE,
+        errors: stewardResourceSubstitution.errors,
+        cost: placementCostBeforeStewardSubstitution
+      }
+    };
+  }
+
+  const placementCost = stewardResourceSubstitution.cost;
+  const wardenStartingSupport = shouldApplyWardenStartingSupport(player, "placement")
+    ? {
+        source: "steward_starting_benefit",
+        roleId: "warden",
+        effect: "first_placed_tile_supported"
+      }
+    : null;
   const pairedCoordinate = action.pairedCoordinate ?? action.secondCoordinate ?? null;
   const pairedValidation = pairedStablesPlacement && pairedCoordinate
     ? validatePlaceTile(
@@ -1564,7 +1949,8 @@ function placeTile(state, action, context) {
         {
           ...action,
           coordinate: pairedCoordinate,
-          orientation: action.pairedOrientation ?? action.orientation
+          orientation: action.pairedOrientation ?? action.orientation,
+          deferAffordabilityCheck: Boolean(action.stewardResourceSubstitutionPowerId)
         },
         context
       )
@@ -1721,12 +2107,24 @@ function placeTile(state, action, context) {
       : existingTile
   );
   const placedTilesAfterStewardPower = markStewardPowerProviderUsed(
-    placedTilesAfterGoodsSubstitution,
+    markStewardPowerProviderUsed(
+      placedTilesAfterGoodsSubstitution,
+      stewardResourceSubstitution.stewardPower,
+      actionState.season
+    ),
     stewardPower,
     actionState.season
   );
   const playersAfterStewardPower = markPlayerStewardPowerProviderUsed(
-    actionState.players,
+    markPlayerStewardPowerProviderUsed(
+      markPlayerStartingBenefitUsed(
+        actionState.players,
+        player.id,
+        stewardStartingCostReduction ?? wardenStartingSupport
+      ),
+      stewardResourceSubstitution.stewardPower,
+      actionState.season
+    ),
     stewardPower,
     actionState.season
   );
@@ -1742,19 +2140,60 @@ function placeTile(state, action, context) {
     encounterAfterActionDiscount,
     disconnectedTravelActionDiscount
   );
+  const placementSupport = applyPlacementSupportEffects(
+    {
+      ...actionState,
+      map: {
+        ...actionState.map,
+        placedTiles: placedTilesAfterStewardPower
+      }
+    },
+    placedTiles,
+    context
+  );
+  const placedTilesAfterStartingSupport = wardenStartingSupport
+    ? placementSupport.placedTiles.map((candidate) =>
+        placedTiles.some((placedTileRecord) => placedTileRecord.id === candidate.id)
+          ? setPlacedTileSupported(candidate, true)
+          : candidate
+      )
+    : placementSupport.placedTiles;
+  const placementTileIndex = context.tileIndex ?? createTileIndex(context.tiles ?? []);
+  const knightHousingSupport =
+    stewardPower?.providerRoleId === "knight" && validation.tile.tile_category === "Housing"
+      ? placedTiles.some((newTile) =>
+          getActivationAdjacentPlacedTiles(
+            {
+              ...actionState,
+              map: {
+                ...actionState.map,
+                placedTiles: placedTilesAfterStartingSupport
+              }
+            },
+            newTile
+          ).some((adjacentTile) => placementTileIndex.get(adjacentTile.tileId)?.tile_category === "Housing")
+        )
+      : false;
+  const placedTilesAfterKnightSupport = knightHousingSupport
+    ? placedTilesAfterStartingSupport.map((candidate) =>
+        placedTiles.some((placedTileRecord) => placedTileRecord.id === candidate.id)
+          ? setPlacedTileSupported(candidate, true)
+          : candidate
+      )
+    : placedTilesAfterStartingSupport;
   const nextState = {
     ...actionState,
     players: playersAfterStewardPower,
     map: {
       ...actionState.map,
-      placedTiles: [...placedTilesAfterStewardPower, ...placedTiles]
+      placedTiles: placedTilesAfterKnightSupport
     },
     encounter: encounterAfterTravelDiscount,
     tileSupply: updateTileSupply(actionState, action.tileId, (entry) => ({
       ...entry,
       available: entry.available - stockSpent
     })),
-    warehouse: spendWarehouseResources(actionState.warehouse, validation.cost),
+    warehouse: spendWarehouseResources(actionState.warehouse, placementCost),
     log: [
       ...actionState.log,
       createActionLogEntry(actionState, "place_tile", `Placed ${validation.tile.tile_name} on ${placedTiles.map((tile) => tile.coordinate).join(" and ")}.`, {
@@ -1771,9 +2210,14 @@ function placeTile(state, action, context) {
         disconnectedTravelActionDiscount,
         stewardPower,
         baseCost: validation.baseCost,
-        cost: validation.cost,
+        cost: placementCost,
+        stewardResourceSubstitution: stewardResourceSubstitution.substitution,
+        stewardStartingCostReduction,
+        wardenStartingSupport,
+        knightHousingSupport,
         placementCostReduction: validation.placementCostReduction,
         resourceCostSubstitution: validation.resourceCostSubstitution,
+        placementSupportApplications: placementSupport.applications,
         remainingStock: supplyEntry.available - stockSpent
       })
     ]
@@ -1790,11 +2234,17 @@ function placeTile(state, action, context) {
       disconnectedTravelActionDiscount,
       stewardPower,
       baseCost: validation.baseCost,
-      cost: validation.cost,
+      cost: placementCost,
+      stewardResourceSubstitution: stewardResourceSubstitution.substitution,
+      stewardStartingCostReduction,
+      wardenStartingSupport,
       placementCostReduction: validation.placementCostReduction,
       resourceCostSubstitution: validation.resourceCostSubstitution,
       placedTile,
-      placedTiles
+      placedTiles: placedTilesAfterKnightSupport.filter((candidate) =>
+        placedTiles.some((placedTileRecord) => placedTileRecord.id === candidate.id)
+      ),
+      placementSupportApplications: placementSupport.applications
     }
   };
 }
@@ -1849,11 +2299,17 @@ function activateTile(state, action, context) {
     },
     "activationActionCost"
   );
+  const actionDiscount = getDiscountedTileActionCost(
+    state,
+    validation.tile,
+    "activation",
+    baseActionCost
+  );
   const stewardPowerProvider = getRequestedReachabilityStewardPowerProvider(
     state,
     action,
     context,
-    baseActionCost,
+    actionDiscount.actionCost,
     "activation"
   );
 
@@ -1871,7 +2327,7 @@ function activateTile(state, action, context) {
   const travelDiscount = getDiscountedDisconnectedTravelActionCost(
     state,
     "activation",
-    baseActionCost
+    actionDiscount.actionCost
   );
   const stewardPowerReduction = applyStewardPowerActionReduction(
     travelDiscount.actionCost,
@@ -1881,6 +2337,7 @@ function activateTile(state, action, context) {
   );
   const actionCost = stewardPowerReduction.actionCost;
   const stewardPower = stewardPowerReduction.stewardPower;
+  const actionCostDiscount = actionDiscount.actionCostDiscount;
   const disconnectedTravelActionDiscount = travelDiscount.actionCostDiscount;
 
   if (actionCost.blockedByReachability) {
@@ -1922,7 +2379,10 @@ function activateTile(state, action, context) {
       ...interactionState.map,
       placedTiles: markStewardPowerProviderUsed(interactionState.map.placedTiles, stewardPower, interactionState.season)
     },
-    encounter: applyActionCostDiscountUse(interactionState.encounter, disconnectedTravelActionDiscount)
+    encounter: applyActionCostDiscountUse(
+      applyActionCostDiscountUse(interactionState.encounter, actionCostDiscount),
+      disconnectedTravelActionDiscount
+    )
   };
 
   if (validation.activation.type === "remove_strain_adjacent") {
@@ -1989,7 +2449,10 @@ function activateTile(state, action, context) {
     };
   }
 
-  if (validation.activation.type === "give_supported_adjacent") {
+  if (
+    validation.activation.type === "give_supported_adjacent" ||
+    validation.activation.type === "give_supported_travel_network"
+  ) {
     const supportTargetsById = new Map(
       validation.supportTargetPlacedTiles.map((target) => [target.id, setPlacedTileSupported(target, true)])
     );
@@ -2336,7 +2799,14 @@ function upgradeTile(state, action, context) {
     };
   }
 
-  const validation = validateUpgradeTile(state, action, context);
+  const validation = validateUpgradeTile(
+    state,
+    {
+      ...action,
+      deferAffordabilityCheck: Boolean(action.stewardResourceSubstitutionPowerId)
+    },
+    context
+  );
   if (!validation.valid) {
     return {
       state,
@@ -2450,6 +2920,35 @@ function upgradeTile(state, action, context) {
     };
   }
 
+  const stewardStartingCostReduction = getStewardStartingCostReduction(
+    player,
+    validation.upgradeTile,
+    "upgrade",
+    validation.cost,
+    action
+  );
+  const upgradeCostBeforeStewardSubstitution = stewardStartingCostReduction?.cost ?? validation.cost;
+  const stewardResourceSubstitution = resolveStewardResourceSubstitution(
+    state,
+    action,
+    context,
+    upgradeCostBeforeStewardSubstitution,
+    "upgrade"
+  );
+
+  if (!stewardResourceSubstitution.valid) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.UPGRADE_TILE,
+        errors: stewardResourceSubstitution.errors,
+        cost: upgradeCostBeforeStewardSubstitution
+      }
+    };
+  }
+
+  const upgradeCost = stewardResourceSubstitution.cost;
   const upgradedPlacedTile = {
     ...validation.placedTile,
     tileId: validation.upgradeTile.tile_id,
@@ -2488,17 +2987,29 @@ function upgradeTile(state, action, context) {
   );
   const nextState = {
     ...actionState,
-    players: markPlayerStewardPowerProviderUsed(actionState.players, stewardPower, actionState.season),
+    players: markPlayerStewardPowerProviderUsed(
+      markPlayerStewardPowerProviderUsed(
+        markPlayerStartingBenefitUsed(actionState.players, player.id, stewardStartingCostReduction),
+        stewardResourceSubstitution.stewardPower,
+        actionState.season
+      ),
+      stewardPower,
+      actionState.season
+    ),
     map: {
       ...actionState.map,
       placedTiles: markStewardPowerProviderUsed(
-        placedTilesAfterGoodsSubstitution,
+        markStewardPowerProviderUsed(
+          placedTilesAfterGoodsSubstitution,
+          stewardResourceSubstitution.stewardPower,
+          actionState.season
+        ),
         stewardPower,
         actionState.season
       )
     },
     encounter: encounterAfterTravelDiscount,
-    warehouse: spendWarehouseResources(actionState.warehouse, validation.cost),
+    warehouse: spendWarehouseResources(actionState.warehouse, upgradeCost),
     log: [
       ...actionState.log,
       createActionLogEntry(
@@ -2517,7 +3028,9 @@ function upgradeTile(state, action, context) {
           baseCost: validation.baseCost,
           upgradeCostReduction: validation.upgradeCostReduction,
           resourceCostSubstitution: validation.resourceCostSubstitution,
-          cost: validation.cost
+          stewardStartingCostReduction,
+          stewardResourceSubstitution: stewardResourceSubstitution.substitution,
+          cost: upgradeCost
         }
       )
     ]
@@ -2533,7 +3046,9 @@ function upgradeTile(state, action, context) {
       baseCost: validation.baseCost,
       upgradeCostReduction: validation.upgradeCostReduction,
       resourceCostSubstitution: validation.resourceCostSubstitution,
-      cost: validation.cost,
+      stewardStartingCostReduction,
+      stewardResourceSubstitution: stewardResourceSubstitution.substitution,
+      cost: upgradeCost,
       actionCost,
       actionCostDiscount,
       disconnectedTravelActionDiscount,
@@ -2569,6 +3084,113 @@ function useStewardPower(state, action, context) {
   const openingBlock = blockForPendingOpeningPlacement(state, TILE_ACTION_TYPES.USE_STEWARD_POWER, player.id);
   if (openingBlock) {
     return openingBlock;
+  }
+
+  if ((action.stewardPowerType ?? action.powerType) === STEWARD_POWER_TYPES.SUPPRESS_BURDEN) {
+    const activeBurden = state.encounter.active.find((activeState) => activeState.id === action.activeEncounterId);
+
+    if (!activeBurden) {
+      return {
+        state,
+        result: {
+          ok: false,
+          action: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+          errors: [`Unknown active Encounter: ${action.activeEncounterId}`]
+        }
+      };
+    }
+
+    if (activeBurden.encounterType !== ENCOUNTER_TYPES.BURDEN || activeBurden.resolved) {
+      return {
+        state,
+        result: {
+          ok: false,
+          action: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+          errors: ["Warden can only suppress an unresolved active Burden."]
+        }
+      };
+    }
+
+    const stewardPowerProvider = getRequestedStewardPowerProvider(
+      state,
+      context,
+      action.placedTileId ?? action.stewardPowerPlacedTileId,
+      STEWARD_POWER_TYPES.SUPPRESS_BURDEN
+    );
+
+    if (!stewardPowerProvider.valid || !stewardPowerProvider.provider) {
+      return {
+        state,
+        result: {
+          ok: false,
+          action: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+          errors: stewardPowerProvider.errors.length
+            ? stewardPowerProvider.errors
+            : ["Choose an available Warden Steward Power."]
+        }
+      };
+    }
+
+    const encounterIndex = getEncounterIndex(context);
+    const cardName = encounterIndex.get(activeBurden.cardId)?.card_name ?? activeBurden.cardId;
+    const stewardPower = createStewardPowerUse(
+      stewardPowerProvider.provider,
+      { total: 0 },
+      "burden_suppression"
+    );
+    const suppression = {
+      type: "steward_burden_suppression",
+      activeEncounterId: activeBurden.id,
+      cardId: activeBurden.cardId,
+      cardName,
+      round: state.round,
+      season: state.season,
+      stewardPower
+    };
+    const nextState = {
+      ...state,
+      players: markPlayerStewardPowerProviderUsed(state.players, stewardPower, state.season),
+      map: {
+        ...state.map,
+        placedTiles: markStewardPowerProviderUsed(state.map.placedTiles, stewardPower, state.season)
+      },
+      encounter: {
+        ...state.encounter,
+        active: state.encounter.active.map((activeState) =>
+          activeState.id === activeBurden.id
+            ? {
+                ...activeState,
+                pendingChoice: null,
+                suppressedByStewardPower: suppression,
+                applications: [...(activeState.applications ?? []), suppression]
+              }
+            : activeState
+        )
+      },
+      log: [
+        ...state.log,
+        createActionLogEntry(state, "steward_power", `Warden ignored ${cardName} until the end of this round.`, {
+          playerId: player.id,
+          activeEncounterId: activeBurden.id,
+          cardId: activeBurden.cardId,
+          stewardPower,
+          suppression
+        })
+      ]
+    };
+
+    return {
+      state: nextState,
+      result: {
+        ok: true,
+        action: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+        message: `Warden ignored ${cardName} until the end of this round.`,
+        activeEncounterId: activeBurden.id,
+        cardId: activeBurden.cardId,
+        stewardPower,
+        suppression
+      }
+    };
   }
 
   const stewardPowerProvider = getRequestedStewardPowerProvider(
@@ -2744,7 +3366,7 @@ function applyTileStrain(state, action, context) {
     : { supported: false, providers: [] };
   const strain = applyStrainToPlacedTile(placedTile, action.amount ?? 1, {
     ignoreSupported: action.ignoreSupported,
-    supported: support.supported
+    supportDetails: support
   });
 
   if (!strain.valid) {
@@ -3060,14 +3682,38 @@ function completeArrival(state, action, context) {
     };
   }
 
-  if (!canAffordCost(state.warehouse, discountedRequirement.cost)) {
+  const stewardResourceSubstitution = resolveStewardResourceSubstitution(
+    state,
+    action,
+    context,
+    discountedRequirement.cost,
+    "arrival_completion"
+  );
+
+  if (!stewardResourceSubstitution.valid) {
     return {
       state,
       result: {
         ok: false,
         action: TILE_ACTION_TYPES.COMPLETE_ARRIVAL,
-        errors: [`Arrival requires ${describeResourceAmounts(discountedRequirement.cost)}.`],
+        errors: stewardResourceSubstitution.errors,
         requirementCost: discountedRequirement.cost,
+        baseRequirementCost: requirement.cost,
+        arrivalRequirementDiscount: discountedRequirement.discount
+      }
+    };
+  }
+
+  const requirementCost = stewardResourceSubstitution.cost;
+
+  if (!canAffordCost(state.warehouse, requirementCost)) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.COMPLETE_ARRIVAL,
+        errors: [`Arrival requires ${describeResourceAmounts(requirementCost)}.`],
+        requirementCost,
         baseRequirementCost: requirement.cost,
         arrivalRequirementDiscount: discountedRequirement.discount
       }
@@ -3080,8 +3726,9 @@ function completeArrival(state, action, context) {
     resolved: true,
     completedRound: state.round,
     baseRequirementCost: requirement.cost,
-    requirementCost: discountedRequirement.cost,
+    requirementCost,
     arrivalRequirementDiscount: discountedRequirement.discount,
+    stewardResourceSubstitution: stewardResourceSubstitution.substitution,
     tileRequirements: requirement.tileRequirements
   };
   const unlockedSpecialEntries = state.tileSupply.special.filter(
@@ -3090,6 +3737,19 @@ function completeArrival(state, action, context) {
   const actionState = spendPlayerActions(state, player.id, { total: 1 });
   const nextState = {
     ...actionState,
+    players: markPlayerStewardPowerProviderUsed(
+      actionState.players,
+      stewardResourceSubstitution.stewardPower,
+      actionState.season
+    ),
+    map: {
+      ...actionState.map,
+      placedTiles: markStewardPowerProviderUsed(
+        actionState.map.placedTiles,
+        stewardResourceSubstitution.stewardPower,
+        actionState.season
+      )
+    },
     encounter: {
       ...actionState.encounter,
       active: actionState.encounter.active.filter((activeState) => activeState.id !== action.activeEncounterId),
@@ -3103,7 +3763,7 @@ function completeArrival(state, action, context) {
           )
         : actionState.encounter.roundEffects
     },
-    warehouse: spendWarehouseResources(actionState.warehouse, discountedRequirement.cost),
+    warehouse: spendWarehouseResources(actionState.warehouse, requirementCost),
     tileSupply: {
       ...actionState.tileSupply,
       special: actionState.tileSupply.special.map((entry) =>
@@ -3124,8 +3784,9 @@ function completeArrival(state, action, context) {
         cardId: activeArrival.cardId,
         requirementText: requirement.text,
         baseRequirementCost: requirement.cost,
-        requirementCost: discountedRequirement.cost,
+        requirementCost,
         arrivalRequirementDiscount: discountedRequirement.discount,
+        stewardResourceSubstitution: stewardResourceSubstitution.substitution,
         tileRequirements: requirement.tileRequirements,
         unlockedTileIds: unlockedSpecialEntries.map((entry) => entry.tileId)
       })
@@ -3140,8 +3801,9 @@ function completeArrival(state, action, context) {
       message: `Completed ${arrivalCard.card_name}${unlockedSpecialEntries.length ? ` and unlocked ${unlockedSpecialEntries.map((entry) => entry.name).join(", ")}` : ""}.`,
       completedArrival,
       baseRequirementCost: requirement.cost,
-      requirementCost: discountedRequirement.cost,
+      requirementCost,
       arrivalRequirementDiscount: discountedRequirement.discount,
+      stewardResourceSubstitution: stewardResourceSubstitution.substitution,
       tileRequirements: requirement.tileRequirements,
       unlockedTileIds: unlockedSpecialEntries.map((entry) => entry.tileId)
     }
@@ -3683,14 +4345,38 @@ function resolveBoon(state, action, context) {
     };
   }
 
-  if (!canAffordCost(state.warehouse, effect.cost)) {
+  const stewardResourceSubstitution = resolveStewardResourceSubstitution(
+    state,
+    action,
+    context,
+    effect.cost,
+    "boon_resolution"
+  );
+
+  if (!stewardResourceSubstitution.valid) {
     return {
       state,
       result: {
         ok: false,
         action: TILE_ACTION_TYPES.RESOLVE_BOON,
-        errors: [`${effect.cardName} costs ${describeResourceAmounts(effect.cost)}.`],
+        errors: stewardResourceSubstitution.errors,
         cost: effect.cost
+      }
+    };
+  }
+
+  const boonCost = stewardResourceSubstitution.cost;
+
+  if (!canAffordCost(state.warehouse, boonCost)) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.RESOLVE_BOON,
+        errors: [`${effect.cardName} costs ${describeResourceAmounts(boonCost)}.`],
+        cost: boonCost,
+        baseCost: effect.cost,
+        stewardResourceSubstitution: stewardResourceSubstitution.substitution
       }
     };
   }
@@ -3703,18 +4389,33 @@ function resolveBoon(state, action, context) {
   const reliefState = applyStrainReliefEffect(state, reliefEffect);
   const nextState = {
     ...reliefState,
+    players: markPlayerStewardPowerProviderUsed(
+      reliefState.players,
+      stewardResourceSubstitution.stewardPower,
+      reliefState.season
+    ),
+    map: {
+      ...reliefState.map,
+      placedTiles: markStewardPowerProviderUsed(
+        reliefState.map.placedTiles,
+        stewardResourceSubstitution.stewardPower,
+        reliefState.season
+      )
+    },
     encounter: {
       ...reliefState.encounter,
       active: activeWithoutBoon,
       discard: [...reliefState.encounter.discard, activeBoon.cardId]
     },
-    warehouse: spendWarehouseResources(reliefState.warehouse, effect.cost),
+    warehouse: spendWarehouseResources(reliefState.warehouse, boonCost),
     log: [
       ...reliefState.log,
       createActionLogEntry(state, "encounter", `Resolved ${effect.cardName}.`, {
         activeEncounterId: activeBoon.id,
         cardId: activeBoon.cardId,
-        cost: effect.cost,
+        baseCost: effect.cost,
+        cost: boonCost,
+        stewardResourceSubstitution: stewardResourceSubstitution.substitution,
         applications: relief.applications,
         strainRemoved: relief.strainRemoved
       })
@@ -3729,7 +4430,9 @@ function resolveBoon(state, action, context) {
       message: `Resolved ${effect.cardName} and removed ${relief.strainRemoved} Strain.`,
       activeEncounterId: activeBoon.id,
       cardId: activeBoon.cardId,
-      cost: effect.cost,
+      baseCost: effect.cost,
+      cost: boonCost,
+      stewardResourceSubstitution: stewardResourceSubstitution.substitution,
       applications: relief.applications,
       strainRemoved: relief.strainRemoved
     }
@@ -3874,15 +4577,39 @@ function resolveBurden(state, action, context) {
     };
   }
 
-  if (!canAffordCost(state.warehouse, discountedPayment.cost)) {
+  const stewardResourceSubstitution = resolveStewardResourceSubstitution(
+    state,
+    action,
+    context,
+    discountedPayment.cost,
+    "burden_resolution"
+  );
+
+  if (!stewardResourceSubstitution.valid) {
     return {
       state,
       result: {
         ok: false,
         action: TILE_ACTION_TYPES.RESOLVE_BURDEN,
-        errors: [`${burdenCard.card_name} resolution costs ${describeResourceAmounts(discountedPayment.cost)}.`],
+        errors: stewardResourceSubstitution.errors,
         baseCost: paymentCost.cost,
         cost: discountedPayment.cost,
+        burdenResolutionDiscount: discountedPayment.discount
+      }
+    };
+  }
+
+  const burdenResolutionCost = stewardResourceSubstitution.cost;
+
+  if (!canAffordCost(state.warehouse, burdenResolutionCost)) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.RESOLVE_BURDEN,
+        errors: [`${burdenCard.card_name} resolution costs ${describeResourceAmounts(burdenResolutionCost)}.`],
+        baseCost: paymentCost.cost,
+        cost: burdenResolutionCost,
         burdenResolutionDiscount: discountedPayment.discount
       }
     };
@@ -3894,20 +4621,37 @@ function resolveBurden(state, action, context) {
     resolvedRound: state.round,
     resolvedSeason: state.season,
     baseResolutionCost: paymentCost.cost,
-    resolutionCost: discountedPayment.cost,
+    resolutionCost: burdenResolutionCost,
     burdenResolutionDiscount: discountedPayment.discount,
+    stewardResourceSubstitution: stewardResourceSubstitution.substitution,
     stewardPower
   };
   const actionState = spendPlayerActions(state, player.id, actionCost);
   const relief = applyBurdenResolutionStrainRelief(actionState, context);
   const nextState = {
     ...relief.state,
-    players: markPlayerStewardPowerProviderUsed(relief.state.players, stewardPower, relief.state.season),
+    players: markPlayerStewardPowerProviderUsed(
+      markPlayerStewardPowerProviderUsed(
+        relief.state.players,
+        stewardResourceSubstitution.stewardPower,
+        relief.state.season
+      ),
+      stewardPower,
+      relief.state.season
+    ),
     map: {
       ...relief.state.map,
-      placedTiles: markStewardPowerProviderUsed(relief.state.map.placedTiles, stewardPower, relief.state.season)
+      placedTiles: markStewardPowerProviderUsed(
+        markStewardPowerProviderUsed(
+          relief.state.map.placedTiles,
+          stewardResourceSubstitution.stewardPower,
+          relief.state.season
+        ),
+        stewardPower,
+        relief.state.season
+      )
     },
-    warehouse: spendWarehouseResources(relief.state.warehouse, discountedPayment.cost),
+    warehouse: spendWarehouseResources(relief.state.warehouse, burdenResolutionCost),
     encounter: {
       ...relief.state.encounter,
       active: relief.state.encounter.active.filter((activeState) => activeState.id !== activeBurden.id),
@@ -3930,8 +4674,9 @@ function resolveBurden(state, action, context) {
         activeEncounterId: activeBurden.id,
         cardId: activeBurden.cardId,
         baseCost: paymentCost.cost,
-        cost: discountedPayment.cost,
+        cost: burdenResolutionCost,
         burdenResolutionDiscount: discountedPayment.discount,
+        stewardResourceSubstitution: stewardResourceSubstitution.substitution,
         actionCost,
         stewardPower,
         burdenResolutionStrainRelief: relief.relief
@@ -3947,8 +4692,9 @@ function resolveBurden(state, action, context) {
       message: `Resolved ${burdenCard.card_name}.`,
       resolvedBurden,
       baseCost: paymentCost.cost,
-      cost: discountedPayment.cost,
+      cost: burdenResolutionCost,
       burdenResolutionDiscount: discountedPayment.discount,
+      stewardResourceSubstitution: stewardResourceSubstitution.substitution,
       burdenResolutionStrainRelief: relief.relief,
       actionCost,
       stewardPower
@@ -4142,6 +4888,17 @@ function resolveEndRoundEncounters(state) {
   };
 }
 
+function clearRoundStewardSuppression(activeStates) {
+  return activeStates.map((activeState) => {
+    if (!activeState.suppressedByStewardPower) {
+      return activeState;
+    }
+
+    const { suppressedByStewardPower, ...rest } = activeState;
+    return rest;
+  });
+}
+
 function applyExpiredArrivalStrain(state, expiredArrivals, context) {
   if (!expiredArrivals.length) {
     return {
@@ -4182,7 +4939,7 @@ function applyExpiredArrivalStrain(state, expiredArrivals, context) {
 
     const support = getEffectiveSupportDetails(workingState, target.id, context);
     const result = applyStrainToPlacedTile(target, 1, {
-      supported: support.supported
+      supportDetails: support
     });
 
     if (!result.valid) {
@@ -4392,7 +5149,7 @@ function applyEndOfSeasonOverstrainedSpread(state, context) {
 
     const support = getEffectiveSupportDetails(workingState, target.id, context);
     const result = applyStrainToPlacedTile(target, 1, {
-      supported: support.supported
+      supportDetails: support
     });
 
     if (!result.valid) {
@@ -4496,11 +5253,12 @@ function endRound(state, context) {
     }
   };
   const encounterResolution = resolveEndRoundEncounters(stateAfterArrivalTimerEffects);
+  const activeAfterSuppressionExpiry = clearRoundStewardSuppression(encounterResolution.active);
   const stateAfterEncounterResolution = {
     ...stateAfterArrivalTimerEffects,
     encounter: {
       ...stateAfterArrivalTimerEffects.encounter,
-      active: encounterResolution.active,
+      active: activeAfterSuppressionExpiry,
       discard: encounterResolution.discard
     }
   };
@@ -4519,7 +5277,7 @@ function endRound(state, context) {
   const nextRoundNeedsSeeding = !isComplete && isSeasonSeedRound(nextRound, state.rules);
   const burdenReapplication = isComplete
     ? {
-        active: encounterResolution.active,
+        active: activeAfterSuppressionExpiry,
         map: {
           ...seasonEffects.state.map,
           placedTiles: seasonEffects.state.map.placedTiles.map(resetRoundSupportUsage)
@@ -4527,7 +5285,7 @@ function endRound(state, context) {
         warehouse: seasonEffects.state.warehouse,
         reappliedBurdens: []
       }
-    : reapplySeasonStartBurdens(seasonEffects.state, encounterResolution.active, nextRound, nextSeason, context);
+    : reapplySeasonStartBurdens(seasonEffects.state, activeAfterSuppressionExpiry, nextRound, nextSeason, context);
   const shouldSkipSeeding = nextRoundNeedsSeeding && !hasSeedableEncounterCards(state);
   const endRoundMessage = isComplete
     ? `Resolved end-of-round effects for Round ${state.round}. The standard game is complete.`
@@ -4560,7 +5318,13 @@ function endRound(state, context) {
         : stateAfterArrivalTimerEffects.encounter.seededRounds,
       roundEffects: resetRecurringRoundEffects(
         (stateAfterArrivalTimerEffects.encounter.roundEffects ?? []).filter(
-          (effect) => effect.expiresAtEndOfRound === false || effect.round > state.round
+          (effect) => {
+            if (effect.expiresAtEndOfSeason && effect.season !== nextSeason) {
+              return false;
+            }
+
+            return effect.expiresAtEndOfRound === false || effect.round > state.round;
+          }
         )
       )
     },

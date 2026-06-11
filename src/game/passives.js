@@ -5,11 +5,11 @@ import { isSupportedPlacedTile } from "./strain.js";
 import { getProductionGains } from "./activation.js";
 
 const FIXED_ADJACENT_PRODUCTION_BONUS =
-  /^Passive:\s*When an adjacent (.+?) is activated for Resource production, gain (\d+) additional ([A-Za-z ]+)\.$/i;
+  /^Passive:\s*(?:Once per round,\s*)?when an adjacent (.+?) is activated for (?:Resource production|Production), gain (?:\+)?(\d+) (?:additional )?([A-Za-z ]+)\.$/i;
 const MATCHING_TYPES_ADJACENT_PRODUCTION_BONUS =
-  /^Passive:\s*When an adjacent (.+?) is activated for Resource production, gain (\d+) additional resources of types that (.+?) can produce\.$/i;
+  /^Passive:\s*(?:Once per round,\s*)?when an adjacent (.+?) is activated for (?:Resource production|Production), gain (?:\+)?(\d+) (?:additional )?resources of types (?:that )?(?:(.+?) can produce|produced by (.+?))\.$/i;
 const LIMITED_ADJACENT_CATEGORY_SUPPORT =
-  /^Passive:\s*While this tile is not Overstrained,\s*(?:(\d+)|up to (\d+)) adjacent ([A-Za-z]+) Tiles? (?:has|have) Supported/i;
+  /^Passive:\s*(?:(?:(\d+)|up to (\d+)) adjacent ([A-Za-z]+) Tiles? (?:has|have) Supported while this tile is not Overstrained|While this tile is not Overstrained,\s*(?:(\d+)|up to (\d+)) adjacent ([A-Za-z]+) Tiles? (?:has|have) Supported)/i;
 const BURDEN_RESOLUTION_STRAIN_RELIEF =
   /^Passive:\s*When players resolve an active Burden, remove 1 Strain from 1 placed tile\.$/i;
 
@@ -18,19 +18,20 @@ function getTileIndex(context) {
 }
 
 function hasSelfSupportedPassive(tile) {
-  return /This tile has Supported/i.test(tile?.benefit ?? "");
+  const benefit = String(tile?.benefit ?? "");
+  return /This tile has Supported/i.test(benefit) || /^Passive:.*\bSupported\.$/i.test(benefit);
 }
 
 function supportsAdjacentTiles(tile) {
-  return /adjacent tiles have Supported/i.test(tile?.benefit ?? "");
+  return /^Passive:.*adjacent tiles have Supported/i.test(tile?.benefit ?? "");
 }
 
 function supportsAdjacentResourceTiles(tile) {
-  return /adjacent Resource Tiles have Supported/i.test(tile?.benefit ?? "");
+  return /^Passive:.*adjacent Resource Tiles have Supported/i.test(tile?.benefit ?? "");
 }
 
 function supportsTravelTilesInNetwork(tile) {
-  return /Travel Tiles in this tile's (?:Travel Network|connected settlement network) have Supported/i.test(
+  return /^Passive:.*Travel Tiles in this tile's (?:Travel Network|connected settlement network) have Supported/i.test(
     tile?.benefit ?? ""
   );
 }
@@ -47,8 +48,8 @@ function getLimitedAdjacentCategorySupport(tile) {
   }
 
   return {
-    maxTargets: Number(match[1] ?? match[2]),
-    category: match[3]
+    maxTargets: Number(match[1] ?? match[2] ?? match[4] ?? match[5]),
+    category: match[3] ?? match[6]
   };
 }
 
@@ -357,8 +358,8 @@ export function getEffectiveSupportDetails(state, placedTileId, context = {}) {
           source: "debug",
           providerPlacedTileId: placedTile.id,
           providerTileId: placedTile.tileId,
-          providerTileName: "Debug Support",
-          reason: "debug"
+          providerTileName: "Single-use Support",
+          reason: "single_use_supported"
         }
       ]
     : [];

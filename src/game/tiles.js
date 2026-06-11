@@ -35,6 +35,7 @@ const TERRAIN_PLACEMENT = Object.freeze({
 const CATEGORY_ADJACENCY_RULES = Object.freeze({
   "Place adjacent to a Housing Tile.": ["Housing"],
   "Place adjacent to a Travel Tile.": ["Travel"],
+  "Place adjacent to a Travel Tile": ["Travel"],
   "Place adjacent to a Social Tile.": ["Social"],
   "Place adjacent to a Merchant Tile.": ["Merchant"],
   "Place adjacent to a Wellbeing Tile.": ["Wellbeing"],
@@ -43,10 +44,14 @@ const CATEGORY_ADJACENCY_RULES = Object.freeze({
 
 const TILE_NAME_ADJACENCY_RULES = Object.freeze({
   "Place adjacent to a Farm.": ["Farm"],
+  "Place adjacent to a Farmstead.": ["Farmstead", "Artisan Farmstead"],
   "Place adjacent to a Forest.": ["Forest"],
+  "Place adjacent to a Lumber Yard.": ["Lumber Yard", "Sustainable Lumber Yard"],
   "Place adjacent to a Mine.": ["Mine"],
+  "Place adjacent to a Mine Shaft tile.": ["Mine Shaft", "Deep Mine Shaft"],
   "Place adjacent to a Dig Site.": ["Dig Site"],
-  "Place adjacent to Wildlands.": ["Wildlands"]
+  "Place adjacent to Wildlands.": ["Wildlands"],
+  "Place adjacent to a Gatherers Lodge.": ["Gatherers Lodge", "Skilled Gatherers Lodge"]
 });
 
 const FREE_ADJACENT_PLACEMENT_COST =
@@ -1141,7 +1146,9 @@ export function validatePlaceTile(state, action, context) {
     : { reduction: null, errors: [] };
   const placementCostReduction = placementCostReductionResult.reduction;
   const costBeforeSubstitution = placementCostReduction?.cost ?? baseCost;
-  const resourceCostSubstitution = getGoodsSubstitution(state, costBeforeSubstitution, tileIndex);
+  const resourceCostSubstitution = action.deferAffordabilityCheck
+    ? null
+    : getGoodsSubstitution(state, costBeforeSubstitution, tileIndex);
   const cost = resourceCostSubstitution?.cost ?? costBeforeSubstitution;
 
   errors.push(...placementCostReductionResult.errors);
@@ -1179,7 +1186,7 @@ export function validatePlaceTile(state, action, context) {
     }
   }
 
-  if (!canAffordCost(state.warehouse, cost)) {
+  if (!action.deferAffordabilityCheck && !canAffordCost(state.warehouse, cost)) {
     errors.push(`${tile.tile_name} costs ${describeCost(cost)}.`);
   }
 
@@ -1345,10 +1352,12 @@ export function validateUpgradeTile(state, action, context) {
   const baseCost = cost;
   const costReduction = getUpgradeCostReduction(state, action, placedTile, tile, baseCost, tileIndex);
   errors.push(...costReduction.errors);
-  const resourceCostSubstitution = getGoodsSubstitution(state, costReduction.cost, tileIndex);
+  const resourceCostSubstitution = action.deferAffordabilityCheck
+    ? null
+    : getGoodsSubstitution(state, costReduction.cost, tileIndex);
   cost = resourceCostSubstitution?.cost ?? costReduction.cost;
 
-  if (cost.length > 0 && !canAffordCost(state.warehouse, cost)) {
+  if (!action.deferAffordabilityCheck && cost.length > 0 && !canAffordCost(state.warehouse, cost)) {
     errors.push(`${upgradeTile.tile_name} upgrade costs ${describeCost(cost)}.`);
   }
 

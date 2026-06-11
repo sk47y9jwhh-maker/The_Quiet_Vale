@@ -8,29 +8,41 @@ import {
   spendWarehouseResources
 } from "./tiles.js";
 import { isSupportedPlacedTile } from "./strain.js";
+import { buildTravelNetworks, getNetworkForPlacedTile, isTravelTileDefinition } from "./travel.js";
 
-const PRODUCTION_PREFIX = /^Production:\s*Gain\s+(.+)\.$/i;
-const REMOVE_ONE_ADJACENT_STRAIN = /^Activated Effect:\s*Remove 1 Strain from an adjacent tile\.$/i;
-const REMOVE_UP_TO_FROM_ONE_ADJACENT_TILE = /^Activated Effect:\s*Remove up to (\d+) Strain from 1 adjacent tile\.$/i;
+const ACTIVATED_PREFIX = "(?:Activated Effect|Activate)";
+const PRODUCTION_PREFIX = /^(?:Production|Activate):\s*Gain\s+(.+)\.$/i;
+const REMOVE_ONE_ADJACENT_STRAIN = new RegExp(
+  `^${ACTIVATED_PREFIX}:\\s*Remove 1 Strain from an adjacent tile\\.$`,
+  "i"
+);
+const REMOVE_UP_TO_FROM_ONE_ADJACENT_TILE = new RegExp(
+  `^${ACTIVATED_PREFIX}:\\s*Remove up to (\\d+) Strain from 1 adjacent tile\\.$`,
+  "i"
+);
 const REMOVE_ONE_FROM_UP_TO_ADJACENT_TILES =
-  /^Activated Effect:\s*Remove 1 Strain from up to (\d+) adjacent tiles\.$/i;
+  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Remove 1 Strain from up to (\\d+) adjacent tiles\\.$`, "i");
 const REMOVE_ONE_FROM_ONE_ADJACENT_CATEGORIES =
-  /^Activated Effect:\s*Remove 1 Strain from one adjacent (.+?) Tile\.$/i;
+  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Remove 1 Strain from one adjacent (.+?) Tile\\.$`, "i");
 const ADD_ONE_ARRIVAL_TIMER =
-  /^Activated Effect:\s*Add 1 timer token to one active Arrival, up to the normal maximum of 3 timer tokens\.$/i;
+  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Add 1 timer token to (?:one|an) active Arrival(?:, up to the normal maximum of 3 timer tokens| \\(max 3\\))\\.$`, "i");
 const ADD_UP_TO_ARRIVAL_TIMERS =
-  /^Activated Effect:\s*Add up to (\d+) timer tokens to one active Arrival, up to the normal maximum of 3 timer tokens\.$/i;
+  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Add up to (\\d+) timer tokens to (?:one|an) active Arrival(?:, up to the normal maximum of 3 timer tokens| \\(max 3\\))\\.$`, "i");
 const FIXED_RESOURCE_EXCHANGE =
-  /^Activated Effect:\s*Exchange (\d+) resources? in the Warehouse for (\d+) ([A-Za-z]+)\.$/i;
+  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Exchange (\\d+) resources? in the Warehouse for (\\d+) ([A-Za-z]+)\\.$`, "i");
 const FLEXIBLE_RESOURCE_EXCHANGE =
-  /^Activated Effect:\s*Exchange up to (\d+) total resources in the Warehouse for the same number of non-Goods resources in any mix\.$/i;
-const RESOLVE_ONE_ACTIVE_BURDEN = /^Activated Effect:\s*Resolve 1 active Burden\.$/i;
+  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Exchange up to (\\d+) total resources in the Warehouse for the same number of non-Goods resources in any mix\\.$`, "i");
+const RESOLVE_ONE_ACTIVE_BURDEN = new RegExp(`^${ACTIVATED_PREFIX}:\\s*Resolve 1 active Burden\\.$`, "i");
 const ENCOUNTER_DECK_PEEK =
-  /^Activated Effect:\s*Look at the top (\d+) cards of the Encounter Deck, then return them in any order\.$/i;
+  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Look at the top (\\d+) cards of the Encounter Deck, then return them in any order\\.$`, "i");
 const GIVE_SUPPORTED_TO_ONE_ADJACENT =
-  /^Activated Effect:\s*Give Supported to (?:1|one) adjacent(?: (.+?))? Tiles?\.$/i;
+  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Give Supported to (?:1|one) adjacent(?: (.+?))? Tiles?\\.$`, "i");
 const GIVE_SUPPORTED_TO_UP_TO_ADJACENT =
-  /^Activated Effect:\s*Give Supported to up to (\d+) adjacent(?: (.+?))? Tiles?\.$/i;
+  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Give Supported to up to (\\d+) adjacent(?: (.+?))? Tiles?\\.$`, "i");
+const RECEIVE_SUPPORTED_ON_PLACE_OR_ACTIVATE =
+  /^(?:When placed\s*&\s*When Activated|When placed and When Activated)[:,]?\s*While this tile is not Overstrained,\s*up to (?:two|(\d+)) adjacent(?: (.+?))? tiles receive 1 Supported\.$/i;
+const TRAVEL_NETWORK_SUPPORTED_ON_PLACE_OR_ACTIVATE =
+  /^(?:When placed\s*&\s*When Activated|When placed and When Activated)[:,]?\s*While this tile is not Overstrained,\s*Travel Tiles in this tile's connected settlement network gain 1 Supported\.$/i;
 
 export function parseProductionBenefit(benefitText) {
   const match = PRODUCTION_PREFIX.exec(String(benefitText ?? "").trim());
@@ -63,10 +75,10 @@ export function getProductionGains(tile) {
 
 function getActivatedEffectBenefit(tile) {
   const benefit = String(tile?.benefit ?? "").trim();
-  const oncePerSeason = /^Activated Effect,\s*once per Season:/i.test(benefit);
+  const oncePerSeason = /^(?:Activated Effect|Activate),\s*once per Season:/i.test(benefit);
 
   return {
-    benefit: oncePerSeason ? benefit.replace(/^Activated Effect,\s*once per Season:/i, "Activated Effect:") : benefit,
+    benefit: oncePerSeason ? benefit.replace(/^(?:Activated Effect|Activate),\s*once per Season:/i, "Activate:") : benefit,
     oncePerSeason
   };
 }
@@ -229,13 +241,36 @@ export function getGiveSupportedEffect(tile) {
   const { benefit, oncePerSeason } = getActivatedEffectBenefit(tile);
   const upToMatch = GIVE_SUPPORTED_TO_UP_TO_ADJACENT.exec(benefit);
   const oneMatch = GIVE_SUPPORTED_TO_ONE_ADJACENT.exec(benefit);
+  const onPlaceOrActivateMatch = RECEIVE_SUPPORTED_ON_PLACE_OR_ACTIVATE.exec(benefit);
+  const travelNetworkMatch = TRAVEL_NETWORK_SUPPORTED_ON_PLACE_OR_ACTIVATE.exec(benefit);
+
+  if (onPlaceOrActivateMatch) {
+    return {
+      type: "give_supported_adjacent",
+      maxTargets: Number(onPlaceOrActivateMatch[1] ?? 2),
+      targetCategories: parseSupportedTargetCategories(onPlaceOrActivateMatch[2]),
+      oncePerSeason,
+      triggers: ["placement", "activation"]
+    };
+  }
+
+  if (travelNetworkMatch) {
+    return {
+      type: "give_supported_travel_network",
+      maxTargets: null,
+      targetCategories: ["Travel"],
+      oncePerSeason,
+      triggers: ["placement", "activation"]
+    };
+  }
 
   if (upToMatch) {
     return {
       type: "give_supported_adjacent",
       maxTargets: Number(upToMatch[1]),
       targetCategories: parseSupportedTargetCategories(upToMatch[2]),
-      oncePerSeason
+      oncePerSeason,
+      triggers: ["activation"]
     };
   }
 
@@ -244,11 +279,22 @@ export function getGiveSupportedEffect(tile) {
       type: "give_supported_adjacent",
       maxTargets: 1,
       targetCategories: parseSupportedTargetCategories(oneMatch[1]),
-      oncePerSeason
+      oncePerSeason,
+      triggers: ["activation"]
     };
   }
 
   return null;
+}
+
+export function getPlacementSupportEffect(tile) {
+  const support = getGiveSupportedEffect(tile);
+
+  if (!support?.triggers?.includes("placement")) {
+    return null;
+  }
+
+  return support;
 }
 
 export function getActivationDetails(tile) {
@@ -314,6 +360,27 @@ function describeCategories(categories) {
   }
 
   return `${categories.slice(0, -1).join(", ")} or ${categories.at(-1)}`;
+}
+
+export function getTravelNetworkSupportTargets(state, sourcePlacedTile, tileIndex) {
+  const networks = buildTravelNetworks(state, { tileIndex });
+  const network = getNetworkForPlacedTile(networks, sourcePlacedTile.id);
+
+  if (!network) {
+    return [];
+  }
+
+  return state.map.placedTiles.filter((candidate) => {
+    if (!network.tileIds.includes(candidate.id) || candidate.id === sourcePlacedTile.id) {
+      return false;
+    }
+
+    if (isOverstrainedPlacedTile(candidate) || isSupportedPlacedTile(candidate)) {
+      return false;
+    }
+
+    return isTravelTileDefinition(tileIndex.get(candidate.tileId));
+  });
 }
 
 export function validateActivateTile(state, action, context) {
@@ -457,6 +524,16 @@ export function validateActivateTile(state, action, context) {
       } else if (isSupportedPlacedTile(target)) {
         errors.push(`${target.id} already has Supported.`);
       }
+    }
+  }
+
+  if (activation?.type === "give_supported_travel_network") {
+    supportTargetPlacedTiles = getTravelNetworkSupportTargets(state, placedTile, tileIndex);
+    targetPlacedTiles = supportTargetPlacedTiles;
+    targetPlacedTile = supportTargetPlacedTiles[0] ?? null;
+
+    if (supportTargetPlacedTiles.length === 0) {
+      errors.push("No eligible Travel Tiles in this tile's connected settlement network can receive Supported.");
     }
   }
 

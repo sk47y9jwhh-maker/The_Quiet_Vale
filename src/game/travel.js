@@ -462,7 +462,8 @@ export function getDiscountedDisconnectedTravelActionCost(state, operation, base
 function getOperationActionCostKey(operation) {
   return {
     placement: "placeActionCost",
-    upgrade: "upgradeActionCost"
+    upgrade: "upgradeActionCost",
+    activation: "activationActionCost"
   }[operation];
 }
 

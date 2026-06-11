@@ -9,11 +9,11 @@
   },
   "season_count": {
     "value": null,
-    "notes": "Season I rounds 1-5; Season II 6-10; Season III 11-15."
+    "notes": "Season I rounds 1-4; Season II 5-8; Season III 9-12."
   },
   "rounds_per_season": {
-    "value": null,
-    "notes": "Total 15 rounds."
+    "value": 4,
+    "notes": "Total 12 rounds."
   },
   "warehouse_cap_per_resource": {
     "value": 15,
@@ -87,7 +87,7 @@
   },
   "river_crossing_without_bridge_action_cost": {
     "value": null,
-    "notes": "Crossing the river without a Bridge connection costs 1 Action."
+    "notes": "There is no separate Travel action in the online prototype; players must act within the Steward's connected settlement network unless a Steward power or explicit rule permits otherwise."
   },
   "river_adjacency": {
     "value": null,

@@ -31,6 +31,7 @@ function summarizeResourceAmounts(payment = []) {
 function parseArrivalResourceAmounts(text) {
   const errors = [];
   const cost = String(text ?? "")
+    .replace(/^Pay\s+/i, "")
     .replace(/\.$/, "")
     .split(/\n|,|\s+and\s+/i)
     .map((part) => part.trim())

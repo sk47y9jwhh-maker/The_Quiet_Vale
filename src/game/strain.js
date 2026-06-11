@@ -43,9 +43,13 @@ export function applyStrainToPlacedTile(placedTile, amount = 1, options = {}) {
   }
 
   const ignoreSupported = Boolean(options.ignoreSupported);
-  const supported = options.supported ?? isSupportedPlacedTile(placedTile);
+  const supportDetails = options.supportDetails ?? null;
+  const hasManualSupport =
+    supportDetails?.manual ?? options.supported ?? isSupportedPlacedTile(placedTile);
+  const hasPassiveSupport = Boolean(supportDetails?.passiveProviders?.length);
   let strain = Math.max(0, Math.min(STRAIN_MAX_PER_TILE, Number(placedTile.strain ?? 0)));
   let supportedUsedThisRound = Boolean(placedTile.supportedUsedThisRound);
+  let manualSupportRemaining = Boolean(hasManualSupport);
   let strainAdded = 0;
   let strainPrevented = 0;
   let blockedByMax = 0;
@@ -56,8 +60,12 @@ export function applyStrainToPlacedTile(placedTile, amount = 1, options = {}) {
       break;
     }
 
-    if (!ignoreSupported && supported && !supportedUsedThisRound) {
-      supportedUsedThisRound = true;
+    const passiveAvailable = hasPassiveSupport && !supportedUsedThisRound;
+    const manualAvailable = manualSupportRemaining;
+
+    if (!ignoreSupported && (manualAvailable || passiveAvailable)) {
+      manualSupportRemaining = false;
+      supportedUsedThisRound = hasPassiveSupport ? true : supportedUsedThisRound;
       strainPrevented += 1;
       continue;
     }
@@ -71,6 +79,7 @@ export function applyStrainToPlacedTile(placedTile, amount = 1, options = {}) {
     placedTile: {
       ...placedTile,
       strain,
+      supported: manualSupportRemaining,
       supportedUsedThisRound
     },
     strainAdded,
