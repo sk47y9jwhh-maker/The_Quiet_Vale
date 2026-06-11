@@ -517,6 +517,35 @@ test("Quartermaster Home exchanges Warehouse resources once per Season", () => {
   assert.match(repeat.result.errors.join(" "), /Steward Power is not available/);
 });
 
+test("Quartermaster Steward token exchanges Warehouse resources once per Season", () => {
+  const state = withWarehouseResources(
+    newState(1, { stewardRoles: ["quartermaster"] }),
+    { Food: 2 }
+  );
+
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+    placedTileId: "steward-power-P1-quartermaster",
+    payment: [{ resource: "Food", amount: 1 }],
+    gains: [{ resource: "Metal", amount: 1 }]
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(nextState.warehouse.resources.Food, 1);
+  assert.equal(nextState.warehouse.resources.Metal, 1);
+  assert.deepEqual(nextState.players[0].stewardPowerSeasons?.[STEWARD_POWER_TYPES.RESOURCE_EXCHANGE], ["I"]);
+
+  const repeat = dispatch(nextState, {
+    type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+    placedTileId: "steward-power-P1-quartermaster",
+    payment: [{ resource: "Food", amount: 1 }],
+    gains: [{ resource: "Metal", amount: 1 }]
+  });
+
+  assert.equal(repeat.result.ok, false);
+  assert.match(repeat.result.errors.join(" "), /Steward Power is not available|Choose an available Steward Power/);
+});
+
 test("Quartermaster setup exchange works before first Season I seeding", () => {
   const state = withWarehouseResources(newSetupState(1, { stewardRoles: ["quartermaster"] }), {
     Wood: 2,

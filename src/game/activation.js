@@ -24,6 +24,8 @@ const REMOVE_ONE_FROM_UP_TO_ADJACENT_TILES =
   new RegExp(`^${ACTIVATED_PREFIX}:\\s*Remove 1 Strain from up to (\\d+) adjacent tiles\\.$`, "i");
 const REMOVE_ONE_FROM_ONE_ADJACENT_CATEGORIES =
   new RegExp(`^${ACTIVATED_PREFIX}:\\s*Remove 1 Strain from one adjacent (.+?) Tile\\.$`, "i");
+const REMOVE_ONE_FROM_ONE_CATEGORIES =
+  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Remove 1 Strain from one (.+?) Tile\\.$`, "i");
 const ADD_ONE_ARRIVAL_TIMER =
   new RegExp(`^${ACTIVATED_PREFIX}:\\s*Add 1 timer token to (?:one|an) active Arrival(?:, up to the normal maximum of 3 timer tokens| \\(max 3\\))\\.$`, "i");
 const ADD_UP_TO_ARRIVAL_TIMERS =
@@ -31,7 +33,7 @@ const ADD_UP_TO_ARRIVAL_TIMERS =
 const FIXED_RESOURCE_EXCHANGE =
   new RegExp(`^${ACTIVATED_PREFIX}:\\s*Exchange (\\d+) resources? in the Warehouse for (\\d+) ([A-Za-z]+)\\.$`, "i");
 const FLEXIBLE_RESOURCE_EXCHANGE =
-  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Exchange up to (\\d+) total resources in the Warehouse for the same number of non-Goods resources in any mix\\.$`, "i");
+  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Exchange up to (\\d+) total resources in the Warehouse for the same number of non-Goods resources in any mix\\.`, "i");
 const RESOLVE_ONE_ACTIVE_BURDEN = new RegExp(`^${ACTIVATED_PREFIX}:\\s*Resolve 1 active Burden\\.$`, "i");
 const ENCOUNTER_DECK_PEEK =
   new RegExp(`^${ACTIVATED_PREFIX}:\\s*Look at the top (\\d+) cards of the Encounter Deck, then return them in any order\\.$`, "i");
@@ -97,6 +99,7 @@ export function getStrainRemovalEffect(tile) {
   const upToMatch = REMOVE_UP_TO_FROM_ONE_ADJACENT_TILE.exec(benefit);
   const multiTargetMatch = REMOVE_ONE_FROM_UP_TO_ADJACENT_TILES.exec(benefit);
   const categoryMatch = REMOVE_ONE_FROM_ONE_ADJACENT_CATEGORIES.exec(benefit);
+  const categoryAnywhereMatch = REMOVE_ONE_FROM_ONE_CATEGORIES.exec(benefit);
 
   if (REMOVE_ONE_ADJACENT_STRAIN.test(benefit)) {
     return {
@@ -131,6 +134,17 @@ export function getStrainRemovalEffect(tile) {
       amount: 1,
       maxTargets: 1,
       targetCategories: parseTargetCategories(categoryMatch[1]),
+      oncePerSeason
+    };
+  }
+
+  if (categoryAnywhereMatch) {
+    return {
+      type: "remove_strain_adjacent",
+      amount: 1,
+      maxTargets: 1,
+      targetCategories: parseTargetCategories(categoryAnywhereMatch[1]),
+      adjacent: false,
       oncePerSeason
     };
   }
@@ -438,14 +452,16 @@ export function validateActivateTile(state, action, context) {
     const maxTargets = activation.maxTargets ?? 1;
     const requestedTargetIds = getRequestedStrainRemovalTargets(action, activation);
     const uniqueTargetIds = new Set(requestedTargetIds);
+    const requiresAdjacency = activation.adjacent !== false;
     const adjacentPlacedTiles = getAdjacentPlacedTiles(state, placedTile);
+    const targetScopeText = requiresAdjacency ? "adjacent tile" : "tile";
 
     if (requestedTargetIds.length === 0) {
-      errors.push("Choose an adjacent tile with Strain to target.");
+      errors.push(`Choose a ${targetScopeText} with Strain to target.`);
     }
 
     if (requestedTargetIds.length > maxTargets) {
-      errors.push(`${tile.tile_name} can target at most ${maxTargets} adjacent tile${maxTargets === 1 ? "" : "s"}.`);
+      errors.push(`${tile.tile_name} can target at most ${maxTargets} ${requiresAdjacency ? "adjacent " : ""}tile${maxTargets === 1 ? "" : "s"}.`);
     }
 
     if (uniqueTargetIds.size !== requestedTargetIds.length) {
@@ -462,7 +478,7 @@ export function validateActivateTile(state, action, context) {
 
       if (!target) {
         errors.push(`Unknown Strain removal target: ${targetId}`);
-      } else if (!adjacentPlacedTiles.some((candidate) => candidate.id === target.id)) {
+      } else if (requiresAdjacency && !adjacentPlacedTiles.some((candidate) => candidate.id === target.id)) {
         errors.push(`${target.id} is not adjacent to ${tile.tile_name}.`);
       } else if (
         activation.targetCategories?.length &&

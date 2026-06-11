@@ -59,13 +59,13 @@ const FREE_ADJACENT_PLACEMENT_COST =
 const REDUCE_ADJACENT_PLACEMENT_COST =
   /^Once per (round|season),\s*when any player places a tile adjacent to this tile,\s*reduce that tile's cost by (\d+) resource of the group's choice\./i;
 const REDUCE_ADJACENT_CORE_UPGRADE_COST =
-  /^Passive:\s*Once per round,\s*when upgrading an adjacent Core Tile,\s*reduce that upgrade cost by (\d+) resource of your choice\.$/i;
+  /^Passive:\s*Once per round,\s*when upgrading an adjacent Core Tile,\s*reduce (?:that upgrade cost|its cost) by (\d+) resource(?: of your choice)?\.$/i;
 const REDUCE_REACHABLE_CORE_UPGRADE_COST =
-  /^Passive:\s*Once per round,\s*when upgrading a reachable Core Tile,\s*reduce that upgrade cost by up to (\d+) resources of your choice\.$/i;
+  /^Passive:\s*Once per round,\s*when upgrading a reachable Core Tile,\s*reduce (?:that upgrade cost|its cost) by up to (\d+) resources(?: of your choice)?\.$/i;
 const GOODS_AS_ONE_RESOURCE =
-  /^Passive:\s*Once per round,\s*when paying a resource cost,\s*you may spend 1 Goods as 1 resource of any type in that cost\.$/i;
+  /^Passive:\s*Once per round,\s*when paying (?:a resource cost|a cost),\s*you may spend 1 Goods as 1 resource of any type(?: in that cost)?\.$/i;
 const GOODS_AS_UP_TO_TWO_ONE_TYPE =
-  /^Passive:\s*Once per round,\s*when paying a resource cost,\s*you may spend 1 Goods as up to 2 resources of one type in that cost\.$/i;
+  /^Passive:\s*Once per round,\s*when paying (?:a resource cost|a cost),\s*you may spend 1 Goods as up to 2 resources of one type(?: in that cost)?\.$/i;
 
 export function createTileIndex(tiles) {
   return new Map(tiles.map((tile) => [tile.tile_id, tile]));

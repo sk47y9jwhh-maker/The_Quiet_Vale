@@ -252,7 +252,7 @@ test("Market Stalls can spend 1 Goods as 1 missing resource in a tile cost", () 
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
     tileId: "core_cottage_basic",
-    coordinate: "A1"
+    coordinate: "C4"
   });
 
   assert.equal(result.ok, true);

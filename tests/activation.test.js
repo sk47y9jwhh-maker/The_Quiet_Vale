@@ -532,18 +532,24 @@ test("Strain-removal activation rejects non-adjacent targets", () => {
   }).state;
   state = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
-    tileId: "core_forest_basic",
-    coordinate: "A13"
+    tileId: "core_cottage_basic",
+    coordinate: "C4"
   }).state;
   state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_cottage_basic",
+    coordinate: "C5"
+  }).state;
+  state = dispatch(state, { type: TILE_ACTION_TYPES.DEBUG_RESET_ACTIONS }).state;
+  state = dispatch(state, {
     type: TILE_ACTION_TYPES.DEBUG_SET_TILE_STRAIN,
-    placedTileId: "tile-003",
+    placedTileId: "tile-004",
     strain: 1
   }).state;
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.ACTIVATE_TILE,
     placedTileId: "tile-002",
-    targetPlacedTileId: "tile-003"
+    targetPlacedTileId: "tile-004"
   });
 
   assert.equal(result.ok, false);
@@ -684,6 +690,49 @@ test("once-per-Season restricted Strain removal can target matching adjacent til
   assert.equal(nextState.map.placedTiles.find((tile) => tile.id === "tile-001").strain, 0);
   assert.deepEqual(nextState.map.placedTiles.find((tile) => tile.id === "tile-002").activatedEffectSeasons, ["I"]);
   assert.match(result.message, /remove 1 Strain from Cottage/);
+});
+
+test("once-per-Season restricted Strain removal can target matching non-adjacent tile categories", () => {
+  let state = unlockSpecial(dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state, "special_hearth_garden");
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_cottage_basic",
+    coordinate: "A3"
+  }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "special_hearth_garden",
+    coordinate: "A4"
+  }).state;
+  state = {
+    ...state,
+    map: {
+      ...state.map,
+      placedTiles: state.map.placedTiles.map((placedTile) =>
+        placedTile.id === "tile-001"
+          ? {
+              ...placedTile,
+              coordinate: "I14",
+              coordinates: ["I14"]
+            }
+          : placedTile
+      )
+    }
+  };
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.DEBUG_SET_TILE_STRAIN,
+    placedTileId: "tile-001",
+    strain: 1
+  }).state;
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+    placedTileId: "tile-002",
+    targetPlacedTileId: "tile-001"
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.strainRemoved, 1);
+  assert.equal(nextState.map.placedTiles.find((tile) => tile.id === "tile-001").strain, 0);
 });
 
 test("once-per-Season activations cannot be reused in the same Season", () => {

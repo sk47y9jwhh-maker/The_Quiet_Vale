@@ -1813,6 +1813,7 @@ function getLegalPlacementOptionsForCoordinate(game, tileIndex, coordinate) {
             cost: validation.cost,
             footprintCoordinates: validation.footprintCoordinates,
             placementCostReductionResources,
+            resourceCostSubstitution: validation.resourceCostSubstitution,
             blockedReason,
             isTerrainMatchedResource: tile.tile_id === terrainMatchedResourceTileId
           };
@@ -1892,6 +1893,9 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
   const orientationText = isMultihex ? ` · ${getOrientationLabel(option.orientation)}` : "";
   const footprintText = isMultihex ? ` · ${renderFootprint(option.footprintCoordinates)}` : "";
   const discountText = option.placementCostReductionResources.length > 0 ? " · discount applied" : "";
+  const substitutionText = option.resourceCostSubstitution
+    ? ` · ${option.resourceCostSubstitution.providerTileName ?? "Tile effect"} uses Goods`
+    : "";
   const blockedText = option.blockedReason ? ` · ${option.blockedReason}` : "";
   const terrainMatchText = option.isTerrainMatchedResource ? "Terrain match · " : "";
   const actionCostText = pairedStables ? "1 Action" : `${renderActionCost(option.actionCost)} Action`;
@@ -1900,7 +1904,7 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
     ? `${terrainMatchText}Select preview, rotate if needed, then left-click to place${blockedText}`
     : pairedStables
       ? `${terrainMatchText}${option.supply?.available ?? 0}/${option.supply?.stock ?? 0} left · choose 2 sites · 1 Action${blockedText}`
-    : `${terrainMatchText}${option.supply?.available ?? 0}/${option.supply?.stock ?? 0} left · ${renderActionCost(option.actionCost)} Action · ${renderCost(option.cost)}${orientationText}${footprintText}${discountText}${blockedText}`;
+    : `${terrainMatchText}${option.supply?.available ?? 0}/${option.supply?.stock ?? 0} left · ${renderActionCost(option.actionCost)} Action · ${renderCost(option.cost)}${orientationText}${footprintText}${discountText}${substitutionText}${blockedText}`;
   const disabledAttribute = option.blockedReason ? "disabled" : "";
   const titleAttribute = option.blockedReason ? `title="${escapeHtml(option.blockedReason)}"` : "";
   const actionButton = useTravelPreview
@@ -1938,6 +1942,7 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
         <small>${escapeHtml(summaryText)}</small>
       </summary>
       <div class="context-placement-face">
+        ${actionButton}
         ${renderTileEffectPreview(option.tile, {
           label: "Cost & Effect",
           className: "context-placement-effect",
@@ -1946,8 +1951,8 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
             { label: "Resources", value: resourceCostText }
           ]
         })}
+        ${renderResourceCostSubstitutionNotice(option.resourceCostSubstitution)}
         ${renderStewardHouseUpgradePreview(option.tile, optionTileIndex, { compact: true })}
-        ${actionButton}
         ${renderTileFaceSvg(option.tile, { upgradeTile })}
       </div>
     </details>
@@ -1966,8 +1971,9 @@ function renderContextTravelPlacementOptions(options) {
   return [...byTileId.values()]
     .map((tileOptions) => {
       const option = getPreferredContextPlacementOption(tileOptions);
+      const needsPreview = Number(option.tile.size_hexes ?? 1) > 1 && !isStablesTile(option.tile);
 
-      return renderContextPlacementOptionDetails(option, { travelPreview: true });
+      return renderContextPlacementOptionDetails(option, { travelPreview: needsPreview });
     })
     .join("");
 }
@@ -4486,7 +4492,58 @@ function renderStewardExchangeControls(game, placedTile, details, canUseStewardE
     return "";
   }
 
-  return "";
+  const amount = getStewardExchangeAmount(placedTile.id, details);
+  const paymentChoices = getStewardExchangePaymentChoices(placedTile.id, details);
+  const gainChoices = getStewardExchangeGainChoices(placedTile.id, details);
+  const ready = paymentChoices.every(Boolean) && gainChoices.every(Boolean);
+  const disabledReason = !ready
+    ? "Choose resources to pay and gain."
+    : canUseStewardExchange
+      ? ""
+      : "This exchange is not available right now.";
+
+  return `
+    <div class="steward-menu-exchange steward-power-exchange" aria-label="Quartermaster Warehouse exchange">
+      <header>
+        <strong>Warehouse Exchange</strong>
+        <span>Once per Season</span>
+      </header>
+      <label class="steward-menu-count">
+        <span>Count</span>
+        <select class="steward-exchange-count" data-placed-tile-id="${escapeHtml(placedTile.id)}" aria-label="Quartermaster exchange count">
+          ${Array.from({ length: details.maxAmount }, (_, index) => index + 1)
+            .map((option) => `<option value="${option}" ${option === amount ? "selected" : ""}>${option}</option>`)
+            .join("")}
+        </select>
+      </label>
+      <div class="steward-menu-exchange-grid">
+        ${Array.from({ length: amount }, (_, index) => {
+          const selectedPayment = paymentChoices[index] ?? "";
+          const selectedGain = gainChoices[index] ?? "";
+
+          return `
+            <select class="steward-exchange-payment-resource" data-placed-tile-id="${escapeHtml(placedTile.id)}" data-payment-index="${index}" aria-label="Quartermaster pay resource ${index + 1}">
+              <option value="">Pay...</option>
+              ${renderResourceSelectOptions(game.rules.resources, selectedPayment)}
+            </select>
+            <select class="steward-exchange-gain-resource" data-placed-tile-id="${escapeHtml(placedTile.id)}" data-gain-index="${index}" aria-label="Quartermaster gain resource ${index + 1}">
+              <option value="">Gain...</option>
+              ${renderResourceSelectOptions(game.rules.resources, selectedGain)}
+            </select>
+          `;
+        }).join("")}
+      </div>
+      ${disabledReason ? `<p class="steward-menu-note">${escapeHtml(disabledReason)}</p>` : ""}
+      <button
+        class="steward-menu-button steward-menu-exchange-button use-steward-exchange"
+        type="button"
+        data-placed-tile-id="${escapeHtml(placedTile.id)}"
+        ${canUseStewardExchange ? "" : "disabled"}
+      >
+        Exchange Resources
+      </button>
+    </div>
+  `;
 }
 
 function getActivationPaymentAction(placedTileId) {
@@ -5675,8 +5732,8 @@ function getStewardMenuPowerUseState(playerEntry, tileIndex) {
 
     return {
       tone: "ready",
-      detail: "Use this as a cost substitution from placement, upgrade, Burden, Arrival, or Boon payment controls.",
-      action: { label: "Open Warehouse", command: "focus-warehouse", target: "#warehouse-panel" }
+      detail: "Use the Warehouse Exchange controls below while Quartermaster is the active Steward.",
+      action: null
     };
   }
 
@@ -5710,6 +5767,31 @@ function renderStewardMenuFocus(players) {
 function renderStewardMenuCard(player, tileIndex, encounterIndex) {
   const role = player.role;
   const powerUse = getStewardMenuPowerUseState(player, tileIndex);
+  const exchangeProvider =
+    getAvailableStewardPowerProviders(
+      state.game,
+      { tileIndex, playerId: player.id },
+      STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
+    )[0] ?? null;
+  const exchangeDetails = exchangeProvider?.details ?? null;
+  const exchangePayments =
+    exchangeProvider && exchangeDetails
+      ? getStewardExchangePaymentChoices(exchangeProvider.placedTile.id, exchangeDetails)
+      : [];
+  const exchangeGains =
+    exchangeProvider && exchangeDetails
+      ? getStewardExchangeGainChoices(exchangeProvider.placedTile.id, exchangeDetails)
+      : [];
+  const canUseStewardExchange =
+    Boolean(
+      isPlaySessionPlaying() &&
+      state.game?.phase === GAME_PHASES.PLAYER_TURNS &&
+      state.game?.activePlayerId === player.id &&
+      exchangeProvider &&
+      exchangePayments.every(Boolean) &&
+      exchangeGains.every(Boolean) &&
+      canAffordCost(state.game.warehouse, getResourcePaymentAction(exchangePayments))
+    );
   const powerStatus = isPlaySessionSetup()
     ? "Ready after setup"
     : player.powerUsed
@@ -5747,6 +5829,12 @@ function renderStewardMenuCard(player, tileIndex, encounterIndex) {
         </div>
       </dl>
       ${renderQuartermasterStartingExchangeControls(state.game, player)}
+      ${renderStewardExchangeControls(
+        state.game,
+        exchangeProvider?.placedTile ?? null,
+        exchangeDetails,
+        canUseStewardExchange
+      )}
       ${renderWardenSuppressionControls(state.game, tileIndex, encounterIndex, player)}
       <div class="steward-menu-footer">
         <p class="steward-menu-status ${statusClass}">${escapeHtml(powerStatus)}</p>
@@ -7218,6 +7306,25 @@ function renderCost(cost) {
   return cost.length === 0 ? "0" : cost.map(({ amount, resource }) => `${amount} ${resource}`).join(", ");
 }
 
+function renderResourceCostSubstitutionNotice(resourceCostSubstitution) {
+  if (!resourceCostSubstitution) {
+    return "";
+  }
+
+  const coveredText = `${resourceCostSubstitution.amountCovered} ${resourceCostSubstitution.resource}`;
+  const goodsText = `${resourceCostSubstitution.goodsSpent} Goods`;
+
+  return `
+    <div class="placement-choice-panel goods-substitution-note is-ready">
+      <header>
+        <span>Goods substitution</span>
+        <strong>${escapeHtml(resourceCostSubstitution.providerTileName ?? "Tile effect")}</strong>
+      </header>
+      <p>${escapeHtml(`${goodsText} covers ${coveredText}. Cost becomes ${renderCost(resourceCostSubstitution.cost)}.`)}</p>
+    </div>
+  `;
+}
+
 function renderActionCost(actionCost) {
   if (!actionCost) {
     return "N/A";
@@ -7382,11 +7489,7 @@ function getActivationActionExtras(game, placedTile, tileIndex, activationDetail
 
   if (activationDetails.type === "remove_strain_adjacent") {
     const maxTargets = activationDetails.maxTargets ?? 1;
-    const targetCandidates = getAdjacentPlacedTiles(game, placedTile).filter(
-      (candidate) =>
-        (candidate.strain ?? 0) > 0 &&
-        matchesActivationTargetCategories(tileIndex, candidate, activationDetails)
-    );
+    const targetCandidates = getStrainActivationTargetCandidates(game, tileIndex, placedTile, activationDetails);
     const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
     const validSavedTargetIds = savedTargetIds.filter((targetId) =>
       targetCandidates.some((candidate) => candidate.id === targetId)
@@ -7664,6 +7767,22 @@ function matchesActivationTargetCategories(tileIndex, placedTile, activationDeta
 
   const definition = tileIndex.get(placedTile.tileId);
   return targetCategories.includes(definition?.tile_category);
+}
+
+function getStrainActivationTargetCandidates(game, tileIndex, placedTile, activationDetails) {
+  if (!placedTile) {
+    return [];
+  }
+
+  const candidatePool = activationDetails?.adjacent === false
+    ? game.map.placedTiles.filter((candidate) => candidate.id !== placedTile.id)
+    : getAdjacentPlacedTiles(game, placedTile);
+
+  return candidatePool.filter(
+    (candidate) =>
+      (candidate.strain ?? 0) > 0 &&
+      matchesActivationTargetCategories(tileIndex, candidate, activationDetails)
+  );
 }
 
 function getSupportActivationTargetCandidates(game, tileIndex, placedTile, activationDetails) {
@@ -7974,9 +8093,6 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
     selectedUpgradeStewardPowerProvider
   );
   const upgradeResourceDiscount = getPendingUpgradeResourceDiscount(game, selectedTileDefinition);
-  const upgradeLabel = upgradeTile
-    ? `${upgradeTile.tile_name} (${upgradeCost?.error ? "unsupported cost" : renderCost(upgradeCost.cost)})`
-    : "None";
   const selectedStewardExchangeProvider = getActiveStewardExchangeProvider(game, tileIndex);
   const selectedStewardPowerDetails = selectedStewardExchangeProvider?.details ?? null;
   const openingRequirement = getOpeningPlacementRequirementForActivePlayer(game);
@@ -7994,11 +8110,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
   const activationMaxTargets = activationDetails?.maxTargets ?? 1;
   const activationTargetCandidates =
     needsStrainActivationTarget && selectedPlacedTile
-      ? getAdjacentPlacedTiles(game, selectedPlacedTile).filter(
-          (placedTile) =>
-            (placedTile.strain ?? 0) > 0 &&
-            matchesActivationTargetCategories(tileIndex, placedTile, activationDetails)
-        )
+      ? getStrainActivationTargetCandidates(game, tileIndex, selectedPlacedTile, activationDetails)
       : needsSupportActivationTarget && selectedPlacedTile
         ? getSupportActivationTargetCandidates(game, tileIndex, selectedPlacedTile, activationDetails)
       : [];
@@ -8051,6 +8163,27 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
       ? getUpgradeCostDiscountChoices(selectedPlacedTile.id, upgradeCost.cost, upgradeResourceDiscount)
       : [];
   const upgradeCostDiscountReady = upgradeCostDiscountChoices.every((resource) => Boolean(resource));
+  const upgradePreviewValidation =
+    selectedPlacedTile && upgradeTile && upgradeCost && !upgradeCost.error && upgradeCostDiscountReady
+      ? validateUpgradeTile(
+          game,
+          {
+            type: TILE_ACTION_TYPES.UPGRADE_TILE,
+            placedTileId: selectedPlacedTile.id,
+            upgradeCostReductionResources: getUpgradeCostDiscountAction(
+              selectedPlacedTile.id,
+              upgradeCost.cost,
+              upgradeResourceDiscount
+            )
+          },
+          { tiles: state.data.tiles, tileIndex }
+        )
+      : null;
+  const upgradeResourceCostSubstitution = upgradePreviewValidation?.resourceCostSubstitution ?? null;
+  const upgradeDisplayCost = upgradePreviewValidation?.cost ?? upgradeCost?.cost ?? [];
+  const upgradeLabel = upgradeTile
+    ? `${upgradeTile.tile_name} (${upgradeCost?.error ? "unsupported cost" : renderCost(upgradeDisplayCost)})`
+    : "None";
   const selectedStewardExchangePayments =
     selectedStewardExchangeProvider && selectedStewardPowerDetails?.type === STEWARD_POWER_TYPES.RESOURCE_EXCHANGE
       ? getStewardExchangePaymentChoices(selectedStewardExchangeProvider.placedTile.id, selectedStewardPowerDetails)
@@ -8154,7 +8287,11 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
                     emptyText: "No adjacent eligible tiles without Supported",
                     mode: "support"
                   }
-                : {}
+                : {
+                    emptyText: activationDetails?.adjacent === false
+                      ? "No eligible strained tiles"
+                      : "No strained adjacent tiles"
+                  }
             )
           : ""
       }
@@ -8193,6 +8330,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
         selectedId: selectedUpgradeStewardPowerId
       })}
       ${renderUpgradeCostDiscountChoices(selectedPlacedTile, selectedTileDefinition, upgradeCost, upgradeResourceDiscount)}
+      ${renderResourceCostSubstitutionNotice(upgradeResourceCostSubstitution)}
       ${
         selectedPlacedTile
           ? `<div class="button-row">
@@ -8297,6 +8435,25 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
     ? getPlacementCostDiscountChoices(selectedTile.tile_id, cost, placementResourceDiscount)
     : [];
   const placementCostDiscountReady = placementCostDiscountChoices.every((resource) => Boolean(resource));
+  const selectedPlacementPreviewValidation =
+    selectedTile && placementCostDiscountReady
+      ? validatePlaceTile(
+          game,
+          {
+            type: TILE_ACTION_TYPES.PLACE_TILE,
+            tileId: selectedTile.tile_id,
+            coordinate: state.selectedCoordinate,
+            orientation: state.selectedOrientation,
+            placementCostReductionResources: getPlacementCostDiscountAction(
+              selectedTile.tile_id,
+              cost,
+              placementResourceDiscount
+            )
+          },
+          { tiles: state.data.tiles }
+        )
+      : null;
+  const placementResourceCostSubstitution = selectedPlacementPreviewValidation?.resourceCostSubstitution ?? null;
   const placementReachable = !displayedActionCost?.blockedByReachability;
   const hasEnoughActions = Boolean(activePlayer && displayedActionCost && activePlayer.actionsRemaining >= displayedActionCost.total);
   const hasEnoughStockForPlacement = !isStablesTile(selectedTile) || (selectedSupply?.available ?? 0) >= 2;
@@ -8329,6 +8486,8 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
     canPlace,
     blockedReason: placementBlockedReason,
     cost,
+    displayCost: selectedPlacementPreviewValidation?.cost ?? cost,
+    resourceCostSubstitution: placementResourceCostSubstitution,
     placementResourceDiscount,
     placementCostDiscountChoices,
     placementStewardPowerProviders,
@@ -8360,6 +8519,8 @@ function renderSelectedTilePlacementControls({
   canPlace,
   blockedReason,
   cost,
+  displayCost,
+  resourceCostSubstitution,
   placementResourceDiscount,
   placementCostDiscountChoices,
   placementStewardPowerProviders,
@@ -8382,6 +8543,7 @@ function renderSelectedTilePlacementControls({
     placementResourceDiscount,
     placementCostDiscountChoices
   );
+  const visibleCost = resourceCostSubstitution?.cost ?? displayCost ?? previewCost;
   const discountReady = placementCostDiscountChoices.every(Boolean);
   const placeButtonLabel = !discountReady
     ? "Choose discount resource to continue"
@@ -8391,7 +8553,7 @@ function renderSelectedTilePlacementControls({
         ? pendingPair
           ? `Place both Stables for ${renderActionCountLabel(displayedActionCost)}`
           : "Choose first Stables site"
-        : `Place for ${renderActionCountLabel(displayedActionCost)}, pay ${renderCost(previewCost)}`;
+        : `Place for ${renderActionCountLabel(displayedActionCost)}, pay ${renderCost(visibleCost)}`;
   const stewardPowerControls = renderStewardPowerSelect({
     id: "steward-placement-power",
     label: "Optional Steward Power",
@@ -8444,7 +8606,7 @@ function renderSelectedTilePlacementControls({
         <div><dt>Footprint</dt><dd>${escapeHtml(renderFootprint(footprint))}</dd></div>
         <div><dt>Connection</dt><dd>${escapeHtml(renderPlacementConnectionLabel(actionCost))}</dd></div>
         <div><dt>Actions</dt><dd>${escapeHtml(renderActionCountLabel(displayedActionCost))}</dd></div>
-        <div><dt>Resources</dt><dd>${escapeHtml(renderCost(previewCost))}</dd></div>
+        <div><dt>Resources</dt><dd>${escapeHtml(renderCost(visibleCost))}</dd></div>
       </dl>
       <div class="selected-placement-face" aria-label="${escapeHtml(`${selectedTile.tile_name} tile face preview`)}">
         ${renderTileFaceSvg(selectedTile, { upgradeTile: selectedUpgradeTile })}
@@ -8453,9 +8615,10 @@ function renderSelectedTilePlacementControls({
         label: "Cost & Effect",
         costSummary: [
           { label: "Actions", value: renderActionCountLabel(displayedActionCost) },
-          { label: "Resources", value: renderCost(previewCost) }
+          { label: "Resources", value: renderCost(visibleCost) }
         ]
       })}
+      ${renderResourceCostSubstitutionNotice(resourceCostSubstitution)}
       ${renderStewardHouseUpgradePreview(selectedTile, selectedTileIndex)}
       ${stewardPowerControls}
       ${discountControls}
@@ -9311,11 +9474,7 @@ function activatePlacedTile(placedTileId) {
 
     if (activationDetails?.type === "remove_strain_adjacent") {
       const maxTargets = activationDetails.maxTargets ?? 1;
-      const targetCandidates = getAdjacentPlacedTiles(state.game, placedTile).filter(
-        (candidate) =>
-          (candidate.strain ?? 0) > 0 &&
-          matchesActivationTargetCategories(tileIndex, candidate, activationDetails)
-      );
+      const targetCandidates = getStrainActivationTargetCandidates(state.game, tileIndex, placedTile, activationDetails);
       const savedTargetIds = normalizeActivationTargetIds(state.activationTargets[placedTile.id]);
       const validSavedTargetIds = savedTargetIds.filter((targetId) =>
         targetCandidates.some((candidate) => candidate.id === targetId)
@@ -10855,29 +11014,29 @@ function bindEvents() {
     renderApp();
   });
 
-  root.querySelector("#steward-exchange-count")?.addEventListener("change", (event) => {
-    const tileIndex = createTileIndex(state.data.tiles);
-    const provider = getActiveStewardExchangeProvider(state.game, tileIndex);
-    const placedTile = provider?.placedTile ?? null;
-    const amount = Number(event.target.value);
+  root.querySelectorAll(".steward-exchange-count").forEach((select) => {
+    select.addEventListener("change", () => {
+      const placedTileId = select.dataset.placedTileId;
+      const amount = Number(select.value);
 
-    if (!placedTile) {
-      return;
-    }
+      if (!placedTileId) {
+        return;
+      }
 
-    state.stewardExchangeAmounts = {
-      ...state.stewardExchangeAmounts,
-      [placedTile.id]: amount
-    };
-    state.stewardExchangePayments = {
-      ...state.stewardExchangePayments,
-      [placedTile.id]: (state.stewardExchangePayments[placedTile.id] ?? []).slice(0, amount)
-    };
-    state.stewardExchangeGains = {
-      ...state.stewardExchangeGains,
-      [placedTile.id]: (state.stewardExchangeGains[placedTile.id] ?? []).slice(0, amount)
-    };
-    renderApp();
+      state.stewardExchangeAmounts = {
+        ...state.stewardExchangeAmounts,
+        [placedTileId]: amount
+      };
+      state.stewardExchangePayments = {
+        ...state.stewardExchangePayments,
+        [placedTileId]: (state.stewardExchangePayments[placedTileId] ?? []).slice(0, amount)
+      };
+      state.stewardExchangeGains = {
+        ...state.stewardExchangeGains,
+        [placedTileId]: (state.stewardExchangeGains[placedTileId] ?? []).slice(0, amount)
+      };
+      renderApp();
+    });
   });
 
   root.querySelectorAll(".steward-starting-exchange-count").forEach((select) => {
@@ -10933,44 +11092,44 @@ function bindEvents() {
     });
   });
 
-  root.querySelector("#use-steward-exchange")?.addEventListener("click", () => {
-    if (!isPlaySessionPlaying()) {
-      setBlockedPlaySessionResult("USE_STEWARD_POWER");
+  root.querySelectorAll(".use-steward-exchange").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!isPlaySessionPlaying()) {
+        setBlockedPlaySessionResult("USE_STEWARD_POWER");
+        renderApp();
+        return;
+      }
+
+      const placedTileId = button.dataset.placedTileId;
+
+      if (!placedTileId) {
+        return;
+      }
+
+      const { state: nextGame, result } = dispatchGameAction(
+        state.game,
+        {
+          type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+          placedTileId,
+          payment: getResourcePaymentAction(state.stewardExchangePayments[placedTileId] ?? []),
+          gains: getResourcePaymentAction(state.stewardExchangeGains[placedTileId] ?? [])
+        },
+        { tiles: state.data.tiles }
+      );
+      applyGameOutcome(nextGame, result);
+      if (result.ok) {
+        const stewardExchangePayments = { ...state.stewardExchangePayments };
+        delete stewardExchangePayments[placedTileId];
+        state.stewardExchangePayments = stewardExchangePayments;
+        const stewardExchangeGains = { ...state.stewardExchangeGains };
+        delete stewardExchangeGains[placedTileId];
+        state.stewardExchangeGains = stewardExchangeGains;
+        const stewardExchangeAmounts = { ...state.stewardExchangeAmounts };
+        delete stewardExchangeAmounts[placedTileId];
+        state.stewardExchangeAmounts = stewardExchangeAmounts;
+      }
       renderApp();
-      return;
-    }
-
-    const tileIndex = createTileIndex(state.data.tiles);
-    const provider = getActiveStewardExchangeProvider(state.game, tileIndex);
-    const placedTile = provider?.placedTile ?? null;
-
-    if (!placedTile) {
-      return;
-    }
-
-    const { state: nextGame, result } = dispatchGameAction(
-      state.game,
-      {
-        type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
-        placedTileId: placedTile.id,
-        payment: getResourcePaymentAction(state.stewardExchangePayments[placedTile.id] ?? []),
-        gains: getResourcePaymentAction(state.stewardExchangeGains[placedTile.id] ?? [])
-      },
-      { tiles: state.data.tiles }
-    );
-    applyGameOutcome(nextGame, result);
-    if (result.ok) {
-      const stewardExchangePayments = { ...state.stewardExchangePayments };
-      delete stewardExchangePayments[placedTile.id];
-      state.stewardExchangePayments = stewardExchangePayments;
-      const stewardExchangeGains = { ...state.stewardExchangeGains };
-      delete stewardExchangeGains[placedTile.id];
-      state.stewardExchangeGains = stewardExchangeGains;
-      const stewardExchangeAmounts = { ...state.stewardExchangeAmounts };
-      delete stewardExchangeAmounts[placedTile.id];
-      state.stewardExchangeAmounts = stewardExchangeAmounts;
-    }
-    renderApp();
+    });
   });
 
   root.querySelectorAll(".activation-gain-resource").forEach((select) => {

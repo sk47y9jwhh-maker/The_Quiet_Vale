@@ -142,7 +142,7 @@ const FREE_ADJACENT_PLACEMENT_PROVIDER =
 const REDUCE_ADJACENT_PLACEMENT_PROVIDER =
   /^Once per (round|season),\s*when any player places a tile adjacent to this tile,\s*reduce that tile's cost by (\d+) resource/i;
 const ADJACENT_CORE_UPGRADE_DISCOUNT =
-  /^Passive:\s*Once per round,\s*when upgrading an adjacent Core Tile,\s*reduce that upgrade cost by (\d+) resource/i;
+  /^Passive:\s*Once per round,\s*when upgrading an adjacent Core Tile,\s*reduce (?:that upgrade cost|its cost) by (\d+) resource/i;
 const ADJACENT_ANY_SUPPORT = /adjacent tiles have Supported/i;
 const ADJACENT_RESOURCE_SUPPORT = /adjacent Resource Tiles have Supported/i;
 const LIMITED_ADJACENT_CATEGORY_SUPPORT =
@@ -1023,6 +1023,14 @@ function activationCanTargetTile(activation, targetTile) {
   return !activation?.targetCategories?.length || activation.targetCategories.includes(targetTile?.tile_category);
 }
 
+function getStrainRemovalTargetCandidates(state, tileIndex, placedTile, activation) {
+  const candidatePool = activation?.adjacent === false
+    ? state.map.placedTiles.filter((candidate) => candidate.id !== placedTile.id)
+    : getAdjacentPlacedTiles(state, placedTile);
+
+  return candidatePool.filter((target) => activationCanTargetTile(activation, tileIndex.get(target.tileId)));
+}
+
 function getAdjacentStrainReliefValue(sourceTile, targetTile, targetPlacedTile = null) {
   const activation = getSafeActivationDetails(sourceTile);
 
@@ -1395,7 +1403,7 @@ function buildRemoveStrainCandidates(state, profile, context) {
       continue;
     }
 
-    const adjacentTargets = getAdjacentPlacedTiles(state, placedTile)
+    const adjacentTargets = getStrainRemovalTargetCandidates(state, tileIndex, placedTile, activation)
       .filter((target) => (target.strain ?? 0) >= profile.strainRemovalThreshold)
       .sort((left, right) => (right.strain ?? 0) - (left.strain ?? 0));
 
