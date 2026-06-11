@@ -132,6 +132,12 @@ const TERRAIN_RESOURCE_TILE_IDS = Object.freeze({
   Ruins: "core_dig_site_basic"
 });
 
+const QUARTERMASTER_STARTING_EXCHANGE_DETAILS = Object.freeze({
+  type: STEWARD_POWER_TYPES.STARTING_RESOURCE_EXCHANGE,
+  maxAmount: 2,
+  label: "Before first seeding: exchange up to 2 Warehouse resources"
+});
+
 const TILE_CATEGORY_ACCENTS = Object.freeze({
   Resource: "#61724C",
   Housing: "#8A6B4D",
@@ -5151,12 +5157,460 @@ function getHeaderStewardMenuPlayers() {
       power,
       tokenCoordinate,
       powerUsed,
+      startingBenefitUsed: Boolean(player?.stewardStartingBenefitUsed),
       active: Boolean(player && state.game?.activePlayerId === player.id && isPlaySessionPlaying())
     };
   });
 }
 
-function renderHeaderStewardMenu() {
+function getStewardMenuProviderForSelectedPlacement(game, tileIndex, playerEntry) {
+  const selectedTile = getSelectedPlacementTile(tileIndex);
+
+  if (!selectedTile || !tileMatchesActiveOpeningRequirement(game, selectedTile)) {
+    return null;
+  }
+
+  const footprint = getFootprintCoordinates(
+    state.selectedCoordinate,
+    selectedTile.size_hexes,
+    state.selectedOrientation,
+    game.map.hexes
+  );
+  const actionCost = footprint ? calculatePlacementActionCostForUi(game, selectedTile, footprint, tileIndex) : null;
+
+  return (
+    getPlacementStewardPowerProviders(game, selectedTile, actionCost, tileIndex).find(
+      (provider) => provider.player.id === playerEntry.id
+    ) ?? null
+  );
+}
+
+function getStewardMenuProviderForSelectedUpgrade(game, tileIndex, playerEntry) {
+  const placedTile = getPlacedTileAt(game, state.selectedCoordinate);
+  const tileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
+  const upgradeTile = tileDefinition ? findUpgradeTile(tileDefinition, tileIndex) : null;
+
+  if (!placedTile || !tileDefinition || !upgradeTile) {
+    return null;
+  }
+
+  const actionCost = calculatePlacedTileActionCost(
+    game,
+    placedTile,
+    { tileIndex, playerId: playerEntry.id },
+    "upgradeActionCost"
+  );
+
+  return (
+    getUpgradeStewardPowerProviders(game, tileDefinition, tileIndex, actionCost).find(
+      (provider) => provider.player.id === playerEntry.id
+    ) ?? null
+  );
+}
+
+function getStewardMenuProviderForSelectedActivation(game, tileIndex, playerEntry) {
+  const placedTile = getPlacedTileAt(game, state.selectedCoordinate);
+  const tileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
+
+  if (!placedTile || !tileDefinition) {
+    return null;
+  }
+
+  const actionCost = calculatePlacedTileActionCost(
+    game,
+    placedTile,
+    { tileIndex, playerId: playerEntry.id },
+    "activationActionCost"
+  );
+
+  return (
+    getActivationStewardPowerProviders(game, tileIndex, actionCost).find(
+      (provider) => provider.player.id === playerEntry.id
+    ) ?? null
+  );
+}
+
+function getQuartermasterStartingExchangeKey(playerId) {
+  return `quartermaster-starting-exchange-${playerId}`;
+}
+
+function isQuartermasterStartingExchangeWindow(game) {
+  return Boolean(
+    isPlaySessionPlaying() &&
+    game?.phase === GAME_PHASES.SEED_ENCOUNTERS &&
+    game.round === 1 &&
+    game.season === "I" &&
+    !game.encounter.seededRounds.includes(1)
+  );
+}
+
+function canUseQuartermasterStartingExchange(game, playerEntry) {
+  return Boolean(
+    playerEntry.role?.id === "quartermaster" &&
+    !playerEntry.startingBenefitUsed &&
+    isQuartermasterStartingExchangeWindow(game)
+  );
+}
+
+function renderResourceSelectOptions(resources, selectedResource) {
+  return resources
+    .map(
+      (resource) =>
+        `<option value="${escapeHtml(resource)}" ${resource === selectedResource ? "selected" : ""}>${escapeHtml(resource)}</option>`
+    )
+    .join("");
+}
+
+function renderQuartermasterStartingExchangeControls(game, playerEntry) {
+  if (playerEntry.role?.id !== "quartermaster") {
+    return "";
+  }
+
+  if (playerEntry.startingBenefitUsed) {
+    return `<p class="steward-menu-note is-used">Setup exchange used.</p>`;
+  }
+
+  if (!isPlaySessionPlaying()) {
+    return `<p class="steward-menu-note">Setup exchange becomes available after Start Game, before first seeding.</p>`;
+  }
+
+  if (game.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
+    return `<p class="steward-menu-note">Place Steward tokens first, then Quartermaster may exchange before seeding.</p>`;
+  }
+
+  if (!isQuartermasterStartingExchangeWindow(game)) {
+    return "";
+  }
+
+  const exchangeKey = getQuartermasterStartingExchangeKey(playerEntry.id);
+  const amount = getStewardExchangeAmount(exchangeKey, QUARTERMASTER_STARTING_EXCHANGE_DETAILS);
+  const paymentChoices = getStewardExchangePaymentChoices(exchangeKey, QUARTERMASTER_STARTING_EXCHANGE_DETAILS);
+  const gainChoices = getStewardExchangeGainChoices(exchangeKey, QUARTERMASTER_STARTING_EXCHANGE_DETAILS);
+  const ready =
+    paymentChoices.every(Boolean) &&
+    gainChoices.every(Boolean) &&
+    canAffordCost(game.warehouse, getResourcePaymentAction(paymentChoices));
+
+  return `
+    <div class="steward-menu-exchange" aria-label="Quartermaster setup Warehouse exchange">
+      <header>
+        <strong>Setup Exchange</strong>
+        <span>Before first seeding</span>
+      </header>
+      <label class="steward-menu-count">
+        <span>Count</span>
+        <select class="steward-starting-exchange-count" data-exchange-key="${escapeHtml(exchangeKey)}" aria-label="Quartermaster exchange count">
+          ${Array.from({ length: QUARTERMASTER_STARTING_EXCHANGE_DETAILS.maxAmount }, (_, index) => index + 1)
+            .map((option) => `<option value="${option}" ${option === amount ? "selected" : ""}>${option}</option>`)
+            .join("")}
+        </select>
+      </label>
+      <div class="steward-menu-exchange-grid">
+        ${Array.from({ length: amount }, (_, index) => {
+          const selectedPayment = paymentChoices[index] ?? "";
+          const selectedGain = gainChoices[index] ?? "";
+
+          return `
+            <select class="steward-exchange-payment-resource" data-placed-tile-id="${escapeHtml(exchangeKey)}" data-payment-index="${index}" aria-label="Quartermaster pay resource ${index + 1}">
+              <option value="">Pay...</option>
+              ${renderResourceSelectOptions(game.rules.resources, selectedPayment)}
+            </select>
+            <select class="steward-exchange-gain-resource" data-placed-tile-id="${escapeHtml(exchangeKey)}" data-gain-index="${index}" aria-label="Quartermaster gain resource ${index + 1}">
+              <option value="">Gain...</option>
+              ${renderResourceSelectOptions(game.rules.resources, selectedGain)}
+            </select>
+          `;
+        }).join("")}
+      </div>
+      <button
+        class="steward-menu-button steward-menu-exchange-button"
+        type="button"
+        data-steward-menu-action="use-quartermaster-starting-exchange"
+        data-steward-menu-player-id="${escapeHtml(playerEntry.id)}"
+        ${ready ? "" : "disabled"}
+      >
+        Exchange Resources
+      </button>
+      ${ready ? "" : `<small>Choose matching pay and gain resources that are available in the Warehouse.</small>`}
+    </div>
+  `;
+}
+
+function renderWardenSuppressionControls(game, tileIndex, encounterIndex, playerEntry) {
+  if (
+    playerEntry.role?.id !== "warden" ||
+    !isPlaySessionPlaying() ||
+    !playerEntry.active ||
+    playerEntry.powerUsed ||
+    game.phase !== GAME_PHASES.PLAYER_TURNS
+  ) {
+    return "";
+  }
+
+  const provider = getAvailableStewardPowerProviders(
+    game,
+    { tileIndex },
+    STEWARD_POWER_TYPES.SUPPRESS_BURDEN
+  ).find((candidate) => candidate.player.id === playerEntry.id);
+  const burdens = game.encounter.active.filter(
+    (activeState) =>
+      activeState.encounterType === ENCOUNTER_TYPES.BURDEN &&
+      !activeState.resolved &&
+      !activeState.suppressedByStewardPower
+  );
+
+  if (!provider || burdens.length === 0) {
+    return "";
+  }
+
+  return `
+    <div class="steward-menu-power-actions" aria-label="Warden Burden suppression">
+      <strong>Ignore a Burden</strong>
+      ${burdens
+        .map((activeState) => {
+          const card = encounterIndex.get(activeState.cardId);
+
+          return `
+            <button
+              class="steward-menu-button"
+              type="button"
+              data-steward-menu-action="suppress-burden"
+              data-steward-menu-provider-id="${escapeHtml(provider.placedTile.id)}"
+              data-steward-menu-active-encounter-id="${escapeHtml(activeState.id)}"
+            >
+              ${escapeHtml(card?.card_name ?? "Burden")}
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function getStewardMenuPowerUseState(playerEntry, tileIndex) {
+  const game = state.game;
+  const power = playerEntry.power;
+
+  if (!game || !power || !playerEntry.role) {
+    return {
+      tone: "waiting",
+      detail: "Choose a Steward role in Setup.",
+      action: null
+    };
+  }
+
+  if (isPlaySessionSetup()) {
+    return {
+      tone: "waiting",
+      detail: "Start the game, then place this Steward token for free.",
+      action: { label: "Open Setup", command: "open-setup", target: "" }
+    };
+  }
+
+  if (game.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
+    return playerEntry.active
+      ? {
+          tone: "ready",
+          detail: "Click a highlighted setup hex to place this Steward token.",
+          action: { label: "Show Map", command: "focus-map", target: "#map-panel" }
+        }
+      : {
+          tone: "waiting",
+          detail: playerEntry.tokenCoordinate
+            ? `Token placed at ${playerEntry.tokenCoordinate}.`
+            : "Waiting for this Steward's setup token placement.",
+          action: null
+        };
+  }
+
+  if (playerEntry.powerUsed) {
+    return {
+      tone: "used",
+      detail: "This once-per-season power has been used. It refreshes next Season.",
+      action: null
+    };
+  }
+
+  if (!playerEntry.active) {
+    return {
+      tone: "waiting",
+      detail: "Ready when this Steward is the active player.",
+      action: null
+    };
+  }
+
+  if (game.phase !== GAME_PHASES.PLAYER_TURNS) {
+    return {
+      tone: "waiting",
+      detail: "Ready once player actions are open.",
+      action: null
+    };
+  }
+
+  if (power.type === STEWARD_POWER_TYPES.FREE_PLACEMENT_ACTION) {
+    const provider = getStewardMenuProviderForSelectedPlacement(game, tileIndex, playerEntry);
+    const selectedTile = getSelectedPlacementTile(tileIndex);
+
+    return provider
+      ? {
+          tone: "ready",
+          detail: `Can be applied to the selected ${selectedTile.tile_name} placement.`,
+          action: {
+            label: "Use On Placement",
+            command: "select-placement-power",
+            target: "#placement-panel",
+            providerId: provider.placedTile.id
+          }
+        }
+      : {
+          tone: "ready",
+          detail: `Choose a ${power.categories?.join(" or ") ?? "matching"} tile, then use this on its placement.`,
+          action: { label: "Open Tiles", command: "focus-tiles", target: "#placement-panel" }
+        };
+  }
+
+  if (power.type === STEWARD_POWER_TYPES.FREE_CORE_UPGRADE_ACTION) {
+    const provider = getStewardMenuProviderForSelectedUpgrade(game, tileIndex, playerEntry);
+
+    return provider
+      ? {
+          tone: "ready",
+          detail: "Can be applied to the selected Core tile upgrade.",
+          action: {
+            label: "Use On Upgrade",
+            command: "select-upgrade-power",
+            target: "#selected-tile-panel",
+            providerId: provider.placedTile.id
+          }
+        }
+      : {
+          tone: "ready",
+          detail: "Select a placed Core tile with an upgrade side, then apply this to the upgrade.",
+          action: { label: "Open Map Tile", command: "focus-selected-tile", target: "#selected-tile-panel" }
+        };
+  }
+
+  if (power.type === STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION) {
+    const placementProvider = getStewardMenuProviderForSelectedPlacement(game, tileIndex, playerEntry);
+    const upgradeProvider = getStewardMenuProviderForSelectedUpgrade(game, tileIndex, playerEntry);
+    const activationProvider = getStewardMenuProviderForSelectedActivation(game, tileIndex, playerEntry);
+
+    if (placementProvider) {
+      return {
+        tone: "ready",
+        detail: "Can be applied to the selected out-of-network placement.",
+        action: {
+          label: "Use On Placement",
+          command: "select-placement-power",
+          target: "#placement-panel",
+          providerId: placementProvider.placedTile.id
+        }
+      };
+    }
+
+    if (upgradeProvider) {
+      return {
+        tone: "ready",
+        detail: "Can be applied to the selected out-of-network upgrade.",
+        action: {
+          label: "Use On Upgrade",
+          command: "select-upgrade-power",
+          target: "#selected-tile-panel",
+          providerId: upgradeProvider.placedTile.id
+        }
+      };
+    }
+
+    if (activationProvider) {
+      return {
+        tone: "ready",
+        detail: "Can be applied to the selected out-of-network tile activation.",
+        action: {
+          label: "Use On Activation",
+          command: "select-activation-power",
+          target: "#selected-tile-panel",
+          providerId: activationProvider.placedTile.id
+        }
+      };
+    }
+
+    return {
+      tone: "ready",
+      detail: "Select a tile or map action outside this Steward's network to make this power available.",
+      action: { label: "Show Map", command: "focus-map", target: "#map-panel" }
+    };
+  }
+
+  if (power.type === STEWARD_POWER_TYPES.SUPPRESS_BURDEN) {
+    const burdens = game.encounter.active.filter(
+      (activeState) => activeState.encounterType === ENCOUNTER_TYPES.BURDEN && !activeState.resolved
+    );
+
+    return burdens.length
+      ? {
+          tone: "ready",
+          detail: "Use this on an active Burden from the Stewards Board.",
+          action: { label: "Open Burdens", command: "focus-encounters", target: "#encounter-panel" }
+        }
+      : {
+          tone: "ready",
+          detail: "No active Burden needs this power right now.",
+          action: { label: "Open Encounters", command: "focus-encounters", target: "#encounter-panel" }
+        };
+  }
+
+  if (power.type === STEWARD_POWER_TYPES.FREE_BURDEN_RESOLUTION_ACTION) {
+    return {
+      tone: "ready",
+      detail: "Use this from a Burden's resolve controls on the Stewards Board.",
+      action: { label: "Open Burdens", command: "focus-encounters", target: "#encounter-panel" }
+    };
+  }
+
+  if (power.type === STEWARD_POWER_TYPES.RESOURCE_EXCHANGE) {
+    if (canUseQuartermasterStartingExchange(game, playerEntry)) {
+      return {
+        tone: "ready",
+        detail: "Use the setup exchange below before seeding Season I.",
+        action: null
+      };
+    }
+
+    return {
+      tone: "ready",
+      detail: "Use this as a cost substitution from placement, upgrade, Burden, Arrival, or Boon payment controls.",
+      action: { label: "Open Warehouse", command: "focus-warehouse", target: "#warehouse-panel" }
+    };
+  }
+
+  return {
+    tone: "ready",
+    detail: "Ready this Season.",
+    action: null
+  };
+}
+
+function renderStewardMenuFocus(players) {
+  if (!isPlaySessionPlaying()) {
+    return "";
+  }
+
+  const activePlayer = players.find((player) => player.active);
+
+  if (!activePlayer) {
+    return "";
+  }
+
+  return `
+    <aside class="steward-menu-focus">
+      <span>Active Steward</span>
+      <strong>${escapeHtml(`${activePlayer.id} - ${activePlayer.role?.name ?? "Steward"}`)}</strong>
+      <small>${escapeHtml(activePlayer.tokenCoordinate ? `Token at ${activePlayer.tokenCoordinate}` : "Token not placed")}</small>
+    </aside>
+  `;
+}
+
+function renderHeaderStewardMenu(tileIndex, encounterIndex) {
   const players = getHeaderStewardMenuPlayers();
 
   return `
@@ -5168,10 +5622,12 @@ function renderHeaderStewardMenu() {
             <p class="eyebrow">Player Stewards</p>
             <h2>Tokens, Powers, Bonuses</h2>
           </header>
+          ${renderStewardMenuFocus(players)}
           <div class="steward-menu-grid">
             ${players
               .map((player) => {
                 const role = player.role;
+                const powerUse = getStewardMenuPowerUseState(player, tileIndex);
                 const powerStatus = isPlaySessionSetup()
                   ? "Ready after setup"
                   : player.powerUsed
@@ -5200,11 +5656,29 @@ function renderHeaderStewardMenu() {
                         <dd>${escapeHtml(player.power?.label ?? "No once-per-season power listed")}</dd>
                       </div>
                       <div>
+                        <dt>Use now</dt>
+                        <dd>${escapeHtml(powerUse.detail)}</dd>
+                      </div>
+                      <div>
                         <dt>Bonus</dt>
                         <dd>${escapeHtml(role?.objectiveSummary ?? "No scoring bonus listed")}</dd>
                       </div>
                     </dl>
-                    <p class="steward-menu-status ${statusClass}">${escapeHtml(powerStatus)}</p>
+                    ${renderQuartermasterStartingExchangeControls(state.game, player)}
+                    ${renderWardenSuppressionControls(state.game, tileIndex, encounterIndex, player)}
+                    <div class="steward-menu-footer">
+                      <p class="steward-menu-status ${statusClass}">${escapeHtml(powerStatus)}</p>
+                      ${
+                        powerUse.action
+                          ? `<button class="steward-menu-button" type="button"
+                              data-steward-menu-action="${escapeHtml(powerUse.action.command)}"
+                              data-steward-menu-target="${escapeHtml(powerUse.action.target ?? "")}"
+                              data-steward-menu-provider-id="${escapeHtml(powerUse.action.providerId ?? "")}">
+                              ${escapeHtml(powerUse.action.label)}
+                            </button>`
+                          : ""
+                      }
+                    </div>
                   </article>
                 `;
               })
@@ -5216,11 +5690,11 @@ function renderHeaderStewardMenu() {
   `;
 }
 
-function renderHeaderActions() {
+function renderHeaderActions(tileIndex, encounterIndex) {
   return `
     <div class="header-actions">
       <a class="header-rulebook-link" href="./rulebook.pdf" target="_blank" rel="noopener">View Rulebook</a>
-      ${renderHeaderStewardMenu()}
+      ${renderHeaderStewardMenu(tileIndex, encounterIndex)}
       ${renderHeaderTableAction()}
     </div>
   `;
@@ -8234,7 +8708,7 @@ function renderApp() {
           <h1>The Quiet Vale</h1>
           <p class="app-subtitle">Seasons of Settlement</p>
         </div>
-        ${renderHeaderActions()}
+        ${renderHeaderActions(tileIndex, encounterIndex)}
       </header>
       ${renderCurrentActionPanel(state.game, tileIndex, encounterIndex)}
       <section class="play-layout">
@@ -9158,6 +9632,120 @@ function runCurrentAction(actionName) {
   runQuickAction(actionName);
 }
 
+function focusPlayArea(selector) {
+  if (!selector) {
+    return;
+  }
+
+  const element = root.querySelector(selector);
+
+  if (!element) {
+    return;
+  }
+
+  if (element instanceof HTMLDetailsElement) {
+    element.open = true;
+  }
+
+  element.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function runQuartermasterStartingExchange(playerId) {
+  if (!isPlaySessionPlaying()) {
+    setBlockedPlaySessionResult("USE_STEWARD_POWER");
+    renderApp();
+    return;
+  }
+
+  const exchangeKey = getQuartermasterStartingExchangeKey(playerId);
+  const { state: nextGame, result } = dispatchGameAction(
+    state.game,
+    {
+      type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+      stewardPowerType: STEWARD_POWER_TYPES.STARTING_RESOURCE_EXCHANGE,
+      playerId,
+      payment: getResourcePaymentAction(state.stewardExchangePayments[exchangeKey] ?? []),
+      gains: getResourcePaymentAction(state.stewardExchangeGains[exchangeKey] ?? [])
+    },
+    { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
+  );
+
+  applyGameOutcome(nextGame, result);
+
+  if (result.ok) {
+    const stewardExchangePayments = { ...state.stewardExchangePayments };
+    delete stewardExchangePayments[exchangeKey];
+    state.stewardExchangePayments = stewardExchangePayments;
+    const stewardExchangeGains = { ...state.stewardExchangeGains };
+    delete stewardExchangeGains[exchangeKey];
+    state.stewardExchangeGains = stewardExchangeGains;
+    const stewardExchangeAmounts = { ...state.stewardExchangeAmounts };
+    delete stewardExchangeAmounts[exchangeKey];
+    state.stewardExchangeAmounts = stewardExchangeAmounts;
+  }
+
+  renderApp();
+}
+
+function runStewardMenuAction(button) {
+  const command = button.dataset.stewardMenuAction ?? "";
+  const providerId = button.dataset.stewardMenuProviderId ?? "";
+  const target = button.dataset.stewardMenuTarget ?? "";
+
+  if (command === "use-quartermaster-starting-exchange") {
+    runQuartermasterStartingExchange(button.dataset.stewardMenuPlayerId ?? "");
+    return;
+  }
+
+  if (command === "suppress-burden") {
+    if (!isPlaySessionPlaying()) {
+      setBlockedPlaySessionResult("USE_STEWARD_POWER");
+      renderApp();
+      return;
+    }
+
+    const { state: nextGame, result } = dispatchGameAction(
+      state.game,
+      {
+        type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+        stewardPowerType: STEWARD_POWER_TYPES.SUPPRESS_BURDEN,
+        activeEncounterId: button.dataset.stewardMenuActiveEncounterId,
+        placedTileId: providerId
+      },
+      { tiles: state.data.tiles, encounterCards: state.data.encounterCards }
+    );
+
+    applyGameOutcome(nextGame, result);
+    renderApp();
+    return;
+  }
+
+  if (command === "open-setup") {
+    root.querySelector(".header-setup-menu:not(.header-steward-menu)")?.setAttribute("open", "");
+    return;
+  }
+
+  if (command === "select-placement-power") {
+    state.stewardPlacementPowerId = providerId;
+  }
+
+  if (command === "select-upgrade-power") {
+    state.stewardUpgradePowerId = providerId;
+  }
+
+  if (command === "select-activation-power") {
+    state.stewardActivationPowerId = providerId;
+  }
+
+  if (command.startsWith("select-")) {
+    renderApp();
+    requestAnimationFrame(() => focusPlayArea(target));
+    return;
+  }
+
+  focusPlayArea(target);
+}
+
 function bindEvents() {
   root.querySelectorAll("[data-coordinate]").forEach((element) => {
     const placePending = element.classList.contains("hex");
@@ -9256,6 +9844,10 @@ function bindEvents() {
 
   root.querySelectorAll("[data-current-action]").forEach((button) => {
     button.addEventListener("click", () => runCurrentAction(button.dataset.currentAction));
+  });
+
+  root.querySelectorAll("[data-steward-menu-action]").forEach((button) => {
+    button.addEventListener("click", () => runStewardMenuAction(button));
   });
 
   root.querySelector("#simulation-bot-profile")?.addEventListener("change", (event) => {
@@ -10059,6 +10651,31 @@ function bindEvents() {
       [placedTile.id]: (state.stewardExchangeGains[placedTile.id] ?? []).slice(0, amount)
     };
     renderApp();
+  });
+
+  root.querySelectorAll(".steward-starting-exchange-count").forEach((select) => {
+    select.addEventListener("change", () => {
+      const exchangeKey = select.dataset.exchangeKey;
+      const amount = Number(select.value);
+
+      if (!exchangeKey) {
+        return;
+      }
+
+      state.stewardExchangeAmounts = {
+        ...state.stewardExchangeAmounts,
+        [exchangeKey]: amount
+      };
+      state.stewardExchangePayments = {
+        ...state.stewardExchangePayments,
+        [exchangeKey]: (state.stewardExchangePayments[exchangeKey] ?? []).slice(0, amount)
+      };
+      state.stewardExchangeGains = {
+        ...state.stewardExchangeGains,
+        [exchangeKey]: (state.stewardExchangeGains[exchangeKey] ?? []).slice(0, amount)
+      };
+      renderApp();
+    });
   });
 
   root.querySelectorAll(".steward-exchange-payment-resource").forEach((select) => {
