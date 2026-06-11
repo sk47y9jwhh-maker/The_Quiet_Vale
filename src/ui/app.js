@@ -178,6 +178,11 @@ const TILE_COLOUR_VARIATIONS = Object.freeze([
   Object.freeze({ baseTile: "Gravel Track", upgradedTile: "Paved Road", variantHex: "#5E7482" })
 ]);
 
+const MAP_WAREHOUSE_RAILS = Object.freeze([
+  Object.freeze(["Wood", "Stone", "Metal"]),
+  Object.freeze(["Food", "Herbs", "Goods"])
+]);
+
 const BURDEN_REVEAL_CHOICE_TYPES = Object.freeze([
   "pay_or_strain_choice",
   "arrival_pay_or_timer_choice",
@@ -3268,6 +3273,11 @@ function renderTileWireframeCard(tile, options = {}) {
           ${renderTileFlipButton(tile, upgradeTile, previewSide)}
         </div>
         ${unavailableText}
+      </div>
+      <div class="tile-frame-name">
+        <span>Tile Name</span>
+        <strong>${escapeHtml(previewTile.tile_name)}</strong>
+        <small>${escapeHtml(previewTile.side ?? tile.side ?? "Tile")}</small>
       </div>
       <button
         class="tile-wire-select"
@@ -7163,6 +7173,7 @@ function renderWarehousePanel(game, options = {}) {
   const compact = options.compact === true;
   const wrapperTag = compact ? "aside" : "section";
   const wrapperId = options.id ?? "warehouse-panel";
+  const wrapperIdAttribute = wrapperId ? ` id="${escapeHtml(wrapperId)}"` : "";
   const wrapperClass = [
     compact ? "warehouse-panel warehouse-strip-panel" : "state-panel warehouse-panel",
     options.className ?? ""
@@ -7170,12 +7181,15 @@ function renderWarehousePanel(game, options = {}) {
     .filter(Boolean)
     .join(" ");
   const ariaLabel = options.ariaLabel ?? "Warehouse resources";
+  const resourceFilter = new Set(options.resources ?? Object.keys(game.warehouse.resources));
+  const resourceEntries = Object.entries(game.warehouse.resources).filter(([resource]) => resourceFilter.has(resource));
+  const title = options.title ?? "Warehouse";
 
   return `
-    <${wrapperTag} id="${escapeHtml(wrapperId)}" class="${escapeHtml(wrapperClass)}" aria-label="${escapeHtml(ariaLabel)}">
-      <h2>Warehouse</h2>
+    <${wrapperTag}${wrapperIdAttribute} class="${escapeHtml(wrapperClass)}" aria-label="${escapeHtml(ariaLabel)}">
+      <h2>${escapeHtml(title)}</h2>
       <ul class="warehouse-grid">
-        ${Object.entries(game.warehouse.resources)
+        ${resourceEntries
           .map(([resource, amount]) => {
             const percentage = game.warehouse.cap > 0
               ? Math.max(0, Math.min(100, Math.round((amount / game.warehouse.cap) * 100)))
@@ -8905,18 +8919,29 @@ function renderApp() {
       <section class="play-layout">
         <section class="play-top-grid">
           <div class="map-stack">
-            <section id="map-panel" class="map-panel" aria-label="Map panel">
-              <header class="map-panel-header">
-                <h2>Map</h2>
-                ${renderMapKey()}
-              </header>
-              ${renderHexMap(state.data.mapHexes, state.game, tileIndex)}
-            </section>
-            ${renderWarehousePanel(state.game, {
-              id: "warehouse-panel",
-              className: "map-warehouse-panel",
-              ariaLabel: "Warehouse resources for map and Encounter decisions"
-            })}
+            <div id="warehouse-panel" class="map-table-row" aria-label="Map and Warehouse resources">
+              ${renderWarehousePanel(state.game, {
+                id: "",
+                title: "Warehouse",
+                className: "map-warehouse-panel map-warehouse-rail is-left",
+                resources: MAP_WAREHOUSE_RAILS[0],
+                ariaLabel: "Warehouse resources: Wood, Stone, Metal"
+              })}
+              <section id="map-panel" class="map-panel" aria-label="Map panel">
+                <header class="map-panel-header">
+                  <h2>Map</h2>
+                  ${renderMapKey()}
+                </header>
+                ${renderHexMap(state.data.mapHexes, state.game, tileIndex)}
+              </section>
+              ${renderWarehousePanel(state.game, {
+                id: "",
+                title: "Warehouse",
+                className: "map-warehouse-panel map-warehouse-rail is-right",
+                resources: MAP_WAREHOUSE_RAILS[1],
+                ariaLabel: "Warehouse resources: Food, Herbs, Goods"
+              })}
+            </div>
           </div>
         </section>
         ${renderTableWorkspace(state.game, tileIndex, encounterIndex)}
