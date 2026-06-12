@@ -8837,7 +8837,6 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
         selectedTileId: state.selectedTileId
       })}
       ${renderPlacementResult(state.lastActionResult)}
-      ${renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded: true })}
     </section>
   `;
 }
@@ -9375,6 +9374,7 @@ function renderGameDashboard(game, encounterIndex) {
         ${renderScorePanel(game)}
         ${renderTileSupplyPanel(game)}
         ${renderTableAssistPanel()}
+        ${renderTravelNetworksPanel(game, tileIndex, encounterIndex)}
         ${renderActionLog(game, encounterIndex, tileIndex)}
       </section>
     </details>

@@ -968,13 +968,13 @@ h3 {
 
 .table-workspace-body.is-tiles #placement-panel {
   grid-template-columns: minmax(330px, 430px) minmax(0, 1fr);
+  grid-auto-rows: min-content;
   align-items: start;
   padding: 16px;
 }
 
 .table-workspace-body.is-tiles #placement-panel > .tile-console-header,
-.table-workspace-body.is-tiles #placement-panel > .phase-note,
-.table-workspace-body.is-tiles #placement-panel > .tile-selected-details {
+.table-workspace-body.is-tiles #placement-panel > .phase-note {
   grid-column: 1 / -1;
 }
 
@@ -986,10 +986,11 @@ h3 {
 
 .table-workspace-body.is-tiles #placement-panel > .tile-tray-shell {
   grid-column: 2;
-  grid-row: 2 / span 5;
+  grid-row: 2;
   position: relative;
   display: grid;
-  align-self: start;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-self: stretch;
   min-height: 0;
   gap: 6px;
 }
@@ -3882,6 +3883,8 @@ textarea {
 
 .tile-tray {
   display: grid;
+  align-content: start;
+  align-items: start;
   gap: 10px;
   grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   max-height: min(460px, 52vh);
@@ -3893,7 +3896,9 @@ textarea {
 }
 
 .table-workspace-body.is-tiles #placement-panel .tile-tray {
-  max-height: min(760px, 74vh);
+  height: 100%;
+  max-height: none;
+  min-height: min(620px, 68vh);
 }
 
 .tile-tray::-webkit-scrollbar {
@@ -3920,6 +3925,10 @@ textarea {
   height: 32px;
   pointer-events: none;
   background: linear-gradient(180deg, rgba(248, 241, 222, 0), rgba(238, 226, 197, 0.92));
+}
+
+.table-workspace-body.is-tiles .tile-tray-shell.has-scroll-cue::after {
+  bottom: 46px;
 }
 
 .tile-scroll-cue {
@@ -4409,9 +4418,12 @@ textarea {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 12px;
-  margin: -2px 4px 0;
-  padding: 7px 9px 0;
-  border-top: 1px solid rgba(92, 77, 55, 0.18);
+  align-self: start;
+  margin: 0 2px;
+  padding: 7px 10px;
+  border: 1px solid rgba(92, 77, 55, 0.16);
+  border-radius: 7px;
+  background: rgba(244, 235, 213, 0.72);
   color: #6c7169;
   font-size: 0.68rem;
   font-weight: 750;
@@ -4903,8 +4915,11 @@ textarea {
 }
 
 .tile-selected-details {
-  border-top: 1px solid var(--line);
-  padding-top: 10px;
+  border: 1px solid rgba(92, 77, 55, 0.16);
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 239, 0.88), rgba(239, 229, 205, 0.72));
+  padding: 8px 10px;
 }
 
 .tile-selected-details > summary {
