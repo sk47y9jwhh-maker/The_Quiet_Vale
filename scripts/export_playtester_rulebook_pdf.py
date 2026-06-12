@@ -27,9 +27,15 @@ from export_styled_rulebook_from_docx import (
 )
 
 
-RULEBOOK_VERSION = "v0.7"
-OUTPUT = OUT_DIR / "The_Quiet_Vale_Playtester_Rulebook_Styled_Draft_v0_7.pdf"
-MANIFEST = OUT_DIR / "manifest_playtester_v0_7.txt"
+RULEBOOK_VERSION = "v3.1 current build"
+CURRENT_BUILD_SOURCE = (
+    Path(__file__).resolve().parents[1]
+    / "exports"
+    / "current_build_documents"
+    / "The_Quiet_Vale_Player_Facing_Rulebook_v3_1_Current_Build.docx"
+)
+OUTPUT = OUT_DIR / "The_Quiet_Vale_Playtester_Rulebook_Current_Build_v3_1.pdf"
+MANIFEST = OUT_DIR / "manifest_playtester_current_build_v3_1.txt"
 
 
 PLAYTEST_STYLES = {
@@ -538,7 +544,7 @@ def build_pdf(source: Path, output: Path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
+    parser.add_argument("--source", type=Path, default=CURRENT_BUILD_SOURCE if CURRENT_BUILD_SOURCE.exists() else DEFAULT_SOURCE)
     parser.add_argument("--out", type=Path, default=OUTPUT)
     args = parser.parse_args()
     build_pdf(args.source, args.out)
