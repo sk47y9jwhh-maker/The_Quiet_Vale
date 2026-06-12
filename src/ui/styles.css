@@ -984,16 +984,14 @@ h3 {
   grid-column: 1;
 }
 
-.table-workspace-body.is-tiles #placement-panel > .tile-tray {
+.table-workspace-body.is-tiles #placement-panel > .tile-tray-shell {
   grid-column: 2;
   grid-row: 2 / span 5;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  max-height: min(760px, 74vh);
-  padding-right: 4px;
-}
-
-.table-workspace-body.is-tiles #placement-panel > .tile-face-key {
-  grid-column: 2;
+  position: relative;
+  display: grid;
+  align-self: start;
+  min-height: 0;
+  gap: 6px;
 }
 
 .table-workspace-body.is-tiles #placement-panel > .result-message,
@@ -3885,9 +3883,84 @@ textarea {
 .tile-tray {
   display: grid;
   gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   max-height: min(460px, 52vh);
   overflow: auto;
-  padding: 2px 3px 2px 0;
+  scrollbar-color: rgba(150, 117, 62, 0.72) rgba(82, 76, 61, 0.14);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  padding: 2px 8px 4px 0;
+}
+
+.table-workspace-body.is-tiles #placement-panel .tile-tray {
+  max-height: min(760px, 74vh);
+}
+
+.tile-tray::-webkit-scrollbar {
+  width: 9px;
+}
+
+.tile-tray::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(82, 76, 61, 0.12);
+}
+
+.tile-tray::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(246, 239, 219, 0.82);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #b99651, #7d6334);
+}
+
+.tile-tray-shell.has-scroll-cue::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  bottom: 36px;
+  left: 10px;
+  height: 32px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(248, 241, 222, 0), rgba(238, 226, 197, 0.92));
+}
+
+.tile-scroll-cue {
+  position: absolute;
+  top: 12px;
+  right: 6px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid rgba(146, 111, 54, 0.38);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 250, 238, 0.94), rgba(222, 207, 174, 0.9));
+  color: #6b5735;
+  box-shadow: 0 8px 18px rgba(48, 36, 19, 0.14);
+  pointer-events: none;
+}
+
+.tile-scroll-cue i {
+  position: relative;
+  display: inline-block;
+  width: 8px;
+  height: 28px;
+  border: 1px solid rgba(103, 82, 45, 0.66);
+  border-radius: 999px;
+  background: rgba(255, 252, 244, 0.5);
+}
+
+.tile-scroll-cue i::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 3px;
+  height: 7px;
+  border-radius: 999px;
+  background: #8b6b35;
+  transform: translateX(-50%);
 }
 
 .tile-choice-button {
@@ -5392,8 +5465,7 @@ summary {
   }
 
   .table-workspace-body.is-tiles #placement-panel > .tile-wire-placement-panel,
-  .table-workspace-body.is-tiles #placement-panel > .tile-tray,
-  .table-workspace-body.is-tiles #placement-panel > .tile-face-key,
+  .table-workspace-body.is-tiles #placement-panel > .tile-tray-shell,
   .table-workspace-body.is-tiles #placement-panel > .result-message,
   .table-workspace-body.is-tiles #placement-panel > .empty-note {
     position: static;
@@ -5401,7 +5473,7 @@ summary {
     grid-row: auto;
   }
 
-  .table-workspace-body.is-tiles #placement-panel > .tile-tray {
+  .table-workspace-body.is-tiles #placement-panel .tile-tray {
     max-height: none;
   }
 

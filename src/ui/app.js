@@ -8697,7 +8697,6 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
       ${renderTileChoiceButtons(options, tileIndex, {
         selectedTileId: state.selectedTileId
       })}
-      ${renderTileFaceKey()}
       ${renderPlacementResult(state.lastActionResult)}
       ${renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded: true })}
     </section>
@@ -8827,27 +8826,33 @@ function renderTileChoiceButtons(options, tileIndex, selection = {}) {
     return `<p class="empty-note">No tiles available to place.</p>`;
   }
 
-  return `
-    <div class="tile-tray" aria-label="Tile tray">
-      ${options
-        .map(({ tile, supply }) => {
-          const disabled = !supply || supply.available <= 0;
-          const selected = tile.tile_id === selection.selectedTileId;
-          const upgradeTile = findUpgradeTile(tile, tileIndex);
-          const previewSide = getTileFacePreviewSide(tile.tile_id);
-          const stewardHousePreview = renderStewardHouseUpgradePreview(tile, tileIndex, { compact: true });
+  const hasScrollCue = options.length > 6;
 
-          return renderTileWireframeCard(tile, {
-            supply,
-            disabled,
-            selected,
-            upgradeTile,
-            previewSide,
-            title: selected ? "Selected Tile" : "Available Tile",
-            placementControls: stewardHousePreview
-          });
-        })
-        .join("")}
+  return `
+    <div class="tile-tray-shell ${hasScrollCue ? "has-scroll-cue" : ""}">
+      <div class="tile-tray" aria-label="Tile tray">
+        ${options
+          .map(({ tile, supply }) => {
+            const disabled = !supply || supply.available <= 0;
+            const selected = tile.tile_id === selection.selectedTileId;
+            const upgradeTile = findUpgradeTile(tile, tileIndex);
+            const previewSide = getTileFacePreviewSide(tile.tile_id);
+            const stewardHousePreview = renderStewardHouseUpgradePreview(tile, tileIndex, { compact: true });
+
+            return renderTileWireframeCard(tile, {
+              supply,
+              disabled,
+              selected,
+              upgradeTile,
+              previewSide,
+              title: selected ? "Selected Tile" : "Available Tile",
+              placementControls: stewardHousePreview
+            });
+          })
+          .join("")}
+      </div>
+      ${hasScrollCue ? `<div class="tile-scroll-cue" aria-hidden="true"><i></i></div>` : ""}
+      ${renderTileFaceKey()}
     </div>
   `;
 }
