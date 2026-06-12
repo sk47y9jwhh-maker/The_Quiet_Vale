@@ -3,7 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { dispatchGameAction } from "../src/game/reducer.js";
 import { GAME_PHASES, createInitialGameState } from "../src/game/setup.js";
-import { TILE_ACTION_TYPES, validatePlaceTile } from "../src/game/tiles.js";
+import {
+  TILE_ACTION_TYPES,
+  getResourceCostChoiceGroups,
+  resolveResourceCost,
+  validatePlaceTile
+} from "../src/game/tiles.js";
 
 const dataUrl = new URL("../src/data/", import.meta.url);
 
@@ -648,8 +653,8 @@ test("places an unlocked Special tile and decrements Special stock", () => {
   assert.equal(docks.available, 0);
 });
 
-test("places a two-hex Gravel Path footprint across empty legal land hexes", () => {
-  const state = newState();
+test("places a two-hex Street footprint across empty legal land hexes", () => {
+  const state = withWarehouseResources(newState(), { Stone: 2 });
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
     tileId: "core_gravel_path_basic",
@@ -660,11 +665,58 @@ test("places a two-hex Gravel Path footprint across empty legal land hexes", () 
   assert.equal(result.ok, true);
   assert.deepEqual(nextState.map.placedTiles[0].coordinates, ["A3", "A4"]);
   assert.equal(nextState.map.placedTiles[0].orientation, "rotation-0");
-  assert.equal(nextState.tileSupply.core.find((entry) => entry.tileId === "core_gravel_path_basic").available, 3);
+  assert.equal(nextState.tileSupply.core.find((entry) => entry.tileId === "core_gravel_path_basic").available, 5);
 });
 
-test("places a three-hex Gravel Track footprint across empty legal land hexes", () => {
-  const state = newState();
+test("Street placement cost can be paid with Stone or Wood", () => {
+  const groups = getResourceCostChoiceGroups("2 Stone or 2 Wood");
+  const woodCost = resolveResourceCost("2 Stone or 2 Wood", ["Wood"]);
+  const stoneCost = resolveResourceCost("2 Stone or 2 Wood", ["Stone"]);
+
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].options, [
+    { amount: 2, resource: "Stone" },
+    { amount: 2, resource: "Wood" }
+  ]);
+  assert.deepEqual(woodCost.cost, [{ resource: "Wood", amount: 2 }]);
+  assert.deepEqual(stoneCost.cost, [{ resource: "Stone", amount: 2 }]);
+});
+
+test("Track placement cost can be paid with Stone or Wood", () => {
+  const groups = getResourceCostChoiceGroups("3 Stone or 3 Wood");
+  const woodCost = resolveResourceCost("3 Stone or 3 Wood", ["Wood"]);
+  const stoneCost = resolveResourceCost("3 Stone or 3 Wood", ["Stone"]);
+
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].options, [
+    { amount: 3, resource: "Stone" },
+    { amount: 3, resource: "Wood" }
+  ]);
+  assert.deepEqual(woodCost.cost, [{ resource: "Wood", amount: 3 }]);
+  assert.deepEqual(stoneCost.cost, [{ resource: "Stone", amount: 3 }]);
+});
+
+test("placement validation uses the selected alternative resource cost", () => {
+  const state = withWarehouseResources(newState(), { Wood: 2 });
+  const validation = validatePlaceTile(
+    state,
+    {
+      type: TILE_ACTION_TYPES.PLACE_TILE,
+      tileId: "core_gravel_path_basic",
+      coordinate: "A3",
+      orientation: "rotation-0",
+      placementCostChoiceResources: ["Wood"]
+    },
+    { tiles }
+  );
+
+  assert.equal(validation.valid, true);
+  assert.deepEqual(validation.baseCost, [{ resource: "Wood", amount: 2 }]);
+  assert.deepEqual(validation.cost, [{ resource: "Wood", amount: 2 }]);
+});
+
+test("places a three-hex Track footprint across empty legal land hexes", () => {
+  const state = withWarehouseResources(newState(), { Stone: 3 });
   const { state: nextState, result } = dispatch(state, {
     type: TILE_ACTION_TYPES.PLACE_TILE,
     tileId: "core_gravel_track_basic",

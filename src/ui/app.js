@@ -31,9 +31,14 @@ import {
   createTileIndex,
   findUpgradeTile,
   getDirectlyPlaceableTiles,
+  getDefaultResourceCostChoiceResources,
   getPlacedTileAt,
+  getResourceCostChoiceGroups,
+  hasResourceCostChoices,
   isOverstrainedPlacedTile,
   parseResourceCost,
+  parseResourceCostOptions,
+  resolveResourceCost,
   validatePlaceTile,
   validateUpgradeTile
 } from "../game/tiles.js";
@@ -245,9 +250,11 @@ const state = {
   boonStewardHelpGains: {},
   goldenScrollDiscards: {},
   goldenSignetMoves: {},
+  placementCostChoices: {},
   placementCostDiscounts: {},
   burdenResolutionDiscounts: {},
   arrivalRequirementDiscounts: {},
+  upgradeCostChoices: {},
   upgradeCostDiscounts: {},
   activationTargets: {},
   activationPayments: {},
@@ -461,6 +468,7 @@ function getLocalSaveSnapshot() {
     goldenSignetMoves: state.goldenSignetMoves,
     lastActionResult: state.lastActionResult,
     pendingPlacementPreview: state.pendingPlacementPreview,
+    placementCostChoices: state.placementCostChoices,
     placementCostDiscounts: state.placementCostDiscounts,
     playerCount: state.playerCount,
     playSessionState: state.playSessionState,
@@ -486,6 +494,7 @@ function getLocalSaveSnapshot() {
     stewardRoleIds: state.stewardRoleIds,
     stewardUpgradePowerId: state.stewardUpgradePowerId,
     tileFacePreviewSides: state.tileFacePreviewSides,
+    upgradeCostChoices: state.upgradeCostChoices,
     upgradeCostDiscounts: state.upgradeCostDiscounts
   };
 }
@@ -884,9 +893,11 @@ function resetLocalTestingControls() {
   state.boonStewardHelpGains = {};
   state.goldenScrollDiscards = {};
   state.goldenSignetMoves = {};
+  state.placementCostChoices = {};
   state.placementCostDiscounts = {};
   state.burdenResolutionDiscounts = {};
   state.arrivalRequirementDiscounts = {};
+  state.upgradeCostChoices = {};
   state.upgradeCostDiscounts = {};
   state.activationTargets = {};
   state.activationPayments = {};
@@ -1778,7 +1789,10 @@ function getLegalPlacementOptionsForCoordinate(game, tileIndex, coordinate) {
     getPlacementOptions()
       .filter(({ tile }) => !openingRequirement || isOpeningResourceTileForPlayer(openingRequirement.player, tile.tile_id))
       .flatMap(({ tile, supply }) => {
-        const baseCost = parseResourceCost(tile.place_cost);
+        const placementCostChoiceResources = getDefaultResourceCostChoiceResources(tile.place_cost, game.warehouse);
+        const baseCost = resolveResourceCost(tile.place_cost, placementCostChoiceResources, {
+          warehouse: game.warehouse
+        }).cost;
         const placementCostReductionResources = getAutomaticPlacementCostDiscountResources(game, tile, baseCost);
 
         return getPlacementOrientations(tile).map((orientation) => {
@@ -1787,6 +1801,7 @@ function getLegalPlacementOptionsForCoordinate(game, tileIndex, coordinate) {
             tileId: tile.tile_id,
             coordinate,
             orientation,
+            placementCostChoiceResources,
             placementCostReductionResources
           };
           const validation = validatePlaceTile(game, action, { tiles: state.data.tiles });
@@ -1811,6 +1826,7 @@ function getLegalPlacementOptionsForCoordinate(game, tileIndex, coordinate) {
             actionCost,
             cost: validation.cost,
             footprintCoordinates: validation.footprintCoordinates,
+            placementCostChoiceResources,
             placementCostReductionResources,
             resourceCostSubstitution: validation.resourceCostSubstitution,
             blockedReason,
@@ -1891,6 +1907,9 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
   const upgradeTile = optionTileIndex ? findUpgradeTile(option.tile, optionTileIndex) : null;
   const orientationText = isMultihex ? ` · ${getOrientationLabel(option.orientation)}` : "";
   const footprintText = isMultihex ? ` · ${renderFootprint(option.footprintCoordinates)}` : "";
+  const choiceText = option.placementCostChoiceResources?.length
+    ? ` · pay ${option.placementCostChoiceResources.join(" or ")}`
+    : "";
   const discountText = option.placementCostReductionResources.length > 0 ? " · discount applied" : "";
   const substitutionText = option.resourceCostSubstitution
     ? ` · ${option.resourceCostSubstitution.providerTileName ?? "Tile effect"} uses Goods`
@@ -1903,7 +1922,7 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
     ? `${terrainMatchText}Select preview, rotate if needed, then left-click to place${blockedText}`
     : pairedStables
       ? `${terrainMatchText}${option.supply?.available ?? 0}/${option.supply?.stock ?? 0} left · choose 2 sites · 1 Action${blockedText}`
-    : `${terrainMatchText}${option.supply?.available ?? 0}/${option.supply?.stock ?? 0} left · ${renderActionCost(option.actionCost)} Action · ${renderCost(option.cost)}${orientationText}${footprintText}${discountText}${substitutionText}${blockedText}`;
+    : `${terrainMatchText}${option.supply?.available ?? 0}/${option.supply?.stock ?? 0} left · ${renderActionCost(option.actionCost)} Action · ${renderCost(option.cost)}${choiceText}${orientationText}${footprintText}${discountText}${substitutionText}${blockedText}`;
   const disabledAttribute = option.blockedReason ? "disabled" : "";
   const titleAttribute = option.blockedReason ? `title="${escapeHtml(option.blockedReason)}"` : "";
   const actionButton = useTravelPreview
@@ -1912,6 +1931,7 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
         data-context-select-tile-id="${escapeHtml(option.tile.tile_id)}"
         data-context-select-coordinate="${escapeHtml(option.coordinate)}"
         data-context-select-orientation="${escapeHtml(option.orientation)}"
+        data-context-select-cost-choices="${escapeHtml((option.placementCostChoiceResources ?? []).join("|"))}"
         data-context-select-discounts="${escapeHtml(option.placementCostReductionResources.join("|"))}"
         type="button"
         role="menuitem"
@@ -1925,6 +1945,7 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
         data-context-place-tile-id="${escapeHtml(option.tile.tile_id)}"
         data-context-place-coordinate="${escapeHtml(option.coordinate)}"
         data-context-place-orientation="${escapeHtml(option.orientation)}"
+        data-context-place-cost-choices="${escapeHtml((option.placementCostChoiceResources ?? []).join("|"))}"
         data-context-place-discounts="${escapeHtml(option.placementCostReductionResources.join("|"))}"
         type="button"
         role="menuitem"
@@ -2248,7 +2269,12 @@ function renderMapContextLayer(game, tileIndex) {
     placedTile,
     upgradeTile
   });
-  const placementCost = selectedPlacementTile ? parseResourceCost(selectedPlacementTile.place_cost) : [];
+  const selectedPlacementCostChoices = selectedPlacementTile
+    ? getPlacementCostChoiceAction(selectedPlacementTile.tile_id, selectedPlacementTile.place_cost)
+    : [];
+  const placementCost = selectedPlacementTile
+    ? parseResourceCostForDisplay(selectedPlacementTile.place_cost, selectedPlacementCostChoices).cost
+    : [];
   const placementResourceDiscount = getPendingPlacementResourceDiscount(game, selectedPlacementTile);
   const placementCostDiscountChoices = selectedPlacementTile
     ? getPlacementCostDiscountChoices(selectedPlacementTile.tile_id, placementCost, placementResourceDiscount)
@@ -2892,8 +2918,7 @@ function renderSourceResourceCost(costText) {
     return "";
   }
 
-  const parsed = parseResourceCostForDisplay(costText);
-  return parsed.error ? formatRawCostText(costText) : renderCost(parsed.cost);
+  return formatResourceCostOptionsForDisplay(costText) ?? formatRawCostText(costText);
 }
 
 function formatRawCostText(costText) {
@@ -2904,18 +2929,35 @@ function formatRawCostText(costText) {
     .join(", ");
 }
 
+function formatResourceCostOption(option) {
+  return `${option.amount} ${option.resource}`;
+}
+
+function formatResourceCostOptionsForDisplay(costText, { separator = ", ", choiceSeparator = " or " } = {}) {
+  if (costText === null || costText === undefined || costText === "") {
+    return "";
+  }
+
+  if (costText === 0 || costText === "0") {
+    return "0";
+  }
+
+  try {
+    const groups = parseResourceCostOptions(costText);
+    return groups.length
+      ? groups.map((group) => group.options.map(formatResourceCostOption).join(choiceSeparator)).join(separator)
+      : "0";
+  } catch {
+    return null;
+  }
+}
+
 function renderPrintedCostText(costText) {
   if (costText === null || costText === undefined || costText === "") {
     return "0";
   }
 
-  const parsed = parseResourceCostForDisplay(costText);
-
-  if (!parsed.error) {
-    return renderCost(parsed.cost);
-  }
-
-  return formatRawCostText(costText);
+  return formatResourceCostOptionsForDisplay(costText) ?? formatRawCostText(costText);
 }
 
 const TILE_FACE_RESOURCE_ORDER = Object.freeze(["Wood", "Stone", "Metal", "Food", "Herbs", "Goods"]);
@@ -3066,19 +3108,24 @@ function formatTileFaceCostEntries(costText) {
     return ["0"];
   }
 
-  const parsed = parseResourceCostForDisplay(costText);
-
-  if (parsed.error) {
+  let groups;
+  try {
+    groups = parseResourceCostOptions(costText);
+  } catch {
     return ["Cost?"];
   }
 
-  if (parsed.cost.length === 0) {
+  if (groups.length === 0) {
     return ["0"];
   }
 
-  return [...parsed.cost]
-    .sort((left, right) => TILE_FACE_RESOURCE_ORDER.indexOf(left.resource) - TILE_FACE_RESOURCE_ORDER.indexOf(right.resource))
-    .map(({ amount, resource }) => `${amount} ${resource}`);
+  return groups
+    .map((group) =>
+      [...group.options]
+        .sort((left, right) => TILE_FACE_RESOURCE_ORDER.indexOf(left.resource) - TILE_FACE_RESOURCE_ORDER.indexOf(right.resource))
+        .map(formatResourceCostOption)
+        .join(" / ")
+    );
 }
 
 function renderTileFaceCostEntries(entries, y) {
@@ -7556,18 +7603,90 @@ function renderPlacementConnectionLabel(actionCost) {
   return actionCost.blockedByReachability ? "Out of network" : "Reach waived";
 }
 
-function parseResourceCostForDisplay(costText) {
+function parseResourceCostForDisplay(costText, resourceCostChoiceResources = []) {
   try {
+    const resolution = resolveResourceCost(costText, resourceCostChoiceResources, {
+      warehouse: state.game?.warehouse ?? null
+    });
+
     return {
-      cost: parseResourceCost(costText),
-      error: null
+      cost: resolution.cost,
+      choiceGroups: resolution.choiceGroups,
+      errors: resolution.errors,
+      error: resolution.errors.length > 0 ? new Error(resolution.errors[0]) : null
     };
   } catch (error) {
     return {
       cost: [],
+      choiceGroups: [],
+      errors: [error.message],
       error
     };
   }
+}
+
+function getResourceCostChoiceSelection(costText, savedChoices = []) {
+  const groups = getResourceCostChoiceGroups(costText);
+
+  if (groups.length === 0) {
+    return [];
+  }
+
+  const defaults = getDefaultResourceCostChoiceResources(costText, state.game?.warehouse ?? null);
+
+  return groups.map((group, index) => {
+    const saved = savedChoices[index];
+    return group.options.some((option) => option.resource === saved) ? saved : (defaults[index] ?? "");
+  });
+}
+
+function getPlacementCostChoiceAction(tileId, costText) {
+  return getResourceCostChoiceSelection(costText, state.placementCostChoices[tileId] ?? []);
+}
+
+function getUpgradeCostChoiceAction(placedTileId, costText) {
+  return getResourceCostChoiceSelection(costText, state.upgradeCostChoices[placedTileId] ?? []);
+}
+
+function renderResourceCostChoiceControls({ mode, targetId, costText, selectedChoices }) {
+  const groups = getResourceCostChoiceGroups(costText);
+
+  if (groups.length === 0) {
+    return "";
+  }
+
+  const className = mode === "upgrade" ? "upgrade-cost-choice-resource" : "placement-cost-choice-resource";
+  const dataAttribute =
+    mode === "upgrade"
+      ? `data-placed-tile-id="${escapeHtml(targetId)}"`
+      : `data-tile-id="${escapeHtml(targetId)}"`;
+  const title = mode === "upgrade" ? "Choose upgrade cost" : "Choose placement cost";
+
+  return `
+    <div class="placement-choice-panel is-ready" aria-label="${escapeHtml(title)}">
+      <header>
+        <span>${escapeHtml(title)}</span>
+        <strong>${escapeHtml(formatResourceCostOptionsForDisplay(costText) ?? formatRawCostText(costText))}</strong>
+      </header>
+      <p>Select which resource the Warehouse will spend. Discounts apply after this choice.</p>
+      <div class="burden-payment-grid cost-choice-grid">
+        ${groups
+          .map(
+            (group, index) => `
+              <select class="${className}" ${dataAttribute} data-choice-index="${index}" aria-label="${escapeHtml(`${title} ${index + 1}`)}">
+                ${group.options
+                  .map(
+                    (option) =>
+                      `<option value="${escapeHtml(option.resource)}" ${option.resource === selectedChoices[index] ? "selected" : ""}>${escapeHtml(formatResourceCostOption(option))}</option>`
+                  )
+                  .join("")}
+              </select>
+            `
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
 }
 
 function getActivationForDisplay(tile) {
@@ -7852,13 +7971,15 @@ function getMapUpgradeActionStatus(game, placedTile, tileDefinition, upgradeTile
     return { blockedReason: "No placed tile" };
   }
 
-  const upgradeCost = parseResourceCostForDisplay(upgradeTile.upgrade_cost);
+  const upgradeCostChoiceResources = getUpgradeCostChoiceAction(placedTile.id, upgradeTile.upgrade_cost);
+  const upgradeCost = parseResourceCostForDisplay(upgradeTile.upgrade_cost, upgradeCostChoiceResources);
   const upgradeResourceDiscount = getPendingUpgradeResourceDiscount(game, tileDefinition);
   const validation = validateUpgradeTile(
     game,
     {
       type: TILE_ACTION_TYPES.UPGRADE_TILE,
       placedTileId: placedTile.id,
+      upgradeCostChoiceResources,
       upgradeCostReductionResources: upgradeCost.error
         ? []
         : getUpgradeCostDiscountAction(placedTile.id, upgradeCost.cost, upgradeResourceDiscount)
@@ -8228,7 +8349,9 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
     : null;
   const selectedTileDefinition = selectedPlacedTile ? tileIndex.get(selectedPlacedTile.tileId) : null;
   const upgradeTile = selectedTileDefinition ? findUpgradeTile(selectedTileDefinition, tileIndex) : null;
-  const upgradeCost = upgradeTile ? parseResourceCostForDisplay(upgradeTile.upgrade_cost) : null;
+  const upgradeCostChoiceResources =
+    selectedPlacedTile && upgradeTile ? getUpgradeCostChoiceAction(selectedPlacedTile.id, upgradeTile.upgrade_cost) : [];
+  const upgradeCost = upgradeTile ? parseResourceCostForDisplay(upgradeTile.upgrade_cost, upgradeCostChoiceResources) : null;
   const activationActionCost = selectedPlacedTile
     ? calculatePlacedTileActionCost(
         game,
@@ -8362,6 +8485,7 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
           {
             type: TILE_ACTION_TYPES.UPGRADE_TILE,
             placedTileId: selectedPlacedTile.id,
+            upgradeCostChoiceResources,
             upgradeCostReductionResources: getUpgradeCostDiscountAction(
               selectedPlacedTile.id,
               upgradeCost.cost,
@@ -8521,6 +8645,16 @@ function renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded =
         providers: upgradeStewardPowerProviders,
         selectedId: selectedUpgradeStewardPowerId
       })}
+      ${
+        selectedPlacedTile && upgradeTile
+          ? renderResourceCostChoiceControls({
+              mode: "upgrade",
+              targetId: selectedPlacedTile.id,
+              costText: upgradeTile.upgrade_cost,
+              selectedChoices: upgradeCostChoiceResources
+            })
+          : ""
+      }
       ${renderUpgradeCostDiscountChoices(selectedPlacedTile, selectedTileDefinition, upgradeCost, upgradeResourceDiscount)}
       ${renderResourceCostSubstitutionNotice(upgradeResourceCostSubstitution)}
       ${
@@ -8600,7 +8734,10 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
   );
   const selectedTile = tileIndex.get(state.selectedTileId);
   const selectedSupply = options.find((option) => option.tile.tile_id === selectedTile?.tile_id)?.supply ?? null;
-  const cost = selectedTile ? parseResourceCost(selectedTile.place_cost) : [];
+  const placementCostChoiceResources = selectedTile
+    ? getPlacementCostChoiceAction(selectedTile.tile_id, selectedTile.place_cost)
+    : [];
+  const cost = selectedTile ? parseResourceCostForDisplay(selectedTile.place_cost, placementCostChoiceResources).cost : [];
   const footprint = selectedTile
     ? getFootprintCoordinates(state.selectedCoordinate, selectedTile.size_hexes, state.selectedOrientation, game.map.hexes)
     : null;
@@ -8636,6 +8773,7 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
             tileId: selectedTile.tile_id,
             coordinate: state.selectedCoordinate,
             orientation: state.selectedOrientation,
+            placementCostChoiceResources,
             placementCostReductionResources: getPlacementCostDiscountAction(
               selectedTile.tile_id,
               cost,
@@ -8680,6 +8818,7 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
     cost,
     displayCost: selectedPlacementPreviewValidation?.cost ?? cost,
     resourceCostSubstitution: placementResourceCostSubstitution,
+    placementCostChoiceResources,
     placementResourceDiscount,
     placementCostDiscountChoices,
     placementStewardPowerProviders,
@@ -8713,6 +8852,7 @@ function renderSelectedTilePlacementControls({
   cost,
   displayCost,
   resourceCostSubstitution,
+  placementCostChoiceResources,
   placementResourceDiscount,
   placementCostDiscountChoices,
   placementStewardPowerProviders,
@@ -8751,6 +8891,12 @@ function renderSelectedTilePlacementControls({
     label: "Optional Steward Power",
     providers: placementStewardPowerProviders,
     selectedId: selectedPlacementStewardPowerId
+  });
+  const costChoiceControls = renderResourceCostChoiceControls({
+    mode: "placement",
+    targetId: selectedTile.tile_id,
+    costText: selectedTile.place_cost,
+    selectedChoices: placementCostChoiceResources
   });
   const discountControls = renderPlacementCostDiscountChoices(selectedTile, cost, placementResourceDiscount);
   const selectedTileIndex = state.data?.tiles ? createTileIndex(state.data.tiles) : new Map();
@@ -8812,6 +8958,7 @@ function renderSelectedTilePlacementControls({
       })}
       ${renderResourceCostSubstitutionNotice(resourceCostSubstitution)}
       ${renderStewardHouseUpgradePreview(selectedTile, selectedTileIndex)}
+      ${costChoiceControls}
       ${stewardPowerControls}
       ${discountControls}
       <button id="place-tile" class="primary-button placement-submit-button" type="button" ${canPlace ? "" : "disabled"}>
@@ -9607,7 +9754,9 @@ function upgradePlacedTile(placedTileId) {
   const tileIndex = createTileIndex(state.data.tiles);
   const tileDefinition = placedTile ? tileIndex.get(placedTile.tileId) : null;
   const upgradeTile = tileDefinition ? findUpgradeTile(tileDefinition, tileIndex) : null;
-  const upgradeCost = upgradeTile ? parseResourceCostForDisplay(upgradeTile.upgrade_cost) : null;
+  const upgradeCostChoiceResources =
+    placedTile && upgradeTile ? getUpgradeCostChoiceAction(placedTile.id, upgradeTile.upgrade_cost) : [];
+  const upgradeCost = upgradeTile ? parseResourceCostForDisplay(upgradeTile.upgrade_cost, upgradeCostChoiceResources) : null;
   const upgradeResourceDiscount = getPendingUpgradeResourceDiscount(state.game, tileDefinition);
   const activePlayer = state.game.players.find((player) => player.id === state.game.activePlayerId);
   const baseUpgradeActionCost = placedTile
@@ -9631,6 +9780,7 @@ function upgradePlacedTile(placedTileId) {
       type: TILE_ACTION_TYPES.UPGRADE_TILE,
       placedTileId: placedTile?.id,
       stewardPowerPlacedTileId,
+      upgradeCostChoiceResources,
       upgradeCostReductionResources:
         placedTile && upgradeCost && !upgradeCost.error
           ? getUpgradeCostDiscountAction(placedTile.id, upgradeCost.cost, upgradeResourceDiscount)
@@ -9643,6 +9793,7 @@ function upgradePlacedTile(placedTileId) {
   state.contextMenu = null;
 
   if (result.ok && placedTile) {
+    delete state.upgradeCostChoices[placedTile.id];
     delete state.upgradeCostDiscounts[placedTile.id];
     state.stewardUpgradePowerId = "";
   }
@@ -9889,6 +10040,9 @@ function placeSelectedTile() {
   }
 
   const tile = state.data.tiles.find((candidate) => candidate.tile_id === state.selectedTileId);
+  const placementCostChoiceResources = tile
+    ? getPlacementCostChoiceAction(tile.tile_id, tile.place_cost)
+    : [];
 
   if (isStablesTile(tile)) {
     if (state.pendingPairedPlacement?.tileId === tile.tile_id) {
@@ -9900,7 +10054,7 @@ function placeSelectedTile() {
         HEX_DIRECTIONS[0].id,
         getPlacementCostDiscountAction(
           tile.tile_id,
-          parseResourceCost(tile.place_cost),
+          parseResourceCostForDisplay(tile.place_cost, placementCostChoiceResources).cost,
           getPendingPlacementResourceDiscount(state.game, tile)
         )
       );
@@ -9908,7 +10062,7 @@ function placeSelectedTile() {
     return;
   }
 
-  const cost = tile ? parseResourceCost(tile.place_cost) : [];
+  const cost = tile ? parseResourceCostForDisplay(tile.place_cost, placementCostChoiceResources).cost : [];
   const placementResourceDiscount = getPendingPlacementResourceDiscount(state.game, tile);
   const tileIndex = createTileIndex(state.data.tiles);
   const footprint = tile
@@ -9943,6 +10097,7 @@ function placeSelectedTile() {
       coordinate: state.selectedCoordinate,
       orientation: state.selectedOrientation,
       stewardPowerPlacedTileId,
+      placementCostChoiceResources,
       placementCostReductionResources: getPlacementCostDiscountAction(
         state.selectedTileId,
         cost,
@@ -9956,6 +10111,7 @@ function placeSelectedTile() {
   state.contextMenu = null;
 
   if (result.ok) {
+    delete state.placementCostChoices[state.selectedTileId];
     delete state.placementCostDiscounts[state.selectedTileId];
     state.stewardPlacementPowerId = "";
     state.pendingPlacementPreview = null;
@@ -9965,9 +10121,16 @@ function placeSelectedTile() {
   renderApp();
 }
 
-function placeTileFromContext(tileId, coordinate, orientation, placementCostReductionResources = []) {
+function placeTileFromContext(
+  tileId,
+  coordinate,
+  orientation,
+  placementCostReductionResources = [],
+  placementCostChoiceResources = []
+) {
   const tile = state.data.tiles.find((candidate) => candidate.tile_id === tileId);
   const placementCostDiscounts = { ...state.placementCostDiscounts };
+  const placementCostChoices = { ...state.placementCostChoices };
 
   state.selectedTileId = tileId;
   state.selectedCoordinate = coordinate;
@@ -9982,17 +10145,44 @@ function placeTileFromContext(tileId, coordinate, orientation, placementCostRedu
 
   state.placementCostDiscounts = placementCostDiscounts;
 
+  if (placementCostChoiceResources.length > 0) {
+    placementCostChoices[tileId] = placementCostChoiceResources;
+  } else {
+    delete placementCostChoices[tileId];
+  }
+
+  state.placementCostChoices = placementCostChoices;
+
   if (isStablesTile(tile)) {
     startPendingPairedPlacement(tileId, coordinate, HEX_DIRECTIONS[0].id, placementCostReductionResources);
+    return;
+  }
+
+  if (hasResourceCostChoices(tile?.place_cost)) {
+    state.contextMenu = null;
+    state.seedContextMenu = null;
+    state.lastActionResult = {
+      ok: true,
+      action: "SELECT_TILE_COST_CHOICE",
+      message: `${tile?.tile_name ?? "Tile"} selected at ${coordinate}. Choose which resource to spend, then press Place.`
+    };
+    renderApp();
     return;
   }
 
   placeSelectedTile();
 }
 
-function selectTilePreviewFromContext(tileId, coordinate, orientation, placementCostReductionResources = []) {
+function selectTilePreviewFromContext(
+  tileId,
+  coordinate,
+  orientation,
+  placementCostReductionResources = [],
+  placementCostChoiceResources = []
+) {
   const tile = state.data.tiles.find((candidate) => candidate.tile_id === tileId);
   const placementCostDiscounts = { ...state.placementCostDiscounts };
+  const placementCostChoices = { ...state.placementCostChoices };
 
   state.selectedTileId = tileId;
   state.selectedCoordinate = coordinate;
@@ -10012,6 +10202,14 @@ function selectTilePreviewFromContext(tileId, coordinate, orientation, placement
   }
 
   state.placementCostDiscounts = placementCostDiscounts;
+
+  if (placementCostChoiceResources.length > 0) {
+    placementCostChoices[tileId] = placementCostChoiceResources;
+  } else {
+    delete placementCostChoices[tileId];
+  }
+
+  state.placementCostChoices = placementCostChoices;
 
   if (isStablesTile(tile)) {
     startPendingPairedPlacement(tileId, coordinate, HEX_DIRECTIONS[0].id, placementCostReductionResources);
@@ -10397,13 +10595,15 @@ function bindEvents() {
 
   root.querySelectorAll("[data-context-place-tile-id]").forEach((button) => {
     button.addEventListener("click", () => {
+      const costChoiceResources = (button.dataset.contextPlaceCostChoices ?? "").split("|").filter(Boolean);
       const discountResources = (button.dataset.contextPlaceDiscounts ?? "").split("|").filter(Boolean);
 
       placeTileFromContext(
         button.dataset.contextPlaceTileId,
         button.dataset.contextPlaceCoordinate,
         button.dataset.contextPlaceOrientation,
-        discountResources
+        discountResources,
+        costChoiceResources
       );
     });
   });
@@ -10416,13 +10616,15 @@ function bindEvents() {
 
   root.querySelectorAll("[data-context-select-tile-id]").forEach((button) => {
     button.addEventListener("click", () => {
+      const costChoiceResources = (button.dataset.contextSelectCostChoices ?? "").split("|").filter(Boolean);
       const discountResources = (button.dataset.contextSelectDiscounts ?? "").split("|").filter(Boolean);
 
       selectTilePreviewFromContext(
         button.dataset.contextSelectTileId,
         button.dataset.contextSelectCoordinate,
         button.dataset.contextSelectOrientation,
-        discountResources
+        discountResources,
+        costChoiceResources
       );
     });
   });
@@ -11212,6 +11414,35 @@ function bindEvents() {
       state.upgradeCostDiscounts = {
         ...state.upgradeCostDiscounts,
         [placedTileId]: choices
+      };
+      renderApp();
+    });
+  });
+
+  root.querySelectorAll(".upgrade-cost-choice-resource").forEach((select) => {
+    select.addEventListener("change", () => {
+      const placedTileId = select.dataset.placedTileId;
+      const index = Number(select.dataset.choiceIndex);
+      const choices = [...(state.upgradeCostChoices[placedTileId] ?? [])];
+      choices[index] = select.value;
+      state.upgradeCostChoices = {
+        ...state.upgradeCostChoices,
+        [placedTileId]: choices
+      };
+      renderApp();
+    });
+  });
+
+  root.querySelectorAll(".placement-cost-choice-resource").forEach((select) => {
+    select.addEventListener("change", () => {
+      rememberTileTrayScroll();
+      const tileId = select.dataset.tileId;
+      const index = Number(select.dataset.choiceIndex);
+      const choices = [...(state.placementCostChoices[tileId] ?? [])];
+      choices[index] = select.value;
+      state.placementCostChoices = {
+        ...state.placementCostChoices,
+        [tileId]: choices
       };
       renderApp();
     });

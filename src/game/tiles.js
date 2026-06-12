@@ -83,7 +83,20 @@ export function getDirectlyPlaceableTiles(tiles) {
   return tiles.filter(isDirectlyPlaceableTile);
 }
 
-export function parseResourceCost(costText) {
+function parseResourceCostOption(optionText) {
+  const match = /^(\d+)\s+(.+)$/.exec(optionText);
+
+  if (!match) {
+    throw new Error(`Unsupported resource cost: ${optionText}`);
+  }
+
+  return {
+    amount: Number(match[1]),
+    resource: match[2].trim()
+  };
+}
+
+export function parseResourceCostOptions(costText) {
   if (!costText || costText === 0 || costText === "0") {
     return [];
   }
@@ -92,18 +105,91 @@ export function parseResourceCost(costText) {
     .split(/\n|,/)
     .map((part) => part.trim())
     .filter(Boolean)
-    .map((part) => {
-      const match = /^(\d+)\s+(.+)$/.exec(part);
+    .map((part, index) => ({
+      id: `cost-choice-${index}`,
+      options: part.split(/\s+or\s+/i).map((option) => parseResourceCostOption(option.trim()))
+    }));
+}
 
-      if (!match) {
-        throw new Error(`Unsupported resource cost: ${part}`);
-      }
+export function getResourceCostChoiceGroups(costText) {
+  let choiceIndex = 0;
 
-      return {
-        amount: Number(match[1]),
-        resource: match[2]
-      };
-    });
+  return parseResourceCostOptions(costText)
+    .filter((group) => group.options.length > 1)
+    .map((group) => ({
+      ...group,
+      choiceIndex: choiceIndex++
+    }));
+}
+
+function getDefaultResourceCostOption(options, warehouse = null) {
+  if (warehouse) {
+    const affordableOption = options.find(
+      (option) => (warehouse.resources?.[option.resource] ?? 0) >= option.amount
+    );
+
+    if (affordableOption) {
+      return affordableOption;
+    }
+  }
+
+  return options[0] ?? null;
+}
+
+export function getDefaultResourceCostChoiceResources(costText, warehouse = null) {
+  return getResourceCostChoiceGroups(costText).map(
+    (group) => getDefaultResourceCostOption(group.options, warehouse)?.resource ?? ""
+  );
+}
+
+export function hasResourceCostChoices(costText) {
+  return getResourceCostChoiceGroups(costText).length > 0;
+}
+
+export function resolveResourceCost(costText, selectedChoiceResources = [], options = {}) {
+  const groups = parseResourceCostOptions(costText);
+  const errors = [];
+  const cost = [];
+  let choiceIndex = 0;
+
+  for (const group of groups) {
+    if (group.options.length === 1) {
+      cost.push(group.options[0]);
+      continue;
+    }
+
+    const selectedResource = selectedChoiceResources[choiceIndex];
+    let selectedOption = group.options.find((option) => option.resource === selectedResource) ?? null;
+
+    if (!selectedOption && !options.requireChoices) {
+      selectedOption = getDefaultResourceCostOption(group.options, options.warehouse ?? null);
+    }
+
+    if (!selectedOption) {
+      const choicesText = group.options.map(({ amount, resource }) => `${amount} ${resource}`).join(" or ");
+      errors.push(`Choose whether to pay ${choicesText}.`);
+    } else {
+      cost.push(selectedOption);
+    }
+
+    choiceIndex += 1;
+  }
+
+  return {
+    cost: summarizeResourceAmounts(cost),
+    errors,
+    choiceGroups: getResourceCostChoiceGroups(costText)
+  };
+}
+
+export function parseResourceCost(costText) {
+  const resolution = resolveResourceCost(costText);
+
+  if (resolution.errors.length > 0) {
+    throw new Error(resolution.errors[0]);
+  }
+
+  return resolution.cost;
 }
 
 export function getPlacedTileAt(state, coordinate) {
@@ -1137,7 +1223,15 @@ export function validatePlaceTile(state, action, context) {
   }
 
   const supplyEntry = getTileSupplyEntry(state, action.tileId);
-  const baseCost = parseResourceCost(tile.place_cost);
+  const baseCostResolution = resolveResourceCost(
+    tile.place_cost,
+    action.placementCostChoiceResources ?? action.resourceCostChoiceResources ?? [],
+    {
+      requireChoices: Boolean(action.requireResourceCostChoices),
+      warehouse: state.warehouse
+    }
+  );
+  const baseCost = baseCostResolution.cost;
   const directionId = action.orientation ?? HEX_DIRECTIONS[0].id;
   const footprintCoordinates = getFootprintCoordinates(action.coordinate, tile.size_hexes, directionId, mapIndex);
   const footprintHexes = footprintCoordinates?.map((coordinate) => mapIndex.get(coordinate)) ?? [];
@@ -1151,7 +1245,7 @@ export function validatePlaceTile(state, action, context) {
     : getGoodsSubstitution(state, costBeforeSubstitution, tileIndex);
   const cost = resourceCostSubstitution?.cost ?? costBeforeSubstitution;
 
-  errors.push(...placementCostReductionResult.errors);
+  errors.push(...baseCostResolution.errors, ...placementCostReductionResult.errors);
 
   if (!supplyEntry) {
     errors.push(`${tile.tile_name} is not in the tile supply.`);
@@ -1194,6 +1288,7 @@ export function validatePlaceTile(state, action, context) {
     valid: errors.length === 0,
     errors,
     baseCost,
+    baseCostChoiceGroups: baseCostResolution.choiceGroups,
     cost,
     placementCostReduction,
     resourceCostSubstitution,
@@ -1343,7 +1438,16 @@ export function validateUpgradeTile(state, action, context) {
   let cost = [];
   if (upgradeTile) {
     try {
-      cost = parseResourceCost(upgradeTile.upgrade_cost);
+      const costResolution = resolveResourceCost(
+        upgradeTile.upgrade_cost,
+        action.upgradeCostChoiceResources ?? action.resourceCostChoiceResources ?? [],
+        {
+          requireChoices: Boolean(action.requireResourceCostChoices),
+          warehouse: state.warehouse
+        }
+      );
+      cost = costResolution.cost;
+      errors.push(...costResolution.errors);
     } catch (error) {
       errors.push(`${upgradeTile.tile_name} has an unsupported upgrade cost: ${upgradeTile.upgrade_cost}.`);
     }
