@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Travel">
+  <title>Travel</title>
+  <desc>Wagon wheel</desc>
+  <g fill="none" stroke="#596f7d" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="0.00" cy="0.00" r="45.00" stroke="#596f7d" stroke-width="6" fill="none" />
+    <circle cx="0.00" cy="0.00" r="8.00" stroke="#596f7d" stroke-width="6" fill="none" />
+    <line x1="0.00" y1="0.00" x2="37.00" y2="0.00" stroke="#596f7d" stroke-width="4" stroke-linecap="round" />
+    <line x1="0.00" y1="0.00" x2="26.16" y2="26.16" stroke="#596f7d" stroke-width="4" stroke-linecap="round" />
+    <line x1="0.00" y1="0.00" x2="0.00" y2="37.00" stroke="#596f7d" stroke-width="4" stroke-linecap="round" />
+    <line x1="0.00" y1="0.00" x2="-26.16" y2="26.16" stroke="#596f7d" stroke-width="4" stroke-linecap="round" />
+    <line x1="0.00" y1="0.00" x2="-37.00" y2="0.00" stroke="#596f7d" stroke-width="4" stroke-linecap="round" />
+    <line x1="0.00" y1="0.00" x2="-26.16" y2="-26.16" stroke="#596f7d" stroke-width="4" stroke-linecap="round" />
+    <line x1="0.00" y1="0.00" x2="-0.00" y2="-37.00" stroke="#596f7d" stroke-width="4" stroke-linecap="round" />
+    <line x1="0.00" y1="0.00" x2="26.16" y2="-26.16" stroke="#596f7d" stroke-width="4" stroke-linecap="round" />
+  </g>
+</svg>

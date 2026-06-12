@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Crafting">
+  <title>Crafting</title>
+  <desc>Anvil</desc>
+  <g fill="none" stroke="#5f6c72" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M -46 -10 L 16 -10 Q 38 -12 43 -28 L 54 -28 Q 42 2 14 5 L -34 5 Z" stroke="#5f6c72" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="-14.00" y="5.00" width="28.00" height="30.00" rx="2.00" stroke="#5f6c72" stroke-width="6" fill="none" />
+    <line x1="-34.00" y1="38.00" x2="34.00" y2="38.00" stroke="#5f6c72" stroke-width="6" stroke-linecap="round" />
+    <line x1="-48.00" y1="48.00" x2="48.00" y2="48.00" stroke="#5f6c72" stroke-width="5" stroke-linecap="round" />
+  </g>
+</svg>

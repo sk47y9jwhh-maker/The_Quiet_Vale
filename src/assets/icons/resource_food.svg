@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Food">
+  <title>Food</title>
+  <desc>Wheat sheaf</desc>
+  <g fill="none" stroke="#a08b45" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="0.00" y1="50.00" x2="0.00" y2="-46.00" stroke="#a08b45" stroke-width="6" stroke-linecap="round" />
+    <path d="M 0 -30 Q -26 -42 -35 -58" stroke="#a08b45" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 0 -14 Q -30 -26 -39 -42" stroke="#a08b45" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 0 2 Q -34 -10 -43 -26" stroke="#a08b45" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 0 18 Q -38 6 -47 -10" stroke="#a08b45" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 0 -30 Q 26 -42 35 -58" stroke="#a08b45" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 0 -14 Q 30 -26 39 -42" stroke="#a08b45" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 0 2 Q 34 -10 43 -26" stroke="#a08b45" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 0 18 Q 38 6 47 -10" stroke="#a08b45" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

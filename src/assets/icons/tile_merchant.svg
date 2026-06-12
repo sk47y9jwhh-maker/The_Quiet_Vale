@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Merchant">
+  <title>Merchant</title>
+  <desc>Scales</desc>
+  <g fill="none" stroke="#6d5363" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="0.00" y1="-50.00" x2="0.00" y2="42.00" stroke="#6d5363" stroke-width="6" stroke-linecap="round" />
+    <circle cx="0.00" cy="-53.00" r="5.00" stroke="#6d5363" stroke-width="4" fill="#6d5363" />
+    <line x1="-40.00" y1="-30.00" x2="40.00" y2="-30.00" stroke="#6d5363" stroke-width="6" stroke-linecap="round" />
+    <line x1="-30.00" y1="-30.00" x2="-48.00" y2="8.00" stroke="#6d5363" stroke-width="4" stroke-linecap="round" />
+    <line x1="-30.00" y1="-30.00" x2="-12.00" y2="8.00" stroke="#6d5363" stroke-width="4" stroke-linecap="round" />
+    <path d="M -55 8 Q -30 27 -5 8 Z" stroke="#6d5363" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="30.00" y1="-30.00" x2="12.00" y2="8.00" stroke="#6d5363" stroke-width="4" stroke-linecap="round" />
+    <line x1="30.00" y1="-30.00" x2="48.00" y2="8.00" stroke="#6d5363" stroke-width="4" stroke-linecap="round" />
+    <path d="M 5 8 Q 30 27 55 8 Z" stroke="#6d5363" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="-22.00" y1="46.00" x2="22.00" y2="46.00" stroke="#6d5363" stroke-width="6" stroke-linecap="round" />
+  </g>
+</svg>

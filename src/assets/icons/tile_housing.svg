@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Housing">
+  <title>Housing</title>
+  <desc>Cottage</desc>
+  <g fill="none" stroke="#8a5c4b" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="-42.00,-8.00 0.00,-44.00 42.00,-8.00" stroke="#8a5c4b" stroke-width="6" fill="none" stroke-linejoin="round" />
+    <rect x="-32.00" y="-8.00" width="64.00" height="48.00" rx="2.00" stroke="#8a5c4b" stroke-width="6" fill="none" />
+    <rect x="-9.00" y="12.00" width="18.00" height="28.00" rx="1.00" stroke="#8a5c4b" stroke-width="5" fill="none" />
+    <rect x="-25.00" y="4.00" width="14.00" height="14.00" rx="1.00" stroke="#8a5c4b" stroke-width="4" fill="none" />
+    <rect x="11.00" y="4.00" width="14.00" height="14.00" rx="1.00" stroke="#8a5c4b" stroke-width="4" fill="none" />
+    <line x1="-44.00" y1="-8.00" x2="44.00" y2="-8.00" stroke="#8a5c4b" stroke-width="5" stroke-linecap="round" />
+    <line x1="20.00" y1="-27.00" x2="20.00" y2="-48.00" stroke="#8a5c4b" stroke-width="4" stroke-linecap="round" />
+    <rect x="14.00" y="-52.00" width="12.00" height="16.00" rx="1.00" stroke="#8a5c4b" stroke-width="4" fill="none" />
+  </g>
+</svg>

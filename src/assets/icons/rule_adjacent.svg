@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Adjacent">
+  <title>Adjacent</title>
+  <desc>Three-hex cluster</desc>
+  <g fill="none" stroke="#596f7d" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="25.00,-24.00 12.50,-2.35 -12.50,-2.35 -25.00,-24.00 -12.50,-45.65 12.50,-45.65" stroke="#596f7d" stroke-width="5" fill="none" stroke-linejoin="round" />
+    <polygon points="-3.00,24.00 -15.50,45.65 -40.50,45.65 -53.00,24.00 -40.50,2.35 -15.50,2.35" stroke="#596f7d" stroke-width="5" fill="none" stroke-linejoin="round" />
+    <polygon points="53.00,24.00 40.50,45.65 15.50,45.65 3.00,24.00 15.50,2.35 40.50,2.35" stroke="#596f7d" stroke-width="5" fill="none" stroke-linejoin="round" />
+  </g>
+</svg>

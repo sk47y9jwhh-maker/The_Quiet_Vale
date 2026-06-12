@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Herbs">
+  <title>Herbs</title>
+  <desc>Mortar, pestle, leaf</desc>
+  <g fill="none" stroke="#5b7351" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M -30 8 Q -20 48 20 48 Q 32 8 20 1 L -20 1 Q -32 8 -30 8 Z" stroke="#5b7351" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="-20.00" y1="-24.00" x2="32.00" y2="24.00" stroke="#5b7351" stroke-width="7" stroke-linecap="round" />
+    <path d="M -8 -35 Q 10 -55 30 -35 Q 10 -17 -8 -35 Z" stroke="#5b7351" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

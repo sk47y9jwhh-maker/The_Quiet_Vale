@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Passive">
+  <title>Passive</title>
+  <desc>Standing leaf effect</desc>
+  <g fill="none" stroke="#6d6f73" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="0.00" cy="0.00" r="43.00" stroke="#6d6f73" stroke-width="7" fill="none" />
+    <path d="M -23 10 Q 0 -36 23 10 Q 0 31 -23 10 Z" stroke="#6d6f73" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="0.00" y1="30.00" x2="0.00" y2="48.00" stroke="#6d6f73" stroke-width="5" stroke-linecap="round" />
+  </g>
+</svg>

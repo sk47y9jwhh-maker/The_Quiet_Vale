@@ -224,6 +224,41 @@ def placement_requirement(tile: dict) -> str | None:
     return None
 
 
+def special_requirement_lines(tile: dict) -> list[str]:
+    rules = sanitize_text(tile.get("placement_rules"))
+    if re.search(r"Housing", rules, re.I) and re.search(r"Wellbeing", rules, re.I):
+        return ["Housing", "Wellbeing"]
+
+    requirements = [
+        (r"Lumber Yard", "Lumber Yard"),
+        (r"Mine Shaft", "Mine"),
+        (r"Farmstead", "Farm"),
+        (r"Gatherers Lodge", "Herbs"),
+        (r"Dig Site", "Dig Site"),
+        (r"Woodland", "Woodland"),
+        (r"Mountains", "Mountains"),
+        (r"Heaths", "Heaths"),
+        (r"Arable Land", "Arable"),
+        (r"Grasslands", "Grass"),
+        (r"Ruins", "Ruins"),
+        (r"Water|River", "River"),
+        (r"Housing", "Housing"),
+        (r"Travel", "Travel"),
+        (r"Wellbeing", "Wellbeing"),
+        (r"Resource", "Resource"),
+        (r"Crafting", "Crafting"),
+        (r"Merchant", "Merchant"),
+        (r"Social", "Social"),
+        (r"Community", "Community"),
+    ]
+
+    for pattern, label in requirements:
+        if re.search(pattern, rules, re.I):
+            return label.split()
+
+    return ["Open"]
+
+
 def effect_mark(tile: dict) -> str:
     benefit = sanitize_text(tile.get("benefit"))
     if re.search(r"Production", benefit, re.I):
@@ -238,13 +273,17 @@ def effect_mark(tile: dict) -> str:
 
 
 def effect_text(tile: dict) -> str:
-    text = sanitize_text(tile.get("benefit") or "No printed effect.")
-    text = re.sub(r"^(Production|Activated Effect|Activate|Passive|Steward Power):\s*", "", text, flags=re.I)
-    text = re.sub(r"\.$", "", text)
-    text = re.sub(r"^Gain\s+", "+", text, flags=re.I)
-    text = re.sub(r"\band\s+(\d+\s+(Wood|Stone|Metal|Food|Herbs|Goods))", r"+ \1", text, flags=re.I)
-    text = re.sub(r"^Remove\s+", "-", text, flags=re.I)
-    return text or "No printed effect"
+    return sanitize_text(tile.get("benefit"))
+
+
+def tile_side_line(tile: dict) -> str:
+    if tile.get("side") != "One-sided":
+        return "Upgraded" if tile.get("side") == "Upgraded" else "Basic"
+
+    role = sanitize_text(tile.get("internal_role_tag") or tile.get("subtype") or tile.get("tile_category") or "Special")
+    size = int(tile.get("size_hexes") or 1)
+    size_label = f"1 x {size}" if size > 1 else "1"
+    return f"{role} - {size_label}"
 
 
 def make_layout(tile_w_mm: float) -> SheetLayout:
@@ -382,10 +421,10 @@ class TileDrawer:
             return
         positions = {
             1: [500],
-            2: [440, 615],
-            3: [370, 535, 700],
-            4: [330, 455, 580, 705],
-        }.get(min(len(entries), 4), [330, 455, 580, 705])
+            2: [415, 625],
+            3: [325, 550, 775],
+            4: [290, 430, 570, 710],
+        }.get(min(len(entries), 4), [290, 430, 570, 710])
         visible = entries[:4]
         if len(entries) > 4:
             visible = entries[:3] + [f"+{len(entries) - 3} more"]
@@ -423,74 +462,121 @@ class TileDrawer:
         is_one_sided = tile.get("side") == "One-sided"
         upgrade_tile = tile_copy.upgrade_tile
 
-        for x1, y1, x2, y2 in [
-            (151.85, 170, 848.15, 170),
-            (50.222, 520, 949.778, 520),
-            (154.145, 700, 845.855, 700),
-        ]:
-            self.line(origin_x, origin_y, x1, y1, x2, y2, 3.2, category_color)
+        if is_one_sided:
+            for x1, y1, x2, y2 in [
+                (1.739, 430, 998.261, 430),
+                (21.363, 500, 978.637, 500),
+            ]:
+                self.line(origin_x, origin_y, x1, y1, x2, y2, 3.2, category_color)
 
-        if not is_upgraded and not is_one_sided:
-            self.line(origin_x, origin_y, 102.184, 610, 897.816, 610, 3, category_color)
+            for x1, y1, x2, y2 in [
+                (250, 0, 500, 300),
+                (750, 0, 500, 300),
+                (114, 430, 500, 300),
+                (886, 430, 500, 300),
+            ]:
+                self.line(origin_x, origin_y, x1, y1, x2, y2, 1.3, guide)
+
+            self.circle(origin_x, origin_y, 280, 58, 34, plaque, accent, 1.5)
+            role_lines = self.wrap(tile.get("internal_role_tag") or tile.get("subtype") or "Role", 80, 13, 2)
+            self.draw_lines_center(origin_x, origin_y, role_lines, 280, 55 - (len(role_lines) - 1) * 7, 14, 13, font_name="Helvetica-Bold", color=accent)
+
+            self.circle(origin_x, origin_y, 720, 58, 34, plaque, accent, 1.5)
+            req_lines = special_requirement_lines(tile)
+            self.draw_lines_center(origin_x, origin_y, req_lines, 720, 55 - (len(req_lines) - 1) * 7, 14, 13, font_name="Helvetica-Bold", color=accent)
+
+            title_lines = self.wrap(tile.get("tile_name", ""), 330, 42, 2)
+            title_start = 70 if len(title_lines) > 1 else 76
+            self.draw_lines_center(origin_x, origin_y, title_lines, 500, title_start, 42, 42, font_name="Helvetica-Bold")
+            self.draw_text(origin_x, origin_y, tile_side_line(tile), 500, 111, 16, color=colors.HexColor("#5c554c"))
+
+            self.draw_text(origin_x, origin_y, "Artwork Area", 500, 312, 28, font_name="Helvetica-Bold", color=colors.HexColor("#59524b"))
+            self.draw_text(origin_x, origin_y, "Special tile preview", 500, 336, 13, color=colors.HexColor("#59524b"))
+
+            population = int(tile.get("population") or 0)
+            renown = int(tile.get("renown") or 0)
+            if population:
+                self.circle(origin_x, origin_y, 99, 374, 30, plaque, accent, 1.2)
+                self.draw_text(origin_x, origin_y, "Pop", 99, 382, 13, font_name="Helvetica-Bold", color=colors.HexColor("#5c554c"))
+                self.draw_text(origin_x, origin_y, str(population), 147, 384, 30, font_name="Helvetica-Bold")
+            if renown:
+                self.circle(origin_x, origin_y, 901, 374, 30, plaque, accent, 1.2)
+                self.draw_text(origin_x, origin_y, "Ren", 901, 382, 13, font_name="Helvetica-Bold", color=colors.HexColor("#5c554c"))
+                self.draw_text(origin_x, origin_y, str(renown), 853, 384, 30, font_name="Helvetica-Bold")
+
+            unlocked = f"Arrival = {tile.get('unlocked_by_arrival')}" if tile.get("unlocked_by_arrival") else "Arrival ="
+            unlocked_lines = self.wrap(unlocked, 620, 22, 1)
+            self.draw_lines_center(origin_x, origin_y, unlocked_lines, 500, 476, 24, 22, font_name="Helvetica-Bold")
+
+            effect_lines = self.wrap(effect_text(tile), 700, 28, 6)
+            effect_start = 658 - (len(effect_lines) - 1) * 17.5
+            self.draw_lines_center(origin_x, origin_y, effect_lines, 500, effect_start, 35, 28)
+            self.draw_text(origin_x, origin_y, "special tile wireframe v0.2", 500, 830, 11, color=colors.HexColor("#70685e"))
+
+            copy_label = f"{tile_copy.copy_number}/{tile_copy.copy_total}" if tile_copy.copy_total > 1 else ""
+            if copy_label:
+                self.draw_text(origin_x, origin_y, copy_label, 500, 842, 14, color=colors.HexColor("#70685e"))
+            return
+
+        self.line(origin_x, origin_y, 1.739, 430, 998.261, 430, 3.2, category_color)
+        if is_upgraded:
+            self.line(origin_x, origin_y, 90.637, 590, 909.363, 590, 3.2, category_color)
+        else:
+            self.line(origin_x, origin_y, 44.449, 510, 955.551, 510, 3.2, category_color)
+            self.line(origin_x, origin_y, 90.637, 590, 909.363, 590, 3.2, category_color)
 
         for x1, y1, x2, y2 in [
-            (335, 40, 335, 140),
-            (320, 712, 320, 836.0254),
-            (680, 712, 680, 836.0254),
-        ]:
-            self.line(origin_x, origin_y, x1, y1, x2, y2, 2.2, ink)
-
-        for x1, y1, x2, y2 in [
-            (151.85, 170, 500, 345),
-            (848.15, 170, 500, 345),
-            (151.85, 520, 500, 345),
-            (848.15, 520, 500, 345),
+            (250, 0, 500, 300),
+            (750, 0, 500, 300),
+            (114, 430, 500, 300),
+            (886, 430, 500, 300),
         ]:
             self.line(origin_x, origin_y, x1, y1, x2, y2, 1.3, guide)
 
-        self.circle(origin_x, origin_y, 264, 87, 34, plaque, accent, 1.5)
-        self.draw_text(origin_x, origin_y, CATEGORY_MARKS.get(tile.get("tile_category"), "T"), 264, 96, 22, font_name="Helvetica-Bold")
+        self.circle(origin_x, origin_y, 280, 58, 34, plaque, accent, 1.5)
+        self.draw_text(origin_x, origin_y, CATEGORY_MARKS.get(tile.get("tile_category"), "T"), 280, 63, 18, font_name="Helvetica-Bold")
 
         requirement = placement_requirement(tile)
-        if requirement and not is_upgraded and not is_one_sided:
-            self.circle(origin_x, origin_y, 729, 87, 34, plaque, accent, 1.5)
-            self.draw_text(origin_x, origin_y, requirement, 729, 96, 18, font_name="Helvetica-Bold")
+        if requirement and not is_upgraded:
+            self.circle(origin_x, origin_y, 720, 58, 34, plaque, accent, 1.5)
+            self.draw_text(origin_x, origin_y, requirement, 720, 63, 14, font_name="Helvetica-Bold")
 
-        title_center_x = 592 if is_upgraded or is_one_sided else 515
-        title_lines = self.wrap(tile.get("tile_name", ""), 285 if not is_upgraded else 410, 44, 2)
-        title_start = 70 if len(title_lines) > 1 else 88
-        self.draw_lines_center(origin_x, origin_y, title_lines, title_center_x, title_start, 45, 44, font_name="Helvetica-Bold")
-        side_text = "Special Tile" if is_one_sided else ("Upgraded" if is_upgraded else "Basic")
-        self.draw_text(origin_x, origin_y, side_text, title_center_x, title_start + len(title_lines) * 45 - 3, 18, color=colors.HexColor("#5c554c"))
+        title_lines = self.wrap(tile.get("tile_name", ""), 350, 40, 2)
+        title_start = 62 if len(title_lines) > 1 else 82
+        self.draw_lines_center(origin_x, origin_y, title_lines, 500, title_start, 36, 40, font_name="Helvetica-Bold")
+        side_y = 160 if len(title_lines) > 1 else 112
+        side_text = "Upgraded" if is_upgraded else "Basic"
+        self.draw_text(origin_x, origin_y, side_text, 500, side_y, 16, color=colors.HexColor("#5c554c"))
 
-        self.draw_text(origin_x, origin_y, "Artwork Area", 500, 355, 28, font_name="Helvetica-Bold", color=colors.HexColor("#59524b"))
-
-        if is_upgraded or is_one_sided:
-            lineage = f"Upgraded {tile.get('base_tile')}" if is_upgraded and tile.get("base_tile") else "Unlocked Special Tile"
-            lineage_lines = self.wrap(lineage, 480, 32, 2)
-            self.draw_lines_center(origin_x, origin_y, lineage_lines, 500, 595 - (len(lineage_lines) - 1) * 16, 36, 32, font_name="Helvetica-Bold")
-            self.draw_text(origin_x, origin_y, "Lineage", 500, 652, 16, color=colors.HexColor("#5c554c"))
-        else:
-            self.draw_text(origin_x, origin_y, "Place", 150, 576, 32, font_name="Helvetica-Bold", align="left")
-            self.draw_cost_entries(origin_x, origin_y, format_cost_entries(tile.get("place_cost")), 575)
-            self.draw_text(origin_x, origin_y, "Upgrade", 150, 666, 32, font_name="Helvetica-Bold", align="left")
-            upgrade_cost = upgrade_tile.get("upgrade_cost") if upgrade_tile else tile.get("upgrade_cost")
-            self.draw_cost_entries(origin_x, origin_y, format_cost_entries(upgrade_cost), 665)
-
-        self.circle(origin_x, origin_y, 369, 745, 27, plaque, accent, 1.2)
-        self.draw_text(origin_x, origin_y, effect_mark(tile), 369, 753, 18, font_name="Helvetica-Bold")
-        self.draw_effect_text(origin_x, origin_y, tile)
+        self.draw_text(origin_x, origin_y, "Artwork Area", 500, 312, 28, font_name="Helvetica-Bold", color=colors.HexColor("#59524b"))
 
         population = int(tile.get("population") or 0)
         renown = int(tile.get("renown") or 0)
         if population:
-            self.circle(origin_x, origin_y, 250, 750, 32, plaque, accent, 1.2)
-            self.draw_text(origin_x, origin_y, "Pop", 250, 755, 14, font_name="Helvetica-Bold", color=colors.HexColor("#5c554c"))
-            self.draw_text(origin_x, origin_y, str(population), 250, 816, 40, font_name="Helvetica-Bold")
+            self.circle(origin_x, origin_y, 99, 374, 30, plaque, accent, 1.2)
+            self.draw_text(origin_x, origin_y, "Pop", 99, 382, 13, font_name="Helvetica-Bold", color=colors.HexColor("#5c554c"))
+            self.draw_text(origin_x, origin_y, str(population), 147, 384, 30, font_name="Helvetica-Bold")
         if renown:
-            self.circle(origin_x, origin_y, 750, 750, 32, plaque, accent, 1.2)
-            self.draw_text(origin_x, origin_y, "Ren", 750, 755, 14, font_name="Helvetica-Bold", color=colors.HexColor("#5c554c"))
-            self.draw_text(origin_x, origin_y, str(renown), 750, 816, 40, font_name="Helvetica-Bold")
+            self.circle(origin_x, origin_y, 901, 374, 30, plaque, accent, 1.2)
+            self.draw_text(origin_x, origin_y, "Ren", 901, 382, 13, font_name="Helvetica-Bold", color=colors.HexColor("#5c554c"))
+            self.draw_text(origin_x, origin_y, str(renown), 853, 384, 30, font_name="Helvetica-Bold")
+
+        if is_upgraded:
+            lineage = f"Upgraded {tile.get('base_tile')}" if tile.get("base_tile") else "Upgraded side"
+            lineage_lines = self.wrap(lineage, 520, 30, 1)
+            self.draw_lines_center(origin_x, origin_y, lineage_lines, 500, 510, 30, 30, font_name="Helvetica-Bold")
+        else:
+            self.draw_text(origin_x, origin_y, "Place", 86, 486, 28, font_name="Helvetica-Bold", align="left")
+            self.draw_cost_entries(origin_x, origin_y, format_cost_entries(tile.get("place_cost")), 485)
+            self.draw_text(origin_x, origin_y, "Upgrade", 98, 566, 28, font_name="Helvetica-Bold", align="left")
+            upgrade_cost = upgrade_tile.get("upgrade_cost") if upgrade_tile else tile.get("upgrade_cost")
+            self.draw_cost_entries(origin_x, origin_y, format_cost_entries(upgrade_cost), 565)
+
+        effect_copy = effect_text(tile)
+        if effect_copy:
+            effect_lines = self.wrap(effect_copy, 640, 28, 5)
+            effect_start = 704 - (len(effect_lines) - 1) * 21
+            self.draw_lines_center(origin_x, origin_y, effect_lines, 500, effect_start, 42, 28)
 
         copy_label = f"{tile_copy.copy_number}/{tile_copy.copy_total}" if tile_copy.copy_total > 1 else ""
         if copy_label:

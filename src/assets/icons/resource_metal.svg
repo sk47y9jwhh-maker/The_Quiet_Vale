@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Metal">
+  <title>Metal</title>
+  <desc>Straight-edged ingot</desc>
+  <g fill="none" stroke="#6a7480" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="-44.00,20.00 -23.00,-24.00 38.00,-24.00 50.00,20.00" stroke="#6a7480" stroke-width="7" fill="none" stroke-linejoin="round" />
+    <line x1="-23.00" y1="-24.00" x2="-8.00" y2="20.00" stroke="#6a7480" stroke-width="4" stroke-linecap="round" />
+    <line x1="38.00" y1="-24.00" x2="22.00" y2="20.00" stroke="#6a7480" stroke-width="4" stroke-linecap="round" />
+    <line x1="-44.00" y1="20.00" x2="50.00" y2="20.00" stroke="#6a7480" stroke-width="5" stroke-linecap="round" />
+  </g>
+</svg>

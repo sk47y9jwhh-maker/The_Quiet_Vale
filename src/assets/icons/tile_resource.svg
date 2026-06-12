@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Resource">
+  <title>Resource</title>
+  <desc>Sack</desc>
+  <g fill="none" stroke="#8a6a3f" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M -20 -34 Q 0 -46 20 -34" stroke="#8a6a3f" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="-16.00" y1="-31.00" x2="16.00" y2="-31.00" stroke="#8a6a3f" stroke-width="5" stroke-linecap="round" />
+    <path d="M -28 -22 Q -42 10 -22 38 Q 0 52 22 38 Q 42 10 28 -22 Z" stroke="#8a6a3f" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="-10.00" y1="-31.00" x2="-22.00" y2="-47.00" stroke="#8a6a3f" stroke-width="4" stroke-linecap="round" />
+    <line x1="10.00" y1="-31.00" x2="22.00" y2="-47.00" stroke="#8a6a3f" stroke-width="4" stroke-linecap="round" />
+    <path d="M -14 5 Q 0 -5 14 5" stroke="#8a6a3f" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

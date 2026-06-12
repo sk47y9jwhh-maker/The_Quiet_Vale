@@ -4167,6 +4167,11 @@ textarea {
   stroke-width: 1.6;
 }
 
+.tile-face-title-veil {
+  fill: var(--tile-face-fill, #fffdf7);
+  opacity: 0.78;
+}
+
 .tile-face-icon,
 .tile-face-effect-icon,
 .tile-face-score circle {
@@ -4175,9 +4180,14 @@ textarea {
   stroke-width: 1.3;
 }
 
+.tile-face-badge-image {
+  pointer-events: none;
+}
+
 .tile-face-icon-text,
 .tile-face-req-text,
-.tile-face-effect-icon-text {
+.tile-face-effect-icon-text,
+.tile-face-corner-text {
   fill: var(--tile-variant-accent, var(--tile-accent));
   font-family: Arial, sans-serif;
   font-size: 23px;
@@ -4190,6 +4200,14 @@ textarea {
 
 .tile-face-effect-icon-text {
   font-size: 20px;
+}
+
+.tile-face-corner-text {
+  font-size: 15px;
+}
+
+.tile-face-special-req-text {
+  font-size: 14px;
 }
 
 .tile-face-title {
@@ -4214,11 +4232,21 @@ textarea {
   font-weight: 800;
 }
 
+.tile-face-art-sub {
+  fill: #555955;
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+}
+
 .tile-face-row-label,
 .tile-face-lineage,
+.tile-face-lineage-row,
 .tile-face-cost,
 .tile-face-effect-heading,
-.tile-face-effect-text {
+.tile-face-effect-text,
+.tile-face-core-effect-text,
+.tile-face-special-info,
+.tile-face-special-effect-text {
   fill: #161816;
   font-family: Arial, sans-serif;
 }
@@ -4229,12 +4257,17 @@ textarea {
 }
 
 .tile-face-cost {
-  font-size: 21px;
+  font-size: 22px;
   font-weight: 900;
 }
 
 .tile-face-lineage {
   font-size: 32px;
+  font-weight: 900;
+}
+
+.tile-face-lineage-row {
+  font-size: 30px;
   font-weight: 900;
 }
 
@@ -4247,14 +4280,40 @@ textarea {
   font-size: 18px;
 }
 
+.tile-face-core-effect-text {
+  font-size: 29px;
+  font-weight: 500;
+}
+
 .tile-face-micro {
   font-size: 11px;
+}
+
+.tile-face-special-info {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.tile-face-special-effect-text {
+  font-size: 26px;
+  font-weight: 500;
 }
 
 .tile-face-score text {
   fill: #161816;
   font-family: Arial, sans-serif;
   font-size: 34px;
+  font-weight: 900;
+}
+
+.tile-face-score .tile-face-score-label {
+  fill: #6f624f;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.tile-face-score .tile-face-score-value {
+  font-size: 31px;
   font-weight: 900;
 }
 

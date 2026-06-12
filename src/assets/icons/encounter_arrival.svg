@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Arrival">
+  <title>Arrival</title>
+  <desc>Door ajar with threshold</desc>
+  <g fill="none" stroke="#596f7d" stroke-linecap="round" stroke-linejoin="round">
+    <polygon points="-32.00,-48.00 25.00,-36.00 25.00,50.00 -32.00,38.00" stroke="#596f7d" stroke-width="7" fill="none" stroke-linejoin="round" />
+    <line x1="-50.00" y1="-48.00" x2="25.00" y2="-36.00" stroke="#596f7d" stroke-width="5" stroke-linecap="round" />
+    <line x1="-50.00" y1="50.00" x2="25.00" y2="50.00" stroke="#596f7d" stroke-width="5" stroke-linecap="round" />
+    <line x1="-50.00" y1="-48.00" x2="-50.00" y2="50.00" stroke="#596f7d" stroke-width="5" stroke-linecap="round" />
+    <circle cx="8.00" cy="4.00" r="4.00" stroke="#596f7d" stroke-width="2" fill="#596f7d" />
+    <path d="M -50 50 L 42 57" stroke="#596f7d" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

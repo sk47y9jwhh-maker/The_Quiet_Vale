@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Production">
+  <title>Production</title>
+  <desc>Circular production arrow</desc>
+  <g fill="none" stroke="#5b7351" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="0.00" cy="0.00" r="42.00" stroke="#5b7351" stroke-width="7" fill="none" />
+    <path d="M -8 22 C -33 -2 -8 -28 23 -28" stroke="#5b7351" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 23 -28 L 9 -43 M 23 -28 L 8 -13" stroke="#5b7351" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

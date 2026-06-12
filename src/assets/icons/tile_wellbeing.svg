@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Wellbeing">
+  <title>Wellbeing</title>
+  <desc>Sun burst</desc>
+  <g fill="none" stroke="#a9823a" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="0.00" cy="0.00" r="27.00" stroke="#a9823a" stroke-width="6" fill="none" />
+    <line x1="38.00" y1="0.00" x2="54.00" y2="0.00" stroke="#a9823a" stroke-width="6" stroke-linecap="round" />
+    <line x1="26.87" y1="26.87" x2="38.18" y2="38.18" stroke="#a9823a" stroke-width="6" stroke-linecap="round" />
+    <line x1="0.00" y1="38.00" x2="0.00" y2="54.00" stroke="#a9823a" stroke-width="6" stroke-linecap="round" />
+    <line x1="-26.87" y1="26.87" x2="-38.18" y2="38.18" stroke="#a9823a" stroke-width="6" stroke-linecap="round" />
+    <line x1="-38.00" y1="0.00" x2="-54.00" y2="0.00" stroke="#a9823a" stroke-width="6" stroke-linecap="round" />
+    <line x1="-26.87" y1="-26.87" x2="-38.18" y2="-38.18" stroke="#a9823a" stroke-width="6" stroke-linecap="round" />
+    <line x1="-0.00" y1="-38.00" x2="-0.00" y2="-54.00" stroke="#a9823a" stroke-width="6" stroke-linecap="round" />
+    <line x1="26.87" y1="-26.87" x2="38.18" y2="-38.18" stroke="#a9823a" stroke-width="6" stroke-linecap="round" />
+  </g>
+</svg>

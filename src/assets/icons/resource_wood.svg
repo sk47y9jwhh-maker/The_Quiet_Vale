@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Wood">
+  <title>Wood</title>
+  <desc>Log bundle</desc>
+  <g fill="none" stroke="#7a5a38" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M -40 7 Q -4 -20 39 -4" stroke="#7a5a38" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M -36 26 Q 0 -1 43 19" stroke="#7a5a38" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <circle cx="-40.00" cy="7.00" r="9.00" stroke="#7a5a38" stroke-width="4" fill="none" />
+    <circle cx="-36.00" cy="26.00" r="9.00" stroke="#7a5a38" stroke-width="4" fill="none" />
+    <circle cx="39.00" cy="-4.00" r="9.00" stroke="#7a5a38" stroke-width="4" fill="none" />
+    <circle cx="43.00" cy="19.00" r="9.00" stroke="#7a5a38" stroke-width="4" fill="none" />
+  </g>
+</svg>

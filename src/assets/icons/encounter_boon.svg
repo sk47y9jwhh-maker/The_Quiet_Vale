@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Boon">
+  <title>Boon</title>
+  <desc>Lit upright candle</desc>
+  <g fill="none" stroke="#a9823a" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="-18.00" y="-2.00" width="36.00" height="50.00" rx="5.00" stroke="#a9823a" stroke-width="7" fill="none" />
+    <line x1="0.00" y1="-2.00" x2="0.00" y2="-15.00" stroke="#a9823a" stroke-width="5" stroke-linecap="round" />
+    <path d="M -18 10 Q 0 22 18 10" stroke="#a9823a" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <path d="M 0 -17 C -20 -35 -3 -50 0 -62 C 20 -40 21 -25 0 -17 Z" stroke="#a9823a" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    <line x1="-35.00" y1="-44.00" x2="-47.00" y2="-56.00" stroke="#a9823a" stroke-width="3" stroke-linecap="round" />
+    <line x1="35.00" y1="-44.00" x2="47.00" y2="-56.00" stroke="#a9823a" stroke-width="3" stroke-linecap="round" />
+  </g>
+</svg>

@@ -2931,6 +2931,66 @@ const TILE_FACE_CATEGORY_MARKS = Object.freeze({
   Special: "Sp"
 });
 
+const TILE_FACE_ICON_BASE_PATH = "./src/assets/icons/";
+const TILE_FACE_ICON_FILES = Object.freeze({
+  arable_land: "arable_land.svg",
+  bridge: "bridge.svg",
+  effect_passive: "effect_passive.svg",
+  effect_production: "effect_production.svg",
+  encounter_arrival: "encounter_arrival.svg",
+  encounter_boon: "encounter_boon.svg",
+  encounter_burden: "encounter_burden.svg",
+  encounter_golden_boon: "encounter_golden_boon.svg",
+  grasslands: "grasslands.svg",
+  heaths_wildlands: "heaths_wildlands.svg",
+  mountains: "mountains.svg",
+  resource_food: "resource_food.svg",
+  resource_goods: "resource_goods.svg",
+  resource_herbs: "resource_herbs.svg",
+  resource_metal: "resource_metal.svg",
+  resource_wood: "resource_wood.svg",
+  ruins: "ruins.svg",
+  rule_adjacent: "rule_adjacent.svg",
+  rule_reachable: "rule_reachable.svg",
+  score_renown: "score_renown.svg",
+  status_strain: "status_strain.svg",
+  tile_crafting: "tile_crafting.svg",
+  tile_housing: "tile_housing.svg",
+  tile_merchant: "tile_merchant.svg",
+  tile_resource: "tile_resource.svg",
+  tile_social: "tile_social.svg",
+  tile_travel: "tile_travel.svg",
+  tile_wellbeing: "tile_wellbeing.svg",
+  water_river: "water_river.svg",
+  woodland: "woodland.svg"
+});
+
+const TILE_FACE_CATEGORY_ICON_KEYS = Object.freeze({
+  Resource: "tile_resource",
+  Housing: "tile_housing",
+  Crafting: "tile_crafting",
+  Merchant: "tile_merchant",
+  Social: "tile_social",
+  Wellbeing: "tile_wellbeing",
+  Travel: "tile_travel"
+});
+
+function getTileCategoryIconKey(category) {
+  return TILE_FACE_CATEGORY_ICON_KEYS[category] ?? null;
+}
+
+function renderTileFaceBadgeIcon(iconKey, cx, cy, size, fallbackText, textClass = "tile-face-icon-text") {
+  const iconFile = iconKey ? TILE_FACE_ICON_FILES[iconKey] : null;
+
+  if (iconFile) {
+    const offset = size / 2;
+
+    return `<image class="tile-face-badge-image" href="${TILE_FACE_ICON_BASE_PATH}${iconFile}" x="${cx - offset}" y="${cy - offset}" width="${size}" height="${size}" preserveAspectRatio="xMidYMid meet"></image>`;
+  }
+
+  return `<text class="${escapeHtml(textClass)}" x="${cx}" y="${cy + 8}" text-anchor="middle">${escapeHtml(fallbackText)}</text>`;
+}
+
 function renderSvgTextLines(lines, x, y, lineHeight, className = "") {
   return lines
     .map(
@@ -2938,6 +2998,12 @@ function renderSvgTextLines(lines, x, y, lineHeight, className = "") {
         `<text class="${escapeHtml(className)}" x="${x}" y="${y + index * lineHeight}" text-anchor="middle">${escapeHtml(line)}</text>`
     )
     .join("");
+}
+
+function renderSvgCenteredBadgeText(lines, x, centerY, lineHeight, className = "tile-face-corner-text") {
+  const startY = centerY - ((lines.length - 1) * lineHeight) / 2 + 5;
+
+  return renderSvgTextLines(lines, x, startY, lineHeight, className);
 }
 
 function wrapTileFaceText(text, maxLineLength, maxLines) {
@@ -3023,9 +3089,9 @@ function renderTileFaceCostEntries(entries, y) {
 
   const positionsByCount = {
     1: [500],
-    2: [452, 620],
-    3: [420, 570, 720],
-    4: [350, 470, 590, 710]
+    2: [415, 625],
+    3: [325, 550, 775],
+    4: [290, 430, 570, 710]
   };
   const positions = positionsByCount[Math.min(entries.length, 4)] ?? positionsByCount[4];
   const visibleEntries = entries.length > 4 ? [...entries.slice(0, 3), `+${entries.length - 3} more`] : entries;
@@ -3050,32 +3116,63 @@ function getTilePlacementRequirementMark(tile) {
   }
 
   const requirements = [
-    [/Woodland/i, { mark: "Wood", label: "Woodland" }],
-    [/Mountains/i, { mark: "Mtn", label: "Mountains" }],
-    [/Heaths/i, { mark: "Heath", label: "Heaths" }],
-    [/Arable Land/i, { mark: "Arab", label: "Arable Land" }],
-    [/Grasslands/i, { mark: "Grass", label: "Grasslands" }],
-    [/Ruins/i, { mark: "Ruin", label: "Ruins" }],
-    [/(Water|River)/i, { mark: "River", label: "River" }],
-    [/Housing/i, { mark: "H", label: "Housing" }],
-    [/Travel/i, { mark: "T", label: "Travel" }],
-    [/Wellbeing/i, { mark: "W", label: "Wellbeing" }],
-    [/Resource/i, { mark: "R", label: "Resource" }],
-    [/Crafting/i, { mark: "C", label: "Crafting" }],
-    [/Merchant/i, { mark: "M", label: "Merchant" }],
-    [/Social/i, { mark: "S", label: "Social" }],
-    [/Community/i, { mark: "C", label: "Community" }]
+    [/Lumber Yard/i, { mark: "Wood", label: "Lumber Yard", icon: "resource_wood" }],
+    [/Mine Shaft/i, { mark: "Mine", label: "Mine Shaft", icon: "resource_metal" }],
+    [/Farmstead/i, { mark: "Farm", label: "Farmstead", icon: "resource_food" }],
+    [/Gatherers Lodge/i, { mark: "Herbs", label: "Gatherers Lodge", icon: "resource_herbs" }],
+    [/Dig Site/i, { mark: "Ruin", label: "Dig Site", icon: "ruins" }],
+    [/Woodland/i, { mark: "Wood", label: "Woodland", icon: "woodland" }],
+    [/Mountains/i, { mark: "Mtn", label: "Mountains", icon: "mountains" }],
+    [/Heaths/i, { mark: "Heath", label: "Heaths", icon: "heaths_wildlands" }],
+    [/Arable Land/i, { mark: "Arab", label: "Arable Land", icon: "arable_land" }],
+    [/Grasslands/i, { mark: "Grass", label: "Grasslands", icon: "grasslands" }],
+    [/Ruins/i, { mark: "Ruin", label: "Ruins", icon: "ruins" }],
+    [/(Water|River)/i, { mark: "River", label: "River", icon: "water_river" }],
+    [/Housing/i, { mark: "H", label: "Housing", icon: "tile_housing" }],
+    [/Travel/i, { mark: "T", label: "Travel", icon: "tile_travel" }],
+    [/Wellbeing/i, { mark: "W", label: "Wellbeing", icon: "tile_wellbeing" }],
+    [/Resource/i, { mark: "R", label: "Resource", icon: "tile_resource" }],
+    [/Crafting/i, { mark: "C", label: "Crafting", icon: "tile_crafting" }],
+    [/Merchant/i, { mark: "M", label: "Merchant", icon: "tile_merchant" }],
+    [/Social/i, { mark: "S", label: "Social", icon: "tile_social" }],
+    [/Community/i, { mark: "C", label: "Community", icon: "rule_adjacent" }]
   ];
   const match = requirements.find(([pattern]) => pattern.test(rules));
 
   return match?.[1] ?? null;
 }
 
+function getSpecialTileRoleBadgeLines(tile) {
+  const role = tile?.internal_role_tag || tile?.subtype || "Role";
+
+  return wrapTileFaceText(role, 10, 2);
+}
+
+function getSpecialTileRoleIconKey(tile) {
+  return getTileCategoryIconKey(tile?.internal_role_tag || tile?.subtype);
+}
+
+function getSpecialTileRequirementBadgeLines(tile) {
+  const rules = String(tile?.placement_rules ?? "");
+
+  if (/Housing/i.test(rules) && /Wellbeing/i.test(rules)) {
+    return ["Housing", "Wellbeing"];
+  }
+
+  const requirement = getTilePlacementRequirementMark(tile);
+
+  if (!requirement) {
+    return ["Open"];
+  }
+
+  return wrapTileFaceText(requirement.label, 10, 2);
+}
+
 function getTileEffectDetails(tile) {
   const benefit = tile?.benefit ?? "";
 
   if (/Production/i.test(benefit)) {
-    return { mark: "P", label: "Production" };
+    return { mark: "P", label: "Production", icon: "effect_production" };
   }
 
   if (/Steward Power/i.test(benefit)) {
@@ -3083,7 +3180,7 @@ function getTileEffectDetails(tile) {
   }
 
   if (/Passive/i.test(benefit)) {
-    return { mark: "Pa", label: "Passive" };
+    return { mark: "Pa", label: "Passive", icon: "effect_passive" };
   }
 
   if (/Activate|Activated Effect/i.test(benefit)) {
@@ -3111,88 +3208,168 @@ function shorthandTileEffect(benefit) {
   return text || "No printed effect";
 }
 
-function renderTileFaceSvg(tile, options = {}) {
-  const category = tile.tile_category ?? "Tile";
-  const categoryMark = TILE_FACE_CATEGORY_MARKS[category] ?? category.slice(0, 2).toUpperCase();
-  const isUpgraded = tile.side === "Upgraded";
-  const upgradeTile = options.upgradeTile ?? null;
-  const hasUpgradeRow = !isUpgraded && Boolean(tile.upgrade_to || upgradeTile || (tile.upgrade_cost !== null && tile.upgrade_cost !== undefined));
+function getTileFaceEffectCopy(tile) {
+  return String(tile?.benefit ?? "").replace(/\s+/g, " ").trim();
+}
+
+function getTileFaceSideLine(tile) {
+  if (tile?.side !== "One-sided") {
+    return tile?.side === "Upgraded" ? "Upgraded" : "Basic";
+  }
+
+  const role = tile.internal_role_tag || tile.subtype || tile.tile_category || "Special";
+  const size = Number(tile.size_hexes ?? 1);
+  const sizeLabel = size > 1 ? `1 x ${size}` : "1";
+
+  return `${role} - ${sizeLabel}`;
+}
+
+function renderSpecialTileFaceSvg(tile) {
+  const roleLines = getSpecialTileRoleBadgeLines(tile);
+  const roleIcon = getSpecialTileRoleIconKey(tile);
+  const requirementLines = getSpecialTileRequirementBadgeLines(tile);
   const requirement = getTilePlacementRequirementMark(tile);
-  const titleLines = wrapTileFaceText(String(tile.tile_name ?? ""), isUpgraded ? 18 : 17, 2);
-  const titleCenterX = isUpgraded ? 592 : 515;
-  const titleStartY = titleLines.length > 1 ? 72 : 82;
-  const titleSideY = titleStartY + titleLines.length * 36 - 6;
-  const placeCostEntries = formatTileFaceCostEntries(tile.place_cost);
-  const upgradeCostEntries = formatTileFaceCostEntries(upgradeTile?.upgrade_cost ?? tile.upgrade_cost);
-  const lineage = tile.base_tile ? `Upgraded ${tile.base_tile}` : "Upgraded side";
-  const effectDetails = getTileEffectDetails(tile);
-  const effectLines = wrapTileFaceText(shorthandTileEffect(tile.benefit), 38, 3);
-  const effectCopyStartY = 782 - Math.max(0, effectLines.length - 1) * 13;
+  const titleLines = wrapTileFaceText(String(tile.tile_name ?? ""), 16, 2);
+  const titleStartY = titleLines.length > 1 ? 70 : 76;
+  const titleSideY = 111;
+  const unlockedBy = tile.unlocked_by_arrival ? `Arrival = ${tile.unlocked_by_arrival}` : "Arrival =";
+  const unlockedLines = wrapTileFaceText(unlockedBy, 42, 1);
+  const effectLines = wrapTileFaceText(getTileFaceEffectCopy(tile), 43, 6);
+  const effectCopyStartY = 658 - Math.max(0, effectLines.length - 1) * 17.5;
   const population = Number(tile.population ?? 0);
   const renown = Number(tile.renown ?? 0);
 
   return `
-    <svg class="tile-face-svg" style="${escapeHtml(getTileFaceAccentStyle(tile))}" viewBox="0 0 1000 866.0254" role="img" aria-label="${escapeHtml(tile.tile_name)} tile face">
+    <svg class="tile-face-svg tile-face-special-svg" style="${escapeHtml(getTileFaceAccentStyle(tile))}" viewBox="0 0 1000 866.0254" role="img" aria-label="${escapeHtml(tile.tile_name)} special tile face">
       <path class="tile-face-accent-edge" d="M250 0H750L1000 433.0127L750 866.0254H250L0 433.0127Z"></path>
       <path class="tile-face-outer" d="M250 0H750L1000 433.0127L750 866.0254H250L0 433.0127Z"></path>
-      <line class="tile-face-major-divider" x1="151.85" y1="170" x2="848.15" y2="170"></line>
-      <line class="tile-face-major-divider" x1="50.222" y1="520" x2="949.778" y2="520"></line>
-      ${!isUpgraded ? `<line class="tile-face-major-divider" x1="102.184" y1="610" x2="897.816" y2="610"></line>` : ""}
-      <line class="tile-face-major-divider" x1="154.145" y1="700" x2="845.855" y2="700"></line>
-      <line class="tile-face-minor-divider" x1="335" y1="40" x2="335" y2="140"></line>
-      <line class="tile-face-minor-divider" x1="320" y1="712" x2="320" y2="836.0254"></line>
-      <line class="tile-face-minor-divider" x1="680" y1="712" x2="680" y2="836.0254"></line>
-      <line class="tile-face-guide" x1="151.85" y1="170" x2="500" y2="345"></line>
-      <line class="tile-face-guide" x1="848.15" y1="170" x2="500" y2="345"></line>
-      <line class="tile-face-guide" x1="151.85" y1="520" x2="500" y2="345"></line>
-      <line class="tile-face-guide" x1="848.15" y1="520" x2="500" y2="345"></line>
-      <circle class="tile-face-icon" cx="264" cy="87" r="34"></circle>
-      <text class="tile-face-icon-text" x="264" y="95" text-anchor="middle">${escapeHtml(categoryMark)}</text>
-      ${renderSvgTextLines(titleLines, titleCenterX, titleStartY, 36, "tile-face-title")}
-      <text class="tile-face-side-text" x="${titleCenterX}" y="${titleSideY}" text-anchor="middle">${isUpgraded ? "Upgraded" : "Basic"}</text>
+      <line class="tile-face-major-divider" x1="1.739" y1="430" x2="998.261" y2="430"></line>
+      <line class="tile-face-major-divider" x1="21.363" y1="500" x2="978.637" y2="500"></line>
+      <line class="tile-face-guide" x1="250" y1="0" x2="500" y2="300"></line>
+      <line class="tile-face-guide" x1="750" y1="0" x2="500" y2="300"></line>
+      <line class="tile-face-guide" x1="114" y1="430" x2="500" y2="300"></line>
+      <line class="tile-face-guide" x1="886" y1="430" x2="500" y2="300"></line>
+      <rect class="tile-face-title-veil" x="320" y="40" width="360" height="86" rx="18"></rect>
+      <circle class="tile-face-icon" cx="280" cy="58" r="34"></circle>
+      ${
+        roleIcon
+          ? renderTileFaceBadgeIcon(roleIcon, 280, 58, 45, roleLines.join(" "), "tile-face-corner-text")
+          : renderSvgCenteredBadgeText(roleLines, 280, 58, 15)
+      }
+      <circle class="tile-face-icon tile-face-requirement-icon" cx="720" cy="58" r="34"></circle>
+      ${
+        requirement?.icon
+          ? renderTileFaceBadgeIcon(requirement.icon, 720, 58, 45, requirement.mark, "tile-face-corner-text tile-face-special-req-text")
+          : renderSvgCenteredBadgeText(requirementLines, 720, 58, 15, "tile-face-corner-text tile-face-special-req-text")
+      }
+      ${renderSvgTextLines(titleLines, 500, titleStartY, 36, "tile-face-title")}
+      <text class="tile-face-side-text" x="500" y="${titleSideY}" text-anchor="middle">${escapeHtml(getTileFaceSideLine(tile))}</text>
+      <text class="tile-face-art-text" x="500" y="312" text-anchor="middle">Artwork Area</text>
+      <text class="tile-face-art-sub" x="500" y="336" text-anchor="middle">Special tile preview</text>
+      ${
+        population > 0
+          ? `<g class="tile-face-score tile-face-population"><circle cx="99" cy="374" r="30"></circle><text class="tile-face-score-label" x="99" y="382" text-anchor="middle">Pop</text><text class="tile-face-score-value" x="147" y="384" text-anchor="middle">${population}</text></g>`
+          : ""
+      }
+      ${
+        renown > 0
+          ? `<g class="tile-face-score tile-face-renown"><circle cx="901" cy="374" r="30"></circle><text class="tile-face-score-label" x="901" y="382" text-anchor="middle">Ren</text><text class="tile-face-score-value" x="853" y="384" text-anchor="middle">${renown}</text></g>`
+          : ""
+      }
+      ${renderSvgTextLines(unlockedLines, 500, 476, 24, "tile-face-special-info")}
+      ${renderSvgTextLines(effectLines, 500, effectCopyStartY, 35, "tile-face-special-effect-text")}
+      <text class="tile-face-micro" x="500" y="830" text-anchor="middle">special tile wireframe v0.2</text>
+    </svg>
+  `;
+}
+
+function renderTileFaceSvg(tile, options = {}) {
+  const category = tile.tile_category ?? "Tile";
+  const categoryMark = TILE_FACE_CATEGORY_MARKS[category] ?? category.slice(0, 2).toUpperCase();
+  const categoryIcon = getTileCategoryIconKey(category);
+  const isUpgraded = tile.side === "Upgraded";
+  const isOneSided = tile.side === "One-sided";
+
+  if (isOneSided) {
+    return renderSpecialTileFaceSvg(tile);
+  }
+
+  const upgradeTile = options.upgradeTile ?? null;
+  const hasUpgradeRow = !isUpgraded && Boolean(tile.upgrade_to || upgradeTile || (tile.upgrade_cost !== null && tile.upgrade_cost !== undefined));
+  const requirement = getTilePlacementRequirementMark(tile);
+  const titleLines = wrapTileFaceText(String(tile.tile_name ?? ""), 16, 2);
+  const titleStartY = titleLines.length > 1 ? 62 : 82;
+  const titleSideY = titleLines.length > 1 ? 160 : 112;
+  const titleVeilY = titleLines.length > 1 ? 40 : 48;
+  const titleVeilHeight = titleLines.length > 1 ? 112 : 80;
+  const placeCostEntries = formatTileFaceCostEntries(tile.place_cost);
+  const upgradeCostEntries = formatTileFaceCostEntries(upgradeTile?.upgrade_cost ?? tile.upgrade_cost);
+  const lineage = tile.base_tile ? `Upgraded ${tile.base_tile}` : "Upgraded side";
+  const effectLines = wrapTileFaceText(getTileFaceEffectCopy(tile), 40, 5).filter((line) => line.trim());
+  const effectCopyStartY = 704 - Math.max(0, effectLines.length - 1) * 21;
+  const population = Number(tile.population ?? 0);
+  const renown = Number(tile.renown ?? 0);
+
+  return `
+    <svg class="tile-face-svg tile-face-core-svg" style="${escapeHtml(getTileFaceAccentStyle(tile))}" viewBox="0 0 1000 866.0254" role="img" aria-label="${escapeHtml(tile.tile_name)} tile face">
+      <path class="tile-face-accent-edge" d="M250 0H750L1000 433.0127L750 866.0254H250L0 433.0127Z"></path>
+      <path class="tile-face-outer" d="M250 0H750L1000 433.0127L750 866.0254H250L0 433.0127Z"></path>
+      <line class="tile-face-major-divider" x1="1.739" y1="430" x2="998.261" y2="430"></line>
+      ${
+        isUpgraded
+          ? `<line class="tile-face-major-divider" x1="90.637" y1="590" x2="909.363" y2="590"></line>`
+          : `
+            <line class="tile-face-major-divider" x1="44.449" y1="510" x2="955.551" y2="510"></line>
+            <line class="tile-face-major-divider" x1="90.637" y1="590" x2="909.363" y2="590"></line>
+          `
+      }
+      <line class="tile-face-guide" x1="250" y1="0" x2="500" y2="300"></line>
+      <line class="tile-face-guide" x1="750" y1="0" x2="500" y2="300"></line>
+      <line class="tile-face-guide" x1="114" y1="430" x2="500" y2="300"></line>
+      <line class="tile-face-guide" x1="886" y1="430" x2="500" y2="300"></line>
+      <rect class="tile-face-title-veil" x="325" y="${titleVeilY}" width="350" height="${titleVeilHeight}" rx="18"></rect>
+      <circle class="tile-face-icon" cx="280" cy="58" r="34"></circle>
+      ${renderTileFaceBadgeIcon(categoryIcon, 280, 58, 45, categoryMark)}
+      ${renderSvgTextLines(titleLines, 500, titleStartY, 36, "tile-face-title")}
+      <text class="tile-face-side-text" x="500" y="${titleSideY}" text-anchor="middle">${isUpgraded ? "Upgraded" : "Basic"}</text>
       ${
         !isUpgraded && requirement
           ? `
-            <circle class="tile-face-icon tile-face-requirement-icon" cx="729" cy="87" r="34"></circle>
-            <text class="tile-face-req-text" x="729" y="95" text-anchor="middle">${escapeHtml(requirement.mark)}</text>
+            <circle class="tile-face-icon tile-face-requirement-icon" cx="720" cy="58" r="34"></circle>
+            ${renderTileFaceBadgeIcon(requirement.icon, 720, 58, 45, requirement.mark, "tile-face-req-text")}
           `
           : ""
       }
-      <text class="tile-face-art-text" x="500" y="355" text-anchor="middle">Artwork Area</text>
+      <text class="tile-face-art-text" x="500" y="312" text-anchor="middle">Artwork Area</text>
+      ${
+        population > 0
+          ? `<g class="tile-face-score tile-face-population"><circle cx="99" cy="374" r="30"></circle><text class="tile-face-score-label" x="99" y="382" text-anchor="middle">Pop</text><text class="tile-face-score-value" x="147" y="384" text-anchor="middle">${population}</text></g>`
+          : ""
+      }
+      ${
+        renown > 0
+          ? `<g class="tile-face-score tile-face-renown"><circle cx="901" cy="374" r="30"></circle><text class="tile-face-score-label" x="901" y="382" text-anchor="middle">Ren</text><text class="tile-face-score-value" x="853" y="384" text-anchor="middle">${renown}</text></g>`
+          : ""
+      }
       ${
         isUpgraded
           ? `
-            <text class="tile-face-lineage" x="500" y="612" text-anchor="middle">${escapeHtml(lineage)}</text>
-            <text class="tile-face-small-label" x="500" y="642" text-anchor="middle">Lineage</text>
+            ${renderSvgTextLines(wrapTileFaceText(lineage, 30, 1), 500, 510, 30, "tile-face-lineage-row")}
           `
           : `
-            <text class="tile-face-row-label" x="152" y="576">Place</text>
-            ${renderTileFaceCostEntries(placeCostEntries, 575)}
+            <text class="tile-face-row-label" x="86" y="486">Place</text>
+            ${renderTileFaceCostEntries(placeCostEntries, 485)}
             ${
               hasUpgradeRow
                 ? `
-                  <text class="tile-face-row-label" x="162" y="666">Upgrade</text>
-                  ${renderTileFaceCostEntries(upgradeCostEntries, 665)}
+                  <text class="tile-face-row-label" x="98" y="566">Upgrade</text>
+                  ${renderTileFaceCostEntries(upgradeCostEntries, 565)}
                 `
                 : ""
             }
           `
       }
-      <circle class="tile-face-effect-icon" cx="369" cy="745" r="27"></circle>
-      <text class="tile-face-effect-icon-text" x="369" y="753" text-anchor="middle">${escapeHtml(effectDetails.mark)}</text>
-      <text class="tile-face-effect-heading" x="500" y="752" text-anchor="middle">${escapeHtml(effectDetails.label)}</text>
-      ${renderSvgTextLines(effectLines, 500, effectCopyStartY, 26, "tile-face-effect-text")}
-      <text class="tile-face-micro" x="500" y="830" text-anchor="middle">wireframe v1.7.4</text>
-      ${
-        population > 0
-          ? `<g class="tile-face-score tile-face-population"><circle cx="250" cy="750" r="32"></circle><text x="250" y="804" text-anchor="middle">${population}</text></g>`
-          : ""
-      }
-      ${
-        renown > 0
-          ? `<g class="tile-face-score tile-face-renown"><circle cx="750" cy="750" r="32"></circle><text x="750" y="804" text-anchor="middle">${renown}</text></g>`
-          : ""
-      }
+      ${renderSvgTextLines(effectLines, 500, effectCopyStartY, 42, "tile-face-core-effect-text")}
     </svg>
   `;
 }
