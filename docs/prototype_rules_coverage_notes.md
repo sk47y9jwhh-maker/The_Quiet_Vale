@@ -29,16 +29,16 @@ This note tracks the local prototype as of the v2.0 aligned production-set pass.
 - Keeps legacy Golden Boon handling in code for isolated reference checks, but Golden Boons are not currently supported by normal online prototype setup.
 - Supports player last-interaction markers as the local stand-in for Steward Tokens.
 - Counts the acting player's last-interaction marker as the local travel anchor for disconnected Travel action costs.
-- Places each selected Steward House for free during setup; the old forced Round 1 opening Resource tile is no longer required.
+- Places each selected Steward Token for free during setup; Steward House tiles and the old forced Round 1 opening Resource tile are no longer required.
 - Implements `The Burden of Command` and `Where Help Stands` against those markers.
 - Provides debug controls to manually set or clear each player's marker.
-- Implements minimal upgraded Steward House powers:
-  - Vanguard Home: once per Season, eligible Travel/Resource placement costs 0 Actions.
-  - Knight Home: once per Season, eligible Housing placement costs 0 Actions.
-  - Sentinel Home: once per Season, eligible Core upgrade costs 0 Actions.
-  - Ranger Home: once per Season, disconnected placement can ignore the extra Travel action.
-  - Quartermaster Home: once per Season, exchange up to 3 Warehouse resources.
-  - Warden Home: once per Season, resolve an active Burden without spending an Action.
+- Implements player Steward powers:
+  - Vanguard: once per Season, eligible Travel/Resource placement costs 2 fewer resources.
+  - Knight: once per Season, eligible Housing placement costs 0 Actions.
+  - Sentinel: once per Season, eligible Core upgrade costs 0 Actions.
+  - Ranger: once per Season, travel to anywhere for free before taking a map action; in Season I, this has one additional use.
+  - Quartermaster: once per Season, exchange up to 3 Warehouse resources; once during Season I, exchange up to 2 Warehouse resources.
+  - Warden: once per Season, resolve an active Burden without spending an Action.
 
 ## Intentionally Rough
 

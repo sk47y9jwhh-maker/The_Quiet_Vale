@@ -482,6 +482,58 @@ function reduceFirstAffordableResource(cost, preferredResource = null) {
   };
 }
 
+function reduceResourceCostByAmount(cost, amount) {
+  let remaining = Math.max(0, Number(amount ?? 0));
+  const reduction = [];
+  const reducedCost = [];
+
+  for (const entry of cost) {
+    const reducible = Math.min(entry.amount, remaining);
+    const nextAmount = entry.amount - reducible;
+
+    if (reducible > 0) {
+      reduction.push({ resource: entry.resource, amount: reducible });
+      remaining -= reducible;
+    }
+
+    if (nextAmount > 0) {
+      reducedCost.push({ ...entry, amount: nextAmount });
+    }
+  }
+
+  if (reduction.length === 0) {
+    return null;
+  }
+
+  return {
+    originalCost: cost,
+    cost: reducedCost,
+    reduction
+  };
+}
+
+function getStewardPlacementResourceDiscount(provider, tile, cost) {
+  if (
+    provider?.details.type !== STEWARD_POWER_TYPES.PLACEMENT_RESOURCE_DISCOUNT ||
+    !provider.details.categories?.includes(tile.tile_category) ||
+    cost.length === 0
+  ) {
+    return null;
+  }
+
+  const reduced = reduceResourceCostByAmount(cost, provider.details.amount ?? 2);
+
+  return reduced
+    ? {
+        source: "steward_power",
+        roleId: provider.role?.id,
+        operation: "placement",
+        stewardPowerProviderId: provider.placedTile?.id ?? null,
+        ...reduced
+      }
+    : null;
+}
+
 function getStewardStartingCostReduction(player, tile, operation, cost, action = {}) {
   if (!player || player.stewardStartingBenefitUsed || cost.length === 0) {
     return null;
@@ -556,18 +608,17 @@ function useQuartermasterStartingExchange(state, action) {
   if (!player) {
     errors.push(`Unknown player: ${action.playerId ?? state.activePlayerId ?? "Quartermaster"}`);
   } else if (player.stewardRoleId !== "quartermaster") {
-    errors.push("Only the Quartermaster can use the setup Warehouse exchange.");
+    errors.push("Only the Quartermaster can use the Season I Warehouse exchange.");
   } else if (player.stewardStartingBenefitUsed) {
-    errors.push("Quartermaster setup exchange has already been used.");
+    errors.push("Quartermaster Season I exchange has already been used.");
   }
 
   if (
-    state.phase !== GAME_PHASES.SEED_ENCOUNTERS ||
-    state.round !== 1 ||
     state.season !== "I" ||
-    state.encounter.seededRounds.includes(1)
+    state.phase === GAME_PHASES.PLACE_STEWARD_HOUSES ||
+    state.phase === GAME_PHASES.COMPLETE
   ) {
-    errors.push("Quartermaster setup exchange must be used before the first Season I seeding.");
+    errors.push("Quartermaster Season I exchange must be used during Season I after Steward tokens are placed.");
   }
 
   for (const { resource, amount } of [...payment, ...gains]) {
@@ -576,7 +627,7 @@ function useQuartermasterStartingExchange(state, action) {
     }
 
     if (!Number.isInteger(amount) || amount <= 0) {
-      errors.push("Quartermaster setup exchange amounts must be positive whole numbers.");
+      errors.push("Quartermaster Season I exchange amounts must be positive whole numbers.");
     }
   }
 
@@ -620,7 +671,7 @@ function useQuartermasterStartingExchange(state, action) {
     warehouse: resourceGain.warehouse,
     log: [
       ...state.log,
-      createActionLogEntry(state, "steward_power", "Quartermaster exchanged Warehouse resources before first seeding.", {
+      createActionLogEntry(state, "steward_power", "Quartermaster exchanged Warehouse resources during Season I.", {
         playerId: player.id,
         stewardRoleId: player.stewardRoleId,
         payment,
@@ -635,7 +686,7 @@ function useQuartermasterStartingExchange(state, action) {
     result: {
       ok: true,
       action: TILE_ACTION_TYPES.USE_STEWARD_POWER,
-      message: `Quartermaster exchanged ${describeResourceAmounts(payment)} for ${describeResourceAmounts(gains)} before first seeding.`,
+      message: `Quartermaster exchanged ${describeResourceAmounts(payment)} for ${describeResourceAmounts(gains)} during Season I.`,
       stewardStartingBenefit: {
         source: "steward_starting_benefit",
         type: STEWARD_POWER_TYPES.STARTING_RESOURCE_EXCHANGE,
@@ -703,6 +754,12 @@ function getRequestedPlacementStewardPowerProvider(state, action, context, tile,
     STEWARD_POWER_TYPES.FREE_PLACEMENT_ACTION,
     (provider) => provider.details.categories.includes(tile.tile_category)
   );
+  const placementResourceDiscountProviders = getAvailableStewardPowerProviders(
+    state,
+    context,
+    STEWARD_POWER_TYPES.PLACEMENT_RESOURCE_DISCOUNT,
+    (provider) => provider.details.categories.includes(tile.tile_category)
+  );
   const disconnectedProviders = getAvailableStewardPowerProviders(
     state,
     context,
@@ -711,7 +768,7 @@ function getRequestedPlacementStewardPowerProvider(state, action, context, tile,
       baseActionCost.blockedByReachability === true &&
       (!provider.details.categories || provider.details.categories.includes(tile.tile_category))
   );
-  const provider = [...placementProviders, ...disconnectedProviders].find(
+  const provider = [...placementProviders, ...placementResourceDiscountProviders, ...disconnectedProviders].find(
     (candidate) => candidate.placedTile.id === action.stewardPowerPlacedTileId
   );
 
@@ -2008,7 +2065,7 @@ function placeTile(state, action, context) {
     state,
     {
       ...action,
-      deferAffordabilityCheck: Boolean(action.stewardResourceSubstitutionPowerId)
+      deferAffordabilityCheck: Boolean(action.stewardResourceSubstitutionPowerId || action.stewardPowerPlacedTileId)
     },
     context
   );
@@ -2032,28 +2089,6 @@ function placeTile(state, action, context) {
     validation.cost,
     action
   );
-  const placementCostBeforeStewardSubstitution = stewardStartingCostReduction?.cost ?? validation.cost;
-  const stewardResourceSubstitution = resolveStewardResourceSubstitution(
-    state,
-    action,
-    context,
-    placementCostBeforeStewardSubstitution,
-    "placement"
-  );
-
-  if (!stewardResourceSubstitution.valid) {
-    return {
-      state,
-      result: {
-        ok: false,
-        action: TILE_ACTION_TYPES.PLACE_TILE,
-        errors: stewardResourceSubstitution.errors,
-        cost: placementCostBeforeStewardSubstitution
-      }
-    };
-  }
-
-  const placementCost = stewardResourceSubstitution.cost;
   const wardenStartingSupport = shouldApplyWardenStartingSupport(player, "placement")
     ? {
         source: "steward_starting_benefit",
@@ -2069,7 +2104,7 @@ function placeTile(state, action, context) {
           ...action,
           coordinate: pairedCoordinate,
           orientation: action.pairedOrientation ?? action.orientation,
-          deferAffordabilityCheck: Boolean(action.stewardResourceSubstitutionPowerId)
+          deferAffordabilityCheck: Boolean(action.stewardResourceSubstitutionPowerId || action.stewardPowerPlacedTileId)
         },
         context
       )
@@ -2145,22 +2180,49 @@ function placeTile(state, action, context) {
     };
   }
 
-  const stewardPowerReduction = applyStewardPowerActionReduction(
-    actionCost,
+  let stewardPower = createStewardPowerUse(stewardPowerProvider.provider, actionCost, "placement");
+
+  if (stewardPowerProvider.provider?.details.type === STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION) {
+    actionCost = allowStewardReachabilityBypass(actionCost, stewardPowerProvider.provider);
+    stewardPower = createStewardPowerUse(stewardPowerProvider.provider, actionCost, "placement");
+  } else if (stewardPowerProvider.provider?.details.type === STEWARD_POWER_TYPES.FREE_PLACEMENT_ACTION) {
+    actionCost = {
+      ...actionCost,
+      originalTotal: actionCost.originalTotal ?? actionCost.total,
+      placeActionCost: 0,
+      total: Math.max(0, actionCost.total - (actionCost.placeActionCost ?? actionCost.total))
+    };
+    stewardPower = createStewardPowerUse(stewardPowerProvider.provider, actionCost, "placement");
+  }
+  const placementCostBeforeStewardPower = stewardStartingCostReduction?.cost ?? validation.cost;
+  const stewardPlacementResourceDiscount = getStewardPlacementResourceDiscount(
     stewardPowerProvider.provider,
-    "placement",
-    (currentActionCost) =>
-      stewardPowerProvider.provider?.details.type === STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION
-        ? allowStewardReachabilityBypass(currentActionCost, stewardPowerProvider.provider)
-        : {
-            ...currentActionCost,
-            originalTotal: currentActionCost.originalTotal ?? currentActionCost.total,
-            placeActionCost: 0,
-            total: Math.max(0, currentActionCost.total - (currentActionCost.placeActionCost ?? currentActionCost.total))
-          }
+    validation.tile,
+    placementCostBeforeStewardPower
   );
-  actionCost = stewardPowerReduction.actionCost;
-  const stewardPower = stewardPowerReduction.stewardPower;
+  const placementCostBeforeStewardSubstitution =
+    stewardPlacementResourceDiscount?.cost ?? placementCostBeforeStewardPower;
+  const stewardResourceSubstitution = resolveStewardResourceSubstitution(
+    state,
+    action,
+    context,
+    placementCostBeforeStewardSubstitution,
+    "placement"
+  );
+
+  if (!stewardResourceSubstitution.valid) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.PLACE_TILE,
+        errors: stewardResourceSubstitution.errors,
+        cost: placementCostBeforeStewardSubstitution
+      }
+    };
+  }
+
+  const placementCost = stewardResourceSubstitution.cost;
 
   if (actionCost.blockedByReachability) {
     return {
@@ -2184,6 +2246,22 @@ function placeTile(state, action, context) {
           `${player.name} needs ${actionCost.total} Action${actionCost.total === 1 ? "" : "s"} to place ${validation.tile.tile_name}, but has ${player.actionsRemaining}.`
         ],
         actionCost
+      }
+    };
+  }
+
+  if (!canAffordCost(state.warehouse, placementCost)) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.PLACE_TILE,
+        errors: [`${validation.tile.tile_name} costs ${describeResourceAmounts(placementCost)}.`],
+        cost: placementCost,
+        baseCost: validation.baseCost,
+        stewardStartingCostReduction,
+        stewardPlacementResourceDiscount,
+        stewardResourceSubstitution: stewardResourceSubstitution.substitution
       }
     };
   }
@@ -2332,6 +2410,7 @@ function placeTile(state, action, context) {
         cost: placementCost,
         stewardResourceSubstitution: stewardResourceSubstitution.substitution,
         stewardStartingCostReduction,
+        stewardPlacementResourceDiscount,
         wardenStartingSupport,
         knightHousingSupport,
         placementCostReduction: validation.placementCostReduction,

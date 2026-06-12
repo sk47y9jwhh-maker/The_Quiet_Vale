@@ -69,6 +69,7 @@ import {
   isStewardHousePlacementTerrainForRole,
   isOpeningResourceTileForPlayer,
   isStewardHouseTileForPlayer,
+  isPlayerStewardPowerUsedThisSeason,
   isStewardPowerUsedThisSeason,
   normalizeStewardRoleIds
 } from "../game/stewards.js";
@@ -135,7 +136,7 @@ const TERRAIN_RESOURCE_TILE_IDS = Object.freeze({
 const QUARTERMASTER_STARTING_EXCHANGE_DETAILS = Object.freeze({
   type: STEWARD_POWER_TYPES.STARTING_RESOURCE_EXCHANGE,
   maxAmount: 2,
-  label: "Before first seeding: exchange up to 2 Warehouse resources"
+  label: "Once during Season I: exchange up to 2 Warehouse resources"
 });
 
 const TILE_CATEGORY_ACCENTS = Object.freeze({
@@ -4504,6 +4505,42 @@ function getCostAfterSelectedResourceDiscount(cost, discountEffect, selectedReso
     .filter((entry) => entry.amount > 0);
 }
 
+function reduceResourceCostByAmount(cost, amount) {
+  let remaining = Math.max(0, Number(amount ?? 0));
+  const reducedCost = [];
+  const reduction = [];
+
+  for (const entry of cost) {
+    const reducible = Math.min(entry.amount, remaining);
+    const nextAmount = entry.amount - reducible;
+
+    if (reducible > 0) {
+      reduction.push({ resource: entry.resource, amount: reducible });
+      remaining -= reducible;
+    }
+
+    if (nextAmount > 0) {
+      reducedCost.push({ ...entry, amount: nextAmount });
+    }
+  }
+
+  return {
+    cost: reducedCost,
+    reduction
+  };
+}
+
+function getCostAfterStewardPlacementResourceDiscount(cost, provider) {
+  if (provider?.details.type !== STEWARD_POWER_TYPES.PLACEMENT_RESOURCE_DISCOUNT) {
+    return {
+      cost,
+      reduction: []
+    };
+  }
+
+  return reduceResourceCostByAmount(cost, provider.details.amount ?? 2);
+}
+
 function renderPlacementCostDiscountChoices(tile, cost, discountEffect) {
   if (!tile || !discountEffect) {
     return "";
@@ -4623,6 +4660,12 @@ function getPlacementStewardPowerProviders(game, tile, baseActionCost, tileIndex
     return [];
   }
 
+  const resourceDiscountProviders = getAvailableStewardPowerProviders(
+    game,
+    { tileIndex },
+    STEWARD_POWER_TYPES.PLACEMENT_RESOURCE_DISCOUNT,
+    (provider) => provider.details.categories.includes(tile.tile_category)
+  );
   const placementProviders = getAvailableStewardPowerProviders(
     game,
     { tileIndex },
@@ -4638,7 +4681,7 @@ function getPlacementStewardPowerProviders(game, tile, baseActionCost, tileIndex
         )
       : [];
 
-  return uniqueStewardPowerProviders([...placementProviders, ...disconnectedProviders]);
+  return uniqueStewardPowerProviders([...resourceDiscountProviders, ...placementProviders, ...disconnectedProviders]);
 }
 
 function getPlacementStewardActionPreview(actionCost, provider) {
@@ -4657,6 +4700,10 @@ function getPlacementStewardActionPreview(actionCost, provider) {
       placeActionCost: 0,
       total: 0
     };
+  }
+
+  if (provider.details.type === STEWARD_POWER_TYPES.PLACEMENT_RESOURCE_DISCOUNT) {
+    return actionCost;
   }
 
   return {
@@ -5624,7 +5671,7 @@ function getHeaderStewardMenuPlayers() {
     const powerUsed = Boolean(
       power?.type &&
       state.game?.season &&
-      player?.stewardPowerSeasons?.[power.type]?.includes(state.game.season)
+      isPlayerStewardPowerUsedThisSeason(player, state.game.season, power.type)
     );
 
     return {
@@ -5714,10 +5761,9 @@ function getQuartermasterStartingExchangeKey(playerId) {
 function isQuartermasterStartingExchangeWindow(game) {
   return Boolean(
     isPlaySessionPlaying() &&
-    game?.phase === GAME_PHASES.SEED_ENCOUNTERS &&
-    game.round === 1 &&
+    game?.phase !== GAME_PHASES.PLACE_STEWARD_HOUSES &&
     game.season === "I" &&
-    !game.encounter.seededRounds.includes(1)
+    game.phase !== GAME_PHASES.COMPLETE
   );
 }
 
@@ -5748,11 +5794,11 @@ function renderQuartermasterStartingExchangeControls(game, playerEntry) {
   }
 
   if (!isPlaySessionPlaying()) {
-    return `<p class="steward-menu-note">Setup exchange becomes available after Start Game, before first seeding.</p>`;
+    return `<p class="steward-menu-note">Season I exchange becomes available after Start Game.</p>`;
   }
 
   if (game.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
-    return `<p class="steward-menu-note">Place Steward tokens first, then Quartermaster may exchange before seeding.</p>`;
+    return `<p class="steward-menu-note">Place Steward tokens first, then Quartermaster may exchange once during Season I.</p>`;
   }
 
   if (!isQuartermasterStartingExchangeWindow(game)) {
@@ -5771,8 +5817,8 @@ function renderQuartermasterStartingExchangeControls(game, playerEntry) {
   return `
     <div class="steward-menu-exchange" aria-label="Quartermaster setup Warehouse exchange">
       <header>
-        <strong>Setup Exchange</strong>
-        <span>Before first seeding</span>
+        <strong>Season I Exchange</strong>
+        <span>Once during Season I</span>
       </header>
       <label class="steward-menu-count">
         <span>Count</span>
@@ -5908,6 +5954,18 @@ function getStewardMenuPowerUseState(playerEntry, tileIndex) {
     };
   }
 
+  if (
+    playerEntry.role?.id === "quartermaster" &&
+    !playerEntry.startingBenefitUsed &&
+    canUseQuartermasterStartingExchange(game, playerEntry)
+  ) {
+    return {
+      tone: "ready",
+      detail: "Season I exchange is available below.",
+      action: null
+    };
+  }
+
   if (!playerEntry.active) {
     return {
       tone: "waiting",
@@ -5922,6 +5980,28 @@ function getStewardMenuPowerUseState(playerEntry, tileIndex) {
       detail: "Ready once player actions are open.",
       action: null
     };
+  }
+
+  if (power.type === STEWARD_POWER_TYPES.PLACEMENT_RESOURCE_DISCOUNT) {
+    const provider = getStewardMenuProviderForSelectedPlacement(game, tileIndex, playerEntry);
+    const selectedTile = getSelectedPlacementTile(tileIndex);
+
+    return provider
+      ? {
+          tone: "ready",
+          detail: `Can reduce the selected ${selectedTile.tile_name} placement cost by ${power.amount ?? 2} resources.`,
+          action: {
+            label: "Use On Placement",
+            command: "select-placement-power",
+            target: "#placement-panel",
+            providerId: provider.placedTile.id
+          }
+        }
+      : {
+          tone: "ready",
+          detail: `Choose a ${power.categories?.join(" or ") ?? "matching"} tile, then use this to reduce its placement cost.`,
+          action: { label: "Open Tiles", command: "focus-tiles", target: "#placement-panel" }
+        };
   }
 
   if (power.type === STEWARD_POWER_TYPES.FREE_PLACEMENT_ACTION) {
@@ -6048,7 +6128,7 @@ function getStewardMenuPowerUseState(playerEntry, tileIndex) {
     if (canUseQuartermasterStartingExchange(game, playerEntry)) {
       return {
         tone: "ready",
-        detail: "Use the setup exchange below before seeding Season I.",
+        detail: "Use the Season I exchange below when the Warehouse needs reshaping.",
         action: null
       };
     }
@@ -8874,6 +8954,7 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
             coordinate: state.selectedCoordinate,
             orientation: state.selectedOrientation,
             placementCostChoiceResources,
+            deferAffordabilityCheck: Boolean(selectedPlacementStewardPowerProvider),
             placementCostReductionResources: getPlacementCostDiscountAction(
               selectedTile.tile_id,
               cost,
@@ -8884,6 +8965,13 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
         )
       : null;
   const placementResourceCostSubstitution = selectedPlacementPreviewValidation?.resourceCostSubstitution ?? null;
+  const displayCostBeforeStewardPower =
+    selectedPlacementPreviewValidation?.cost ??
+    getCostAfterSelectedResourceDiscount(cost, placementResourceDiscount, placementCostDiscountChoices);
+  const stewardPlacementResourceDiscount = getCostAfterStewardPlacementResourceDiscount(
+    displayCostBeforeStewardPower,
+    selectedPlacementStewardPowerProvider
+  );
   const placementReachable = !displayedActionCost?.blockedByReachability;
   const hasEnoughActions = Boolean(activePlayer && displayedActionCost && activePlayer.actionsRemaining >= displayedActionCost.total);
   const hasEnoughStockForPlacement = !isStablesTile(selectedTile) || (selectedSupply?.available ?? 0) >= 2;
@@ -8916,7 +9004,7 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
     canPlace,
     blockedReason: placementBlockedReason,
     cost,
-    displayCost: selectedPlacementPreviewValidation?.cost ?? cost,
+    displayCost: stewardPlacementResourceDiscount.cost,
     resourceCostSubstitution: placementResourceCostSubstitution,
     placementCostChoiceResources,
     placementResourceDiscount,

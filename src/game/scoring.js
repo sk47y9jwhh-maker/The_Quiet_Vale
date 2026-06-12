@@ -3,6 +3,8 @@ import { createMapIndex, getNeighborCoordinates, isWaterHex } from "./map.js";
 import { createTileIndex, getPlacedTileCoordinates, isOverstrainedPlacedTile } from "./tiles.js";
 import { buildTravelNetworks, isBridgeTileDefinition, isTravelTileDefinition } from "./travel.js";
 
+const STEWARD_OBJECTIVE_RENOWN = 15;
+
 function numberValue(value) {
   return Number(value ?? 0) || 0;
 }
@@ -226,8 +228,8 @@ function calculateStewardObjectives(state, tileIndex, housingClusterSizes) {
       completed = terrainTypes.size >= 3;
       label = "Tiles on 3+ non-Grasslands terrain types";
     } else if (roleId === "warden") {
-      completed = activeBurdenCount === 0;
-      label = "No active Burdens";
+      completed = activeBurdenCount < (state.players?.length ?? 0);
+      label = "Active Burdens fewer than player count";
     } else if (roleId === "quartermaster") {
       completed = Object.values(state.warehouse.resources ?? {}).filter((amount) => Number(amount ?? 0) >= 5).length >= 4;
       label = "5+ resources in 4 Warehouse types";
@@ -239,7 +241,7 @@ function calculateStewardObjectives(state, tileIndex, housingClusterSizes) {
         playerId: player.id,
         roleId,
         label,
-        renown: 5
+        renown: STEWARD_OBJECTIVE_RENOWN
       });
     }
   }

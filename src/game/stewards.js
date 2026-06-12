@@ -8,7 +8,7 @@ export const STEWARD_ROLES = Object.freeze([
     houseTerrainOptions: Object.freeze(["Woodland"]),
     tokenPlacementSummary: "Place Vanguard token on Woodland",
     startingBenefit: "First Travel Tile or Resource Tile placement costs 1 fewer resource.",
-    objectiveSummary: "+5 Renown if the settlement has non-Overstrained tiles on both sides of the river connected by a Bridge.",
+    objectiveSummary: "+15 Renown if the settlement has non-Overstrained tiles on both sides of the river connected by a Bridge.",
     openingResourceTileIds: Object.freeze(["core_forest_basic"]),
     openingSummary: "First Travel or Resource placement costs 1 fewer resource"
   }),
@@ -19,7 +19,7 @@ export const STEWARD_ROLES = Object.freeze([
     houseTerrainOptions: Object.freeze(["Mountains"]),
     tokenPlacementSummary: "Place Sentinel token on Mountains",
     startingBenefit: "First upgrade costs 1 fewer resource.",
-    objectiveSummary: "+5 Renown if the settlement contains 5+ upgraded non-Overstrained Core Tiles.",
+    objectiveSummary: "+15 Renown if the settlement contains 5+ upgraded non-Overstrained Core Tiles.",
     openingResourceTileIds: Object.freeze(["core_mine_basic"]),
     openingSummary: "First upgrade costs 1 fewer resource"
   }),
@@ -28,11 +28,11 @@ export const STEWARD_ROLES = Object.freeze([
     name: "Ranger",
     houseTileId: "core_ranger_house_basic",
     houseTerrainOptions: Object.freeze(["Heaths"]),
-    tokenPlacementSummary: "Place Ranger token on Heaths or an empty non-River hex adjacent to Heaths",
-    startingBenefit: "May place the setup token on any empty non-River hex adjacent to Heaths.",
-    objectiveSummary: "+5 Renown if the settlement has tiles on 3+ non-Grasslands terrain types.",
+    tokenPlacementSummary: "Place Ranger token on Heaths",
+    startingBenefit: "In Season I, Ranger may use their Steward movement power one additional time.",
+    objectiveSummary: "+15 Renown if the settlement has tiles on 3+ non-Grasslands terrain types.",
     openingResourceTileIds: Object.freeze(["core_wildlands_basic"]),
-    openingSummary: "May start adjacent to Heaths"
+    openingSummary: "One additional Ranger movement power use in Season I"
   }),
   Object.freeze({
     id: "knight",
@@ -41,7 +41,7 @@ export const STEWARD_ROLES = Object.freeze([
     houseTerrainOptions: Object.freeze(["Arable Land"]),
     tokenPlacementSummary: "Place Knight token on Arable Land",
     startingBenefit: "First Housing placement costs 1 fewer resource.",
-    objectiveSummary: "+5 Renown if the settlement contains a Housing cluster of 4+ non-Overstrained Housing Tiles.",
+    objectiveSummary: "+15 Renown if the settlement contains a Housing cluster of 4+ non-Overstrained Housing Tiles.",
     openingResourceTileIds: Object.freeze(["core_farm_basic"]),
     openingSummary: "First Housing placement costs 1 fewer resource"
   }),
@@ -52,7 +52,7 @@ export const STEWARD_ROLES = Object.freeze([
     houseTerrainOptions: Object.freeze(["Ruins"]),
     tokenPlacementSummary: "Place Warden token on Ruins",
     startingBenefit: "After the first tile is placed, it gains Supported.",
-    objectiveSummary: "+5 Renown if there are no active Burdens.",
+    objectiveSummary: "+15 Renown if active Burdens are fewer than the player count.",
     openingResourceTileIds: Object.freeze(["core_dig_site_basic"]),
     openingSummary: "First placed tile gains Supported"
   }),
@@ -62,8 +62,8 @@ export const STEWARD_ROLES = Object.freeze([
     houseTileId: "core_quartermaster_house_basic",
     houseTerrainOptions: Object.freeze(["Woodland", "Mountains", "Heaths", "Arable Land", "Ruins"]),
     tokenPlacementSummary: "Place Quartermaster token on any Steward terrain",
-    startingBenefit: "Before Season I seeding, exchange up to 2 Warehouse resources for resources of any type.",
-    objectiveSummary: "+5 Renown if the Warehouse has 5+ resources in at least 4 resource types.",
+    startingBenefit: "Once during Season I, exchange up to 2 Warehouse resources for resources of any type.",
+    objectiveSummary: "+15 Renown if the Warehouse has 5+ resources in at least 4 resource types.",
     openingResourceTileIds: Object.freeze([
       "core_forest_basic",
       "core_mine_basic",
@@ -71,7 +71,7 @@ export const STEWARD_ROLES = Object.freeze([
       "core_farm_basic",
       "core_dig_site_basic"
     ]),
-    openingSummary: "May exchange up to 2 resources before Season I seeding"
+    openingSummary: "May exchange up to 2 resources once during Season I"
   })
 ]);
 
@@ -83,6 +83,7 @@ const STEWARD_ROLE_INDEX = new Map(STEWARD_ROLES.map((role) => [role.id, role]))
 
 export const STEWARD_POWER_TYPES = Object.freeze({
   FREE_PLACEMENT_ACTION: "free_placement_action",
+  PLACEMENT_RESOURCE_DISCOUNT: "placement_resource_discount",
   FREE_CORE_UPGRADE_ACTION: "free_core_upgrade_action",
   IGNORE_DISCONNECTED_TRAVEL_ACTION: "ignore_disconnected_travel_action",
   RESOURCE_EXCHANGE: "resource_exchange",
@@ -327,9 +328,10 @@ export function getStewardPowerDetailsForRole(roleId) {
   switch (roleId) {
     case "vanguard":
       return {
-        type: STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION,
+        type: STEWARD_POWER_TYPES.PLACEMENT_RESOURCE_DISCOUNT,
         categories: ["Travel", "Resource"],
-        label: "Place Travel/Resource beyond network"
+        amount: 2,
+        label: "Reduce Travel/Resource placement cost by 2"
       };
     case "knight":
       return {
@@ -345,7 +347,7 @@ export function getStewardPowerDetailsForRole(roleId) {
     case "ranger":
       return {
         type: STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION,
-        label: "Reach one disconnected tile"
+        label: "Move to one map action"
       };
     case "quartermaster":
       return {
@@ -379,7 +381,15 @@ export function markStewardPowerUsed(placedTile, season) {
 }
 
 export function isPlayerStewardPowerUsedThisSeason(player, season, type) {
-  return Boolean((player?.stewardPowerSeasons?.[type] ?? []).includes(season));
+  const usedThisSeason = (player?.stewardPowerSeasons?.[type] ?? []).filter((usedSeason) => usedSeason === season).length;
+  const useLimit =
+    player?.stewardRoleId === "ranger" &&
+    type === STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION &&
+    season === "I"
+      ? 2
+      : 1;
+
+  return usedThisSeason >= useLimit;
 }
 
 export function markPlayerStewardPowerUsed(player, season, type) {

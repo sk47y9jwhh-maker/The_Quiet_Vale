@@ -166,7 +166,7 @@ For action purposes, the acting player's current Steward tile anchors that playe
 
 - Players must place, upgrade, and activate tiles on the acting Steward's connected settlement network.
 - After a placement, upgrade, or activation, the Steward marker moves to that tile.
-- The Ranger Steward may travel anywhere once per Season for free before taking a map action. This does not spend an Action.
+- The Ranger Steward may travel anywhere once per Season for free before taking a map action. This does not spend an Action. In Season I, Ranger may use this power one additional time.
 
 Overstrained tiles do not contribute to the connected settlement network.
 
@@ -303,12 +303,14 @@ Setup terrain:
 
 Current Steward powers:
 
-- Vanguard: once per Season, eligible Travel or Resource placement costs 0 Actions.
+- Vanguard: once per Season, reduce an eligible Travel or Resource placement cost by 2 resources, to a minimum of 0.
 - Knight: once per Season, eligible Housing placement costs 0 Actions.
 - Sentinel: once per Season, eligible Core upgrade costs 0 Actions.
-- Ranger: once per Season, travel to anywhere for free before taking a map action. This does not spend an Action.
-- Quartermaster: once per Season, exchange up to 3 Warehouse resources.
+- Ranger: once per Season, travel to anywhere for free before taking a map action. This does not spend an Action. In Season I, Ranger may use this power one additional time.
+- Quartermaster: once per Season, exchange up to 3 Warehouse resources. In addition, once during Season I, exchange up to 2 Warehouse resources.
 - Warden: once per Season, resolve an active Burden without spending an Action.
+
+Each Steward also has an end-game objective worth 15 Renown if fulfilled. Warden's objective is fulfilled if active Burdens are fewer than the player count.
 
 ## End Of Round
 
@@ -330,8 +332,9 @@ At game end:
 
 1. Add Population from non-Overstrained placed tiles.
 2. Add Renown from non-Overstrained placed tiles.
-3. Subtract 6 Renown for each unresolved active Burden.
-4. Subtract 2 Renown for each Strain token on the board.
+3. Add 15 Renown for each fulfilled Steward objective.
+4. Subtract 6 Renown for each unresolved active Burden.
+5. Subtract 2 Renown for each Strain token on the board.
 
 Final score = Population + Renown - active Burden penalties - Strain penalties.
 
