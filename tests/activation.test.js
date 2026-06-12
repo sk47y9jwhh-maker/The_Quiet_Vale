@@ -1047,6 +1047,44 @@ test("activates a flexible resource exchange into non-Goods resources", () => {
   assert.equal(nextState.players[0].actionsRemaining, actionsBeforeActivate - 1);
 });
 
+test("activates Alchemist's Workshop Goods exchange option", () => {
+  let state = unlockSpecial(newState(), "special_alchemist_s_workshop");
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "special_alchemist_s_workshop",
+    coordinate: "F4"
+  }).state;
+  state = withWarehouseResources(state, {
+    Food: 2,
+    Herbs: 2,
+    Stone: 1
+  });
+  const actionsBeforeActivate = state.players[0].actionsRemaining;
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+    placedTileId: "tile-001",
+    payment: [
+      { resource: "Food", amount: 2 },
+      { resource: "Herbs", amount: 2 },
+      { resource: "Stone", amount: 1 }
+    ],
+    gains: [{ resource: "Goods", amount: 3 }]
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.exchangeCost, [
+    { resource: "Food", amount: 2 },
+    { resource: "Herbs", amount: 2 },
+    { resource: "Stone", amount: 1 }
+  ]);
+  assert.deepEqual(result.exchangeGains, [{ resource: "Goods", amount: 3 }]);
+  assert.equal(nextState.warehouse.resources.Food, 0);
+  assert.equal(nextState.warehouse.resources.Herbs, 0);
+  assert.equal(nextState.warehouse.resources.Stone, 0);
+  assert.equal(nextState.warehouse.resources.Goods, 3);
+  assert.equal(nextState.players[0].actionsRemaining, actionsBeforeActivate - 1);
+});
+
 test("flexible resource exchange rejects Goods as a gain resource", () => {
   let state = unlockSpecial(newState(), "special_alchemist_s_workshop");
   state = dispatch(state, {
@@ -1151,6 +1189,50 @@ test("activates a once-per-Season Special tile to resolve an active Burden", () 
   assert.equal(nextState.players[0].actionsRemaining, actionsBeforeActivate - 1);
   assert.deepEqual(nextState.warehouse.resources, Object.fromEntries(nextState.rules.resources.map((resource) => [resource, 0])));
   assert.match(result.message, /resolve/);
+});
+
+test("Burden resolution activation cannot bypass a pending Burden choice", () => {
+  let state = unlockSpecial(dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state, "special_adventurers_guild");
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_gravel_path_basic",
+    coordinate: "C1",
+    orientation: "rotation-0"
+  }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_tavern_basic",
+    coordinate: "C3"
+  }).state;
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "special_adventurers_guild",
+    coordinate: "D3"
+  }).state;
+  state = withActiveBurden(state);
+  state = {
+    ...state,
+    encounter: {
+      ...state.encounter,
+      active: state.encounter.active.map((activeState) => ({
+        ...activeState,
+        pendingChoice: {
+          type: "pay_or_strain_choice"
+        }
+      }))
+    }
+  };
+  const actionsBeforeActivate = state.players[0].actionsRemaining;
+  const { state: nextState, result } = dispatch(state, {
+    type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+    placedTileId: "tile-003",
+    targetActiveEncounterId: "burden-active"
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(nextState, state);
+  assert.equal(nextState.players[0].actionsRemaining, actionsBeforeActivate);
+  assert.match(result.errors.join(" "), /pending Burden effect choice/);
 });
 
 test("Burden resolution activation also triggers Resting Hall Strain removal", () => {

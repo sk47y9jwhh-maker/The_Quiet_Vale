@@ -33,7 +33,10 @@ const ADD_UP_TO_ARRIVAL_TIMERS =
 const FIXED_RESOURCE_EXCHANGE =
   new RegExp(`^${ACTIVATED_PREFIX}:\\s*Exchange (\\d+) resources? in the Warehouse for (\\d+) ([A-Za-z]+)\\.$`, "i");
 const FLEXIBLE_RESOURCE_EXCHANGE =
-  new RegExp(`^${ACTIVATED_PREFIX}:\\s*Exchange up to (\\d+) total resources in the Warehouse for the same number of non-Goods resources in any mix\\.`, "i");
+  new RegExp(
+    `^${ACTIVATED_PREFIX}:\\s*Exchange up to (\\d+) total resources in the Warehouse for the same number of non-Goods resources in any mix\\.(?:\\s*Or Exchange (\\d+) total resources in the warehouse for (\\d+) Goods\\.)?`,
+    "i"
+  );
 const RESOLVE_ONE_ACTIVE_BURDEN = new RegExp(`^${ACTIVATED_PREFIX}:\\s*Resolve 1 active Burden\\.$`, "i");
 const ENCOUNTER_DECK_PEEK =
   new RegExp(`^${ACTIVATED_PREFIX}:\\s*Look at the top (\\d+) cards of the Encounter Deck, then return them in any order\\.$`, "i");
@@ -45,6 +48,11 @@ const RECEIVE_SUPPORTED_ON_PLACE_OR_ACTIVATE =
   /^(?:When placed\s*&\s*When Activated|When placed and When Activated)[:,]?\s*While this tile is not Overstrained,\s*up to (?:two|(\d+)) adjacent(?: (.+?))? tiles receive 1 Supported\.$/i;
 const TRAVEL_NETWORK_SUPPORTED_ON_PLACE_OR_ACTIVATE =
   /^(?:When placed\s*&\s*When Activated|When placed and When Activated)[:,]?\s*While this tile is not Overstrained,\s*Travel Tiles in this tile's connected settlement network gain 1 Supported\.$/i;
+const PENDING_BURDEN_CHOICE_TYPES = new Set([
+  "pay_or_strain_choice",
+  "arrival_pay_or_timer_choice",
+  "resource_loss_or_strain_choice"
+]);
 
 export function parseProductionBenefit(benefitText) {
   const match = PRODUCTION_PREFIX.exec(String(benefitText ?? "").trim());
@@ -199,7 +207,16 @@ export function getResourceExchangeEffect(tile) {
       type: "flexible_resource_exchange",
       oncePerSeason,
       maxAmount: Number(flexibleMatch[1]),
-      excludedGainResources: ["Goods"]
+      excludedGainResources: ["Goods"],
+      goodsAlternative: flexibleMatch[2]
+        ? {
+            paymentAmount: Number(flexibleMatch[2]),
+            gain: {
+              amount: Number(flexibleMatch[3]),
+              resource: "Goods"
+            }
+          }
+        : null
     };
   }
 
@@ -584,6 +601,8 @@ export function validateActivateTile(state, action, context) {
       errors.push("Choose an active Burden to resolve.");
     } else if (targetActiveEncounter.encounterType !== ENCOUNTER_TYPES.BURDEN || targetActiveEncounter.resolved) {
       errors.push(`${targetActiveEncounter.id} is not an unresolved active Burden.`);
+    } else if (PENDING_BURDEN_CHOICE_TYPES.has(targetActiveEncounter.pendingChoice?.type)) {
+      errors.push(`${targetActiveEncounter.id} has a pending Burden effect choice. Apply that effect before resolving it.`);
     }
   }
 
@@ -632,6 +651,12 @@ export function validateActivateTile(state, action, context) {
     );
     const totalPaid = exchangeCost.reduce((total, entry) => total + entry.amount, 0);
     const totalGained = exchangeGains.reduce((total, entry) => total + entry.amount, 0);
+    const goodsAlternative = activation.goodsAlternative ?? null;
+    const isGoodsAlternative =
+      Boolean(goodsAlternative) &&
+      exchangeGains.length === 1 &&
+      exchangeGains[0].resource === goodsAlternative.gain.resource &&
+      exchangeGains[0].amount === goodsAlternative.gain.amount;
 
     for (const { resource, amount } of exchangeCost) {
       if (!allowedPaymentResources.includes(resource)) {
@@ -643,22 +668,28 @@ export function validateActivateTile(state, action, context) {
       }
     }
 
-    for (const { resource, amount } of exchangeGains) {
-      if (!allowedGainResources.includes(resource)) {
-        errors.push(`${resource} is not a valid exchange gain resource.`);
+    if (isGoodsAlternative) {
+      if (totalPaid !== goodsAlternative.paymentAmount) {
+        errors.push(`Choose exactly ${goodsAlternative.paymentAmount} resources to exchange for ${goodsAlternative.gain.amount} Goods.`);
+      }
+    } else {
+      for (const { resource, amount } of exchangeGains) {
+        if (!allowedGainResources.includes(resource)) {
+          errors.push(`${resource} is not a valid exchange gain resource.`);
+        }
+
+        if (!Number.isInteger(amount) || amount <= 0) {
+          errors.push("Exchange gain amounts must be positive whole numbers.");
+        }
       }
 
-      if (!Number.isInteger(amount) || amount <= 0) {
-        errors.push("Exchange gain amounts must be positive whole numbers.");
+      if (totalGained !== totalPaid) {
+        errors.push("Choose the same number of resources to gain as you pay.");
       }
     }
 
     if (totalPaid < 1 || totalPaid > activation.maxAmount) {
       errors.push(`Choose 1-${activation.maxAmount} resources to exchange.`);
-    }
-
-    if (totalGained !== totalPaid) {
-      errors.push("Choose the same number of resources to gain as you pay.");
     }
 
     if (errors.length === 0 && !canAffordCost(state.warehouse, exchangeCost)) {

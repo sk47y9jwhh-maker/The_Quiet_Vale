@@ -68,6 +68,12 @@ import {
 } from "./passives.js";
 import { createMapIndex, getNeighborCoordinates } from "./map.js";
 
+const PENDING_BURDEN_CHOICE_TYPES = new Set([
+  "pay_or_strain_choice",
+  "arrival_pay_or_timer_choice",
+  "resource_loss_or_strain_choice"
+]);
+
 function nextLogId(state, offset = 0) {
   return `log-${String(state.log.length + 1 + offset).padStart(3, "0")}`;
 }
@@ -4672,6 +4678,17 @@ function resolveBurden(state, action, context) {
         ok: false,
         action: TILE_ACTION_TYPES.RESOLVE_BURDEN,
         errors: ["Only unresolved active Burdens can be resolved."]
+      }
+    };
+  }
+
+  if (PENDING_BURDEN_CHOICE_TYPES.has(activeBurden.pendingChoice?.type)) {
+    return {
+      state,
+      result: {
+        ok: false,
+        action: TILE_ACTION_TYPES.RESOLVE_BURDEN,
+        errors: ["Apply this Burden's pending effect choice before resolving it."]
       }
     };
   }

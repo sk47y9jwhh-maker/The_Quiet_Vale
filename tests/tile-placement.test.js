@@ -110,6 +110,68 @@ function createLabourersYardPlacementState() {
   return state;
 }
 
+test("Merchant and Crafting tiles require adjacent Travel placement", () => {
+  const travelAdjacentTileIds = [
+    "core_market_stalls_basic",
+    "core_the_seldes_upgraded",
+    "core_workshops_basic",
+    "core_the_makers_conclave_upgraded"
+  ];
+  const placementRules = Object.fromEntries(
+    tiles.filter((tile) => travelAdjacentTileIds.includes(tile.tile_id)).map((tile) => [tile.tile_id, tile.placement_rules])
+  );
+
+  assert.deepEqual(placementRules, {
+    core_market_stalls_basic: "Place adjacent to Travel Tile",
+    core_the_seldes_upgraded: "Place adjacent to Travel Tile",
+    core_workshops_basic: "Place adjacent to Travel Tile",
+    core_the_makers_conclave_upgraded: "Place adjacent to Travel Tile"
+  });
+
+  let state = dispatch(newState(), { type: TILE_ACTION_TYPES.DEBUG_FILL_WAREHOUSE }).state;
+  const marketWithoutTravel = validatePlaceTile(
+    state,
+    {
+      type: TILE_ACTION_TYPES.PLACE_TILE,
+      tileId: "core_market_stalls_basic",
+      coordinate: "C3"
+    },
+    { tiles }
+  );
+
+  assert.equal(marketWithoutTravel.valid, false);
+  assert.match(marketWithoutTravel.errors.join(" "), /adjacent to Travel/);
+
+  state = dispatch(state, {
+    type: TILE_ACTION_TYPES.PLACE_TILE,
+    tileId: "core_gravel_path_basic",
+    coordinate: "C1",
+    orientation: "rotation-0"
+  }).state;
+
+  const marketWithTravel = validatePlaceTile(
+    state,
+    {
+      type: TILE_ACTION_TYPES.PLACE_TILE,
+      tileId: "core_market_stalls_basic",
+      coordinate: "C3"
+    },
+    { tiles }
+  );
+  const workshopsWithTravel = validatePlaceTile(
+    state,
+    {
+      type: TILE_ACTION_TYPES.PLACE_TILE,
+      tileId: "core_workshops_basic",
+      coordinate: "C3"
+    },
+    { tiles }
+  );
+
+  assert.equal(marketWithTravel.valid, true);
+  assert.equal(workshopsWithTravel.valid, true);
+});
+
 function apprenticeStewardPlacementActionEffect({ targetCategories = ["Resource", "Housing"], uses = 0 } = {}) {
   return {
     id: "round-effect-boon-the-apprentice-steward",

@@ -36,6 +36,7 @@ const CATEGORY_ADJACENCY_RULES = Object.freeze({
   "Place adjacent to a Housing Tile.": ["Housing"],
   "Place adjacent to a Travel Tile.": ["Travel"],
   "Place adjacent to a Travel Tile": ["Travel"],
+  "Place adjacent to Travel Tile": ["Travel"],
   "Place adjacent to a Social Tile.": ["Social"],
   "Place adjacent to a Merchant Tile.": ["Merchant"],
   "Place adjacent to a Wellbeing Tile.": ["Wellbeing"],

@@ -1594,6 +1594,46 @@ test("Bare Walls stays active for a no-action pay-or-Strain reveal choice", () =
   assert.equal(nextState.encounter.active[0].applications[0].effect.strainAdded, 1);
 });
 
+test("active Burdens with pending choices cannot be resolved before applying the choice", () => {
+  const base = newState(1);
+  const state = {
+    ...base,
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    warehouse: {
+      ...base.warehouse,
+      resources: {
+        ...base.warehouse.resources,
+        Food: 2
+      }
+    },
+    map: {
+      ...base.map,
+      placedTiles: [{ id: "tile-001", tileId: "core_cottage_basic", coordinate: "A3", coordinates: ["A3"], strain: 0 }]
+    },
+    encounter: {
+      ...base.encounter,
+      deck: ["burden_too_many_houses_too_little_homes"],
+      discard: [],
+      active: [],
+      revealedRounds: []
+    }
+  };
+  const { state: revealedState, result: revealResult } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+  const activeEncounterId = revealedState.encounter.active[0].id;
+  const { state: nextState, result } = dispatch(revealedState, {
+    type: TILE_ACTION_TYPES.RESOLVE_BURDEN,
+    activeEncounterId,
+    payment: [{ resource: "Food", amount: 2 }]
+  });
+
+  assert.equal(revealResult.ok, true);
+  assert.equal(revealedState.encounter.active[0].pendingChoice.type, "pay_or_strain_choice");
+  assert.equal(result.ok, false);
+  assert.equal(nextState, revealedState);
+  assert.equal(nextState.map.placedTiles[0].strain, 0);
+  assert.match(result.errors.join(" "), /pending effect choice/);
+});
+
 test("Too Many Houses, Too Little Homes supports mixed per-target pay-or-Strain choices", () => {
   const base = newState(1);
   const state = {

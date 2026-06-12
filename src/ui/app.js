@@ -94,6 +94,10 @@ const DATA_PATHS = {
 };
 
 const DEFAULT_MAP_ID = "redesigned-basic-map-v0-2";
+const ACTIVATION_EXCHANGE_MODES = Object.freeze({
+  NON_GOODS: "non_goods",
+  GOODS: "goods"
+});
 
 const MAP_OPTIONS = Object.freeze([
   Object.freeze({
@@ -261,6 +265,7 @@ const state = {
   activationPayments: {},
   activationGains: {},
   activationExchangeAmounts: {},
+  activationExchangeModes: {},
   stewardPlacementPowerId: "",
   stewardActivationPowerId: "",
   stewardUpgradePowerId: "",
@@ -448,6 +453,7 @@ function getLocalDataSignature() {
 function getLocalSaveSnapshot() {
   return {
     activationExchangeAmounts: state.activationExchangeAmounts,
+    activationExchangeModes: state.activationExchangeModes,
     activationGains: state.activationGains,
     activationPayments: state.activationPayments,
     activationTargets: state.activationTargets,
@@ -904,6 +910,7 @@ function resetLocalTestingControls() {
   state.activationPayments = {};
   state.activationGains = {};
   state.activationExchangeAmounts = {};
+  state.activationExchangeModes = {};
   state.stewardPlacementPowerId = "";
   state.stewardActivationPowerId = "";
   state.stewardUpgradePowerId = "";
@@ -4933,6 +4940,10 @@ function getActivationPaymentAction(placedTileId) {
   return getResourcePaymentAction(state.activationPayments[placedTileId] ?? []);
 }
 
+function getActivationGainAction(placedTileId, activationDetails) {
+  return getResourcePaymentAction(getActivationGainChoices(placedTileId, activationDetails));
+}
+
 function placedTileMatchesBoonReliefCategories(tileIndex, placedTile, effect) {
   if (!effect?.targetCategories?.length) {
     return true;
@@ -8045,7 +8056,7 @@ function getActivationActionExtras(game, placedTile, tileIndex, activationDetail
 
   if (activationDetails.type === "flexible_resource_exchange") {
     extras.payment = getActivationPaymentAction(placedTile.id);
-    extras.gains = getResourcePaymentAction(state.activationGains[placedTile.id] ?? []);
+    extras.gains = getActivationGainAction(placedTile.id, activationDetails);
   }
 
   return extras;
@@ -8432,15 +8443,36 @@ function getActivationPaymentChoices(placedTileId, activationDetails) {
 }
 
 function getActivationGainChoices(placedTileId, activationDetails) {
+  if (getActivationExchangeMode(placedTileId, activationDetails) === ACTIVATION_EXCHANGE_MODES.GOODS) {
+    return Array.from(
+      { length: activationDetails.goodsAlternative?.gain.amount ?? 0 },
+      () => activationDetails.goodsAlternative?.gain.resource ?? "Goods"
+    );
+  }
+
   const saved = state.activationGains[placedTileId] ?? [];
   const count = getActivationExchangeAmount(placedTileId, activationDetails);
 
   return Array.from({ length: count }, (_, index) => saved[index] ?? "");
 }
 
+function getActivationExchangeMode(placedTileId, activationDetails) {
+  if (activationDetails.type !== "flexible_resource_exchange" || !activationDetails.goodsAlternative) {
+    return ACTIVATION_EXCHANGE_MODES.NON_GOODS;
+  }
+
+  return state.activationExchangeModes[placedTileId] === ACTIVATION_EXCHANGE_MODES.GOODS
+    ? ACTIVATION_EXCHANGE_MODES.GOODS
+    : ACTIVATION_EXCHANGE_MODES.NON_GOODS;
+}
+
 function getActivationExchangeAmount(placedTileId, activationDetails) {
   if (activationDetails.type !== "flexible_resource_exchange") {
     return activationDetails.paymentAmount;
+  }
+
+  if (getActivationExchangeMode(placedTileId, activationDetails) === ACTIVATION_EXCHANGE_MODES.GOODS) {
+    return activationDetails.goodsAlternative?.paymentAmount ?? activationDetails.maxAmount;
   }
 
   const savedAmount = Number(state.activationExchangeAmounts[placedTileId] ?? 1);
@@ -8459,10 +8491,36 @@ function renderResourceExchangePaymentControl(game, placedTileId, activationDeta
   const allowedGainResources = game.rules.resources.filter(
     (resource) => !activationDetails.excludedGainResources?.includes(resource)
   );
+  const exchangeMode = getActivationExchangeMode(placedTileId, activationDetails);
+  const isGoodsMode = exchangeMode === ACTIVATION_EXCHANGE_MODES.GOODS;
+  const goodsAlternative = activationDetails.goodsAlternative ?? null;
 
   return `
     ${
-      activationDetails.type === "flexible_resource_exchange"
+      activationDetails.type === "flexible_resource_exchange" && goodsAlternative
+        ? `<div class="placement-choice-panel activation-exchange-mode" aria-label="Exchange mode">
+            <span>Exchange Mode</span>
+            <button
+              class="cost-choice-button activation-exchange-mode-button ${!isGoodsMode ? "is-selected" : ""}"
+              type="button"
+              data-placed-tile-id="${escapeHtml(placedTileId)}"
+              data-exchange-mode="${ACTIVATION_EXCHANGE_MODES.NON_GOODS}"
+            >
+              Non-Goods mix
+            </button>
+            <button
+              class="cost-choice-button activation-exchange-mode-button ${isGoodsMode ? "is-selected" : ""}"
+              type="button"
+              data-placed-tile-id="${escapeHtml(placedTileId)}"
+              data-exchange-mode="${ACTIVATION_EXCHANGE_MODES.GOODS}"
+            >
+              ${escapeHtml(`${goodsAlternative.paymentAmount} resources for ${goodsAlternative.gain.amount} Goods`)}
+            </button>
+          </div>`
+        : ""
+    }
+    ${
+      activationDetails.type === "flexible_resource_exchange" && !isGoodsMode
         ? `<label class="stacked-field activation-exchange-count">
             <span>Count</span>
             <select id="activation-exchange-count" aria-label="Exchange count">
@@ -8494,7 +8552,11 @@ function renderResourceExchangePaymentControl(game, placedTileId, activationDeta
         .join("")}
     </div>
     ${
-      activationDetails.type === "flexible_resource_exchange"
+      activationDetails.type === "flexible_resource_exchange" && isGoodsMode
+        ? `<div class="burden-payment-grid activation-gain-grid" aria-label="Exchange gain resources">
+            <span>${escapeHtml(`Gain ${goodsAlternative.gain.amount} ${goodsAlternative.gain.resource}`)}</span>
+          </div>`
+        : activationDetails.type === "flexible_resource_exchange"
         ? `<div class="burden-payment-grid activation-gain-grid" aria-label="Exchange gain resources">
             ${selectedGains
               .map(
@@ -10082,7 +10144,7 @@ function activatePlacedTile(placedTileId) {
 
     if (activationDetails?.type === "flexible_resource_exchange") {
       payment = getActivationPaymentAction(placedTile.id);
-      gains = getResourcePaymentAction(state.activationGains[placedTile.id] ?? []);
+      gains = getActivationGainAction(placedTile.id, activationDetails);
     }
   } catch {
     targetPlacedTileId = undefined;
@@ -10123,6 +10185,9 @@ function activatePlacedTile(placedTileId) {
     const activationExchangeAmounts = { ...state.activationExchangeAmounts };
     delete activationExchangeAmounts[placedTile.id];
     state.activationExchangeAmounts = activationExchangeAmounts;
+    const activationExchangeModes = { ...state.activationExchangeModes };
+    delete activationExchangeModes[placedTile.id];
+    state.activationExchangeModes = activationExchangeModes;
     state.stewardActivationPowerId = "";
   }
 
@@ -11720,6 +11785,44 @@ function bindEvents() {
       [placedTile.id]: (state.activationGains[placedTile.id] ?? []).slice(0, amount)
     };
     renderApp();
+  });
+
+  root.querySelectorAll(".activation-exchange-mode-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const placedTileId = button.dataset.placedTileId;
+      const mode = button.dataset.exchangeMode;
+
+      if (!placedTileId || !Object.values(ACTIVATION_EXCHANGE_MODES).includes(mode)) {
+        return;
+      }
+
+      state.activationExchangeModes = {
+        ...state.activationExchangeModes,
+        [placedTileId]: mode
+      };
+
+      if (mode === ACTIVATION_EXCHANGE_MODES.GOODS) {
+        state.activationExchangeAmounts = {
+          ...state.activationExchangeAmounts,
+          [placedTileId]: 5
+        };
+        state.activationGains = {
+          ...state.activationGains,
+          [placedTileId]: []
+        };
+      } else {
+        state.activationExchangeAmounts = {
+          ...state.activationExchangeAmounts,
+          [placedTileId]: Math.min(5, Math.max(1, Number(state.activationExchangeAmounts[placedTileId] ?? 1)))
+        };
+        state.activationGains = {
+          ...state.activationGains,
+          [placedTileId]: (state.activationGains[placedTileId] ?? []).filter((resource) => resource !== "Goods")
+        };
+      }
+
+      renderApp();
+    });
   });
 
   root.querySelectorAll(".steward-exchange-count").forEach((select) => {
