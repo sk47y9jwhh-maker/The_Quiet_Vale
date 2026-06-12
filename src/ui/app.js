@@ -1086,7 +1086,7 @@ function resetPlaySession() {
   state.lastActionResult = {
     ok: true,
     action: "RESET_GAME",
-    message: "Reset to setup. Choose player count and Stewards, then start when ready."
+    message: "Reset to setup. Choose players and Stewards, deal cards if needed, then start when ready."
   };
   renderApp();
 }
@@ -5133,8 +5133,9 @@ function renderStewardSetupControls() {
         const selectedRole = getStewardRole(selectedRoleId);
 
         return `
-          <label class="stacked-field">
-            <span>Player ${index + 1} Steward</span>
+          <label class="setup-steward-card">
+            <span class="setup-player-badge">P${index + 1}</span>
+            <span class="setup-steward-label">${escapeHtml(selectedRole?.name ?? "Steward")}</span>
             <select class="setup-steward-role" data-player-index="${index}" aria-label="${escapeHtml(`Player ${index + 1} Steward`) }" ${disabledAttribute}>
               ${STEWARD_ROLES.map((role) => {
                 const usedByOtherPlayer = roleIds.some((roleId, roleIndex) => roleIndex !== index && roleId === role.id);
@@ -5146,7 +5147,6 @@ function renderStewardSetupControls() {
                 `;
               }).join("")}
             </select>
-            <small>${escapeHtml(selectedRole?.housePlacementSummary ?? "")}</small>
           </label>
         `;
       }).join("")}
@@ -5437,67 +5437,68 @@ function renderActiveEncounterList(activeStates, encounterIndex, game) {
 }
 
 function renderSetupControls() {
-  const selectedMap = getSelectedMapOption();
   const setupOpen = isPlaySessionSetup();
   const playing = isPlaySessionPlaying();
   const ended = isPlaySessionEnded();
   const inputDisabled = setupOpen ? "" : "disabled";
   const setupNote = setupOpen
-    ? "Choose the table setup, then start the playthrough."
+    ? "Choose players and Stewards, deal fresh cards if needed, then start."
     : playing
       ? "Setup is locked while this playthrough is active."
       : "Playthrough ended. Reset Game to prepare a new table.";
 
   return `
-    <section id="setup-panel" class="state-panel setup-panel">
-      <h2>Setup</h2>
-      <p class="setup-session-note session-${escapeHtml(state.playSessionState)}">${escapeHtml(setupNote)}</p>
-      <div class="setup-static-row">
-        <span>Map</span>
-        <strong>${escapeHtml(selectedMap?.name ?? "Redesigned Basic Map v0.2")}</strong>
+    <section id="setup-panel" class="state-panel setup-panel player-setup-panel">
+      <header class="setup-menu-hero">
+        <span>Table Setup</span>
+        <h2>Prepare the table</h2>
+        <p class="setup-session-note session-${escapeHtml(state.playSessionState)}">${escapeHtml(setupNote)}</p>
+      </header>
+
+      <div class="setup-flow-grid">
+        <article class="setup-step-card setup-player-card">
+          <header class="setup-step-heading">
+            <span>1</span>
+            <strong>Players</strong>
+          </header>
+          <label class="setup-inline-field">
+            <span>Player count</span>
+            <select id="player-count" aria-label="Players" ${inputDisabled}>
+              ${[1, 2, 3, 4]
+                .map((count) => `<option value="${count}" ${count === state.playerCount ? "selected" : ""}>${count}</option>`)
+                .join("")}
+            </select>
+          </label>
+          <p class="setup-warehouse-note">Warehouse starts with ${getStartingWarehouseResourceCount(state.playerCount)} of each resource.</p>
+        </article>
+
+        <article class="setup-step-card setup-stewards-card">
+          <header class="setup-step-heading">
+            <span>2</span>
+            <strong>Stewards</strong>
+          </header>
+          ${renderStewardSetupControls()}
+        </article>
+
+        <article class="setup-step-card setup-ready-card">
+          <header class="setup-step-heading">
+            <span>3</span>
+            <strong>Cards and start</strong>
+          </header>
+          <div class="button-row setup-action-row">
+            ${
+              setupOpen
+                ? `<button id="redeal-cards" class="secondary-button setup-deal-button" type="button">Deal Cards</button>
+                   <button id="start-game" class="primary-button" type="button">Start Game</button>`
+                : playing
+                  ? `<button id="end-game" class="secondary-button danger-button" type="button">End Game</button>
+                     <button id="reset-game" class="secondary-button" type="button">Reset Game</button>`
+                  : `<button id="reset-game" class="primary-button" type="button">Reset Game</button>`
+            }
+          </div>
+          ${ended ? `<p class="setup-session-note session-ended">The board is frozen for review until you reset.</p>` : ""}
+        </article>
       </div>
-      <label class="stacked-field">
-        <span>Players</span>
-        <select id="player-count" aria-label="Players" ${inputDisabled}>
-          ${[1, 2, 3, 4]
-            .map((count) => `<option value="${count}" ${count === state.playerCount ? "selected" : ""}>${count}</option>`)
-            .join("")}
-        </select>
-      </label>
-      ${renderStewardSetupControls()}
-      ${renderStartingWarehouseReference()}
-      <p class="setup-session-note">Golden Boons are not currently supported by the online prototype and are excluded from setup.</p>
-      <label class="stacked-field">
-        <span>Seed</span>
-        <input id="setup-seed" value="${escapeHtml(state.setupSeed)}" aria-label="Seed" ${inputDisabled} />
-      </label>
-      <div class="button-row">
-        ${
-          setupOpen
-            ? `<button id="start-game" class="primary-button" type="button">Start Game</button>
-               <button id="redeal-cards" class="secondary-button" type="button">Redeal Cards</button>`
-            : playing
-              ? `<button id="end-game" class="secondary-button danger-button" type="button">End Game</button>
-                 <button id="reset-game" class="secondary-button" type="button">Reset Game</button>`
-              : `<button id="reset-game" class="primary-button" type="button">Reset Game</button>`
-        }
-      </div>
-      ${ended ? `<p class="setup-session-note">The board is frozen for review until you reset.</p>` : ""}
-      <details class="table-options">
-        <summary>Table options</summary>
-        <label class="toggle-row">
-          <input id="blind-test-mode" type="checkbox" ${state.blindTestMode ? "checked" : ""} />
-          <span>Blind Test Mode</span>
-        </label>
-        <label class="toggle-row">
-          <input id="reveal-hidden-setup" type="checkbox" ${state.revealHiddenSetup ? "checked" : ""} />
-          <span>Reveal hidden Encounter cards</span>
-        </label>
-        <label class="toggle-row">
-          <input id="show-debug-labels" type="checkbox" ${state.showDebugLabels ? "checked" : ""} />
-          <span>Show terrain abbreviations</span>
-        </label>
-      </details>
     </section>
   `;
 }
@@ -6513,7 +6514,7 @@ function getGuideInstruction(game, tileIndex, encounterIndex) {
   const seedablePlayerCount = getSeedablePlayerCount(game);
 
   if (isPlaySessionSetup()) {
-    return "Choose player count and Stewards in Setup, then press Start Game when the table is ready.";
+    return "Choose player count and Stewards in Setup, deal cards if needed, then press Start Game.";
   }
 
   if (isPlaySessionEnded()) {
@@ -6676,7 +6677,7 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
       tone: "setup",
       label: "Setup",
       title: "Prepare the table",
-      detail: "Choose player count and Stewards, then start the playthrough."
+      detail: "Choose players, Stewards, and cards, then start the playthrough."
     };
   }
 

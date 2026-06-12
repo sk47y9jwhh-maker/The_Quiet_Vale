@@ -252,7 +252,7 @@ button.header-table-action {
   top: calc(100% + 10px);
   right: 0;
   z-index: 45;
-  width: min(420px, calc(100vw - 40px));
+  width: min(620px, calc(100vw - 40px));
   max-height: calc(100vh - 118px);
   overflow: auto;
 }
@@ -1807,15 +1807,157 @@ h3 {
   font-size: 0.92rem;
 }
 
+.player-setup-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-color: rgba(185, 147, 79, 0.32);
+  background:
+    linear-gradient(180deg, rgba(255, 250, 239, 0.98), rgba(235, 224, 201, 0.96)),
+    radial-gradient(circle at top left, rgba(185, 147, 79, 0.16), transparent 34%);
+}
+
+.setup-menu-hero {
+  display: grid;
+  gap: 4px;
+  padding: 12px 13px;
+  border: 1px solid rgba(92, 77, 55, 0.18);
+  border-left: 5px solid var(--brass);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(41, 54, 47, 0.1), transparent 58%),
+    rgba(247, 239, 219, 0.92);
+}
+
+.setup-menu-hero span {
+  color: #667369;
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.setup-menu-hero h2,
+.setup-menu-hero p {
+  margin: 0;
+}
+
+.setup-flow-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+}
+
+.setup-ready-card {
+  grid-column: 1 / -1;
+}
+
+.setup-step-card {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid rgba(92, 77, 55, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 247, 0.76), rgba(239, 229, 207, 0.66)),
+    rgba(246, 239, 220, 0.78);
+}
+
+.setup-step-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #27362f;
+}
+
+.setup-step-heading span {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid rgba(150, 117, 62, 0.42);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(214, 186, 125, 0.72), rgba(155, 117, 60, 0.72));
+  color: #fff8e8;
+  font-size: 0.76rem;
+  font-weight: 950;
+}
+
+.setup-step-heading strong {
+  font-size: 0.92rem;
+}
+
+.setup-inline-field {
+  display: grid;
+  gap: 5px;
+}
+
+.setup-inline-field span,
+.setup-warehouse-note,
+.setup-ready-card p {
+  margin: 0;
+  color: #69746d;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.setup-inline-field select,
+.setup-steward-card select {
+  width: 100%;
+}
+
 .steward-setup-grid {
   display: grid;
   gap: 8px;
-  margin: 10px 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.setup-steward-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(92, 77, 55, 0.14);
+  border-left: 4px solid rgba(109, 131, 120, 0.72);
+  border-radius: 7px;
+  background: rgba(255, 251, 241, 0.72);
+}
+
+.setup-player-badge {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  background: #26362f;
+  color: #f9edcf;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.setup-steward-label {
+  overflow: hidden;
+  color: #27362f;
+  font-size: 0.82rem;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.setup-steward-card select,
+.setup-steward-card small {
+  grid-column: 1 / -1;
 }
 
 .steward-setup-grid small {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 800;
   line-height: 1.3;
 }
@@ -2523,8 +2665,23 @@ textarea {
   grid-template-columns: repeat(2, minmax(120px, 1fr));
 }
 
+.setup-action-row {
+  margin-top: 2px;
+}
+
+.setup-action-row button {
+  min-height: 42px;
+}
+
+.setup-deal-button {
+  border-color: rgba(109, 131, 120, 0.5);
+  background:
+    linear-gradient(180deg, rgba(109, 131, 120, 0.18), rgba(41, 54, 47, 0.08)),
+    rgba(255, 252, 244, 0.82);
+}
+
 .setup-session-note {
-  margin: 0 0 12px;
+  margin: 0;
   padding: 8px 10px;
   border: 1px solid rgba(75, 95, 86, 0.18);
   border-radius: 6px;
@@ -5450,6 +5607,11 @@ summary {
     left: 16px;
     width: auto;
     max-height: calc(100vh - 106px);
+  }
+
+  .setup-flow-grid,
+  .steward-setup-grid {
+    grid-template-columns: 1fr;
   }
 
   .testing-action {
