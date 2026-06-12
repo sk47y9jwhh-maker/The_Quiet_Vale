@@ -2935,8 +2935,6 @@ const TILE_FACE_ICON_BASE_PATH = "./src/assets/icons/";
 const TILE_FACE_ICON_FILES = Object.freeze({
   arable_land: "arable_land.svg",
   bridge: "bridge.svg",
-  effect_passive: "effect_passive.svg",
-  effect_production: "effect_production.svg",
   encounter_arrival: "encounter_arrival.svg",
   encounter_boon: "encounter_boon.svg",
   encounter_burden: "encounter_burden.svg",
@@ -2952,6 +2950,7 @@ const TILE_FACE_ICON_FILES = Object.freeze({
   ruins: "ruins.svg",
   rule_adjacent: "rule_adjacent.svg",
   rule_reachable: "rule_reachable.svg",
+  score_population: "score_population.svg",
   score_renown: "score_renown.svg",
   status_strain: "status_strain.svg",
   tile_crafting: "tile_crafting.svg",
@@ -3079,7 +3078,7 @@ function formatTileFaceCostEntries(costText) {
 
   return [...parsed.cost]
     .sort((left, right) => TILE_FACE_RESOURCE_ORDER.indexOf(left.resource) - TILE_FACE_RESOURCE_ORDER.indexOf(right.resource))
-    .map(({ amount, resource }) => `${amount}x ${resource}`);
+    .map(({ amount, resource }) => `${amount} ${resource}`);
 }
 
 function renderTileFaceCostEntries(entries, y) {
@@ -3172,7 +3171,7 @@ function getTileEffectDetails(tile) {
   const benefit = tile?.benefit ?? "";
 
   if (/Production/i.test(benefit)) {
-    return { mark: "P", label: "Production", icon: "effect_production" };
+    return { mark: "P", label: "Production" };
   }
 
   if (/Steward Power/i.test(benefit)) {
@@ -3180,10 +3179,10 @@ function getTileEffectDetails(tile) {
   }
 
   if (/Passive/i.test(benefit)) {
-    return { mark: "Pa", label: "Passive", icon: "effect_passive" };
+    return { mark: "Pa", label: "Passive" };
   }
 
-  if (/Activate|Activated Effect/i.test(benefit)) {
+  if (/Activate|Activated Effect|When Activated/i.test(benefit)) {
     return { mark: "A", label: "Activated Effect" };
   }
 
@@ -3224,6 +3223,39 @@ function getTileFaceSideLine(tile) {
   return `${role} - ${sizeLabel}`;
 }
 
+function renderTileFaceScoreBadge(kind, value) {
+  const numericValue = Number(value ?? 0);
+
+  if (numericValue <= 0) {
+    return "";
+  }
+
+  const config =
+    kind === "population"
+      ? {
+          groupClass: "tile-face-population",
+          label: "Population",
+          icon: "score_population",
+          cx: 99,
+          valueX: 147
+        }
+      : {
+          groupClass: "tile-face-renown",
+          label: "Renown",
+          icon: "score_renown",
+          cx: 901,
+          valueX: 853
+        };
+
+  return `
+    <g class="tile-face-score ${config.groupClass}" aria-label="${config.label} ${numericValue}">
+      <circle cx="${config.cx}" cy="374" r="30"></circle>
+      ${renderTileFaceBadgeIcon(config.icon, config.cx, 374, 38, config.label, "tile-face-score-label")}
+      <text class="tile-face-score-value" x="${config.valueX}" y="384" text-anchor="middle">${numericValue}</text>
+    </g>
+  `;
+}
+
 function renderSpecialTileFaceSvg(tile) {
   const roleLines = getSpecialTileRoleBadgeLines(tile);
   const roleIcon = getSpecialTileRoleIconKey(tile);
@@ -3234,8 +3266,8 @@ function renderSpecialTileFaceSvg(tile) {
   const titleSideY = 111;
   const unlockedBy = tile.unlocked_by_arrival ? `Arrival = ${tile.unlocked_by_arrival}` : "Arrival =";
   const unlockedLines = wrapTileFaceText(unlockedBy, 42, 1);
-  const effectLines = wrapTileFaceText(getTileFaceEffectCopy(tile), 43, 6);
-  const effectCopyStartY = 658 - Math.max(0, effectLines.length - 1) * 17.5;
+  const effectLines = wrapTileFaceText(getTileFaceEffectCopy(tile), 38, 6);
+  const effectCopyStartY = 664 - Math.max(0, effectLines.length - 1) * 19;
   const population = Number(tile.population ?? 0);
   const renown = Number(tile.renown ?? 0);
 
@@ -3266,18 +3298,10 @@ function renderSpecialTileFaceSvg(tile) {
       <text class="tile-face-side-text" x="500" y="${titleSideY}" text-anchor="middle">${escapeHtml(getTileFaceSideLine(tile))}</text>
       <text class="tile-face-art-text" x="500" y="312" text-anchor="middle">Artwork Area</text>
       <text class="tile-face-art-sub" x="500" y="336" text-anchor="middle">Special tile preview</text>
-      ${
-        population > 0
-          ? `<g class="tile-face-score tile-face-population"><circle cx="99" cy="374" r="30"></circle><text class="tile-face-score-label" x="99" y="382" text-anchor="middle">Pop</text><text class="tile-face-score-value" x="147" y="384" text-anchor="middle">${population}</text></g>`
-          : ""
-      }
-      ${
-        renown > 0
-          ? `<g class="tile-face-score tile-face-renown"><circle cx="901" cy="374" r="30"></circle><text class="tile-face-score-label" x="901" y="382" text-anchor="middle">Ren</text><text class="tile-face-score-value" x="853" y="384" text-anchor="middle">${renown}</text></g>`
-          : ""
-      }
+      ${renderTileFaceScoreBadge("population", population)}
+      ${renderTileFaceScoreBadge("renown", renown)}
       ${renderSvgTextLines(unlockedLines, 500, 476, 24, "tile-face-special-info")}
-      ${renderSvgTextLines(effectLines, 500, effectCopyStartY, 35, "tile-face-special-effect-text")}
+      ${renderSvgTextLines(effectLines, 500, effectCopyStartY, 38, "tile-face-special-effect-text")}
       <text class="tile-face-micro" x="500" y="830" text-anchor="middle">special tile wireframe v0.2</text>
     </svg>
   `;
@@ -3305,8 +3329,8 @@ function renderTileFaceSvg(tile, options = {}) {
   const placeCostEntries = formatTileFaceCostEntries(tile.place_cost);
   const upgradeCostEntries = formatTileFaceCostEntries(upgradeTile?.upgrade_cost ?? tile.upgrade_cost);
   const lineage = tile.base_tile ? `Upgraded ${tile.base_tile}` : "Upgraded side";
-  const effectLines = wrapTileFaceText(getTileFaceEffectCopy(tile), 40, 5).filter((line) => line.trim());
-  const effectCopyStartY = 704 - Math.max(0, effectLines.length - 1) * 21;
+  const effectLines = wrapTileFaceText(getTileFaceEffectCopy(tile), 34, 5).filter((line) => line.trim());
+  const effectCopyStartY = 710 - Math.max(0, effectLines.length - 1) * 22;
   const population = Number(tile.population ?? 0);
   const renown = Number(tile.renown ?? 0);
 
@@ -3341,16 +3365,8 @@ function renderTileFaceSvg(tile, options = {}) {
           : ""
       }
       <text class="tile-face-art-text" x="500" y="312" text-anchor="middle">Artwork Area</text>
-      ${
-        population > 0
-          ? `<g class="tile-face-score tile-face-population"><circle cx="99" cy="374" r="30"></circle><text class="tile-face-score-label" x="99" y="382" text-anchor="middle">Pop</text><text class="tile-face-score-value" x="147" y="384" text-anchor="middle">${population}</text></g>`
-          : ""
-      }
-      ${
-        renown > 0
-          ? `<g class="tile-face-score tile-face-renown"><circle cx="901" cy="374" r="30"></circle><text class="tile-face-score-label" x="901" y="382" text-anchor="middle">Ren</text><text class="tile-face-score-value" x="853" y="384" text-anchor="middle">${renown}</text></g>`
-          : ""
-      }
+      ${renderTileFaceScoreBadge("population", population)}
+      ${renderTileFaceScoreBadge("renown", renown)}
       ${
         isUpgraded
           ? `
@@ -3369,7 +3385,7 @@ function renderTileFaceSvg(tile, options = {}) {
             }
           `
       }
-      ${renderSvgTextLines(effectLines, 500, effectCopyStartY, 42, "tile-face-core-effect-text")}
+      ${renderSvgTextLines(effectLines, 500, effectCopyStartY, 44, "tile-face-core-effect-text")}
     </svg>
   `;
 }
@@ -3474,6 +3490,18 @@ function renderTileWireframeCard(tile, options = {}) {
       ${renderMultihexTileNote(tile)}
       ${placementControls}
     </article>
+  `;
+}
+
+function renderTileFaceKey() {
+  return `
+    <p class="tile-face-key" aria-label="Tile icon key">
+      <strong>Tile key</strong>
+      <span>Top left: tile type</span>
+      <span>Top right: placement requirement</span>
+      <span>Lower left: Population</span>
+      <span>Lower right: Renown</span>
+    </p>
   `;
 }
 
@@ -8669,6 +8697,7 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
       ${renderTileChoiceButtons(options, tileIndex, {
         selectedTileId: state.selectedTileId
       })}
+      ${renderTileFaceKey()}
       ${renderPlacementResult(state.lastActionResult)}
       ${renderTravelNetworksPanel(game, tileIndex, encounterIndex, { embedded: true })}
     </section>

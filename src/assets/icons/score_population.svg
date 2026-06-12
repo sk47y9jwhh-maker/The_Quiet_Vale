@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="-64 -64 128 128" color="#2F2924" role="img" aria-label="Population">
+  <title>Population</title>
+  <desc>Head-and-shoulders silhouette</desc>
+  <g fill="none" stroke="#5e6460" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="0" cy="-20" r="20" stroke="#5e6460" stroke-width="7" fill="none"/>
+    <path d="M -42 48 Q 0 10 42 48" stroke="#5e6460" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

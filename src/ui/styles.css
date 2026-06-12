@@ -992,6 +992,10 @@ h3 {
   padding-right: 4px;
 }
 
+.table-workspace-body.is-tiles #placement-panel > .tile-face-key {
+  grid-column: 2;
+}
+
 .table-workspace-body.is-tiles #placement-panel > .result-message,
 .table-workspace-body.is-tiles #placement-panel > .empty-note {
   grid-column: 1;
@@ -4281,8 +4285,8 @@ textarea {
 }
 
 .tile-face-core-effect-text {
-  font-size: 29px;
-  font-weight: 500;
+  font-size: 32px;
+  font-weight: 600;
 }
 
 .tile-face-micro {
@@ -4295,8 +4299,8 @@ textarea {
 }
 
 .tile-face-special-effect-text {
-  font-size: 26px;
-  font-weight: 500;
+  font-size: 30px;
+  font-weight: 600;
 }
 
 .tile-face-score text {
@@ -4325,6 +4329,28 @@ textarea {
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 900;
+}
+
+.tile-face-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: -2px 4px 0;
+  padding: 7px 9px 0;
+  border-top: 1px solid rgba(92, 77, 55, 0.18);
+  color: #6c7169;
+  font-size: 0.68rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.tile-face-key strong {
+  color: #4c554d;
+  font-size: 0.69rem;
+  font-weight: 950;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .tile-piece-footprint i {
@@ -5367,6 +5393,7 @@ summary {
 
   .table-workspace-body.is-tiles #placement-panel > .tile-wire-placement-panel,
   .table-workspace-body.is-tiles #placement-panel > .tile-tray,
+  .table-workspace-body.is-tiles #placement-panel > .tile-face-key,
   .table-workspace-body.is-tiles #placement-panel > .result-message,
   .table-workspace-body.is-tiles #placement-panel > .empty-note {
     position: static;
