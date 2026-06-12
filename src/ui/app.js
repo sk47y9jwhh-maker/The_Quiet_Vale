@@ -1789,49 +1789,52 @@ function getLegalPlacementOptionsForCoordinate(game, tileIndex, coordinate) {
     getPlacementOptions()
       .filter(({ tile }) => !openingRequirement || isOpeningResourceTileForPlayer(openingRequirement.player, tile.tile_id))
       .flatMap(({ tile, supply }) => {
-        const placementCostChoiceResources = getDefaultResourceCostChoiceResources(tile.place_cost, game.warehouse);
-        const baseCost = resolveResourceCost(tile.place_cost, placementCostChoiceResources, {
-          warehouse: game.warehouse
-        }).cost;
-        const placementCostReductionResources = getAutomaticPlacementCostDiscountResources(game, tile, baseCost);
+        const placementCostChoiceSets = getResourceCostChoiceSets(tile.place_cost);
 
-        return getPlacementOrientations(tile).map((orientation) => {
-          const action = {
-            type: TILE_ACTION_TYPES.PLACE_TILE,
-            tileId: tile.tile_id,
-            coordinate,
-            orientation,
-            placementCostChoiceResources,
-            placementCostReductionResources
-          };
-          const validation = validatePlaceTile(game, action, { tiles: state.data.tiles });
+        return placementCostChoiceSets.flatMap((placementCostChoiceResources) => {
+          const baseCost = resolveResourceCost(tile.place_cost, placementCostChoiceResources, {
+            warehouse: game.warehouse
+          }).cost;
+          const placementCostReductionResources = getAutomaticPlacementCostDiscountResources(game, tile, baseCost);
 
-          if (!validation.valid || !validation.footprintCoordinates) {
-            return null;
-          }
+          return getPlacementOrientations(tile).map((orientation) => {
+            const action = {
+              type: TILE_ACTION_TYPES.PLACE_TILE,
+              tileId: tile.tile_id,
+              coordinate,
+              orientation,
+              placementCostChoiceResources,
+              placementCostReductionResources
+            };
+            const validation = validatePlaceTile(game, action, { tiles: state.data.tiles });
 
-          const actionCost = getPlacementActionCostForMenu(game, tile, validation.footprintCoordinates, tileIndex);
-          const pairedStockBlocked = isStablesTile(tile) && (supply?.available ?? 0) < 2;
-          const blockedReason = pairedStockBlocked
-            ? "Needs both Stables copies available"
-            : activePlayer.actionsRemaining < actionCost.total
-              ? `Needs ${actionCost.total} Actions; ${activePlayer.name} has ${activePlayer.actionsRemaining}`
-              : "";
+            if (!validation.valid || !validation.footprintCoordinates) {
+              return null;
+            }
 
-          return {
-            tile,
-            supply,
-            coordinate,
-            orientation,
-            actionCost,
-            cost: validation.cost,
-            footprintCoordinates: validation.footprintCoordinates,
-            placementCostChoiceResources,
-            placementCostReductionResources,
-            resourceCostSubstitution: validation.resourceCostSubstitution,
-            blockedReason,
-            isTerrainMatchedResource: tile.tile_id === terrainMatchedResourceTileId
-          };
+            const actionCost = getPlacementActionCostForMenu(game, tile, validation.footprintCoordinates, tileIndex);
+            const pairedStockBlocked = isStablesTile(tile) && (supply?.available ?? 0) < 2;
+            const blockedReason = pairedStockBlocked
+              ? "Needs both Stables copies available"
+              : activePlayer.actionsRemaining < actionCost.total
+                ? `Needs ${actionCost.total} Actions; ${activePlayer.name} has ${activePlayer.actionsRemaining}`
+                : "";
+
+            return {
+              tile,
+              supply,
+              coordinate,
+              orientation,
+              actionCost,
+              cost: validation.cost,
+              footprintCoordinates: validation.footprintCoordinates,
+              placementCostChoiceResources,
+              placementCostReductionResources,
+              resourceCostSubstitution: validation.resourceCostSubstitution,
+              blockedReason,
+              isTerrainMatchedResource: tile.tile_id === terrainMatchedResourceTileId
+            };
+          });
         });
       })
       .filter(Boolean),
@@ -1899,7 +1902,82 @@ function getPreferredContextPlacementOption(options) {
   return options.find((option) => option.orientation === state.selectedOrientation) ?? options[0];
 }
 
-function renderContextPlacementOptionDetails(option, { travelPreview = false } = {}) {
+function getResourceCostChoiceSets(costText) {
+  const groups = getResourceCostChoiceGroups(costText);
+
+  if (groups.length === 0) {
+    return [[]];
+  }
+
+  return groups.reduce(
+    (sets, group) =>
+      sets.flatMap((set) => group.options.map((option) => [...set, option.resource])),
+    [[]]
+  );
+}
+
+function getContextTravelPaymentOptions(options, preferredOption) {
+  const sameOrientationOptions = options.filter((option) => option.orientation === preferredOption.orientation);
+  const sourceOptions = sameOrientationOptions.length > 0 ? sameOrientationOptions : [preferredOption];
+  const seen = new Set();
+
+  return sourceOptions.filter((option) => {
+    const key = [
+      option.placementCostChoiceResources.join("|"),
+      option.placementCostReductionResources.join("|"),
+      renderCost(option.cost),
+      option.blockedReason
+    ].join("::");
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function renderContextTravelPaymentActions(option, paymentOptions = [option]) {
+  const travelPaymentOptions = getContextTravelPaymentOptions(paymentOptions, option);
+  const hasChoices = hasResourceCostChoices(option.tile.place_cost);
+
+  return `
+    <div class="context-payment-actions" aria-label="${escapeHtml(`${option.tile.tile_name} payment choices`)}">
+      <p>${escapeHtml(hasChoices ? "Choose payment. The tile will be laid on the map for review." : "Lay the tile on the map for review.")}</p>
+      ${travelPaymentOptions
+        .map((paymentOption) => {
+          const disabledAttribute = paymentOption.blockedReason ? "disabled" : "";
+          const titleAttribute = paymentOption.blockedReason ? `title="${escapeHtml(paymentOption.blockedReason)}"` : "";
+          const buttonLabel = paymentOption.blockedReason
+            ? "Needs More Actions"
+            : hasChoices
+              ? `Pay ${renderCost(paymentOption.cost)}`
+              : `Lay Down ${paymentOption.tile.tile_name}`;
+
+          return `
+            <button
+              class="map-context-action${paymentOption.blockedReason ? " is-blocked" : ""}"
+              data-context-select-tile-id="${escapeHtml(paymentOption.tile.tile_id)}"
+              data-context-select-coordinate="${escapeHtml(paymentOption.coordinate)}"
+              data-context-select-orientation="${escapeHtml(paymentOption.orientation)}"
+              data-context-select-cost-choices="${escapeHtml((paymentOption.placementCostChoiceResources ?? []).join("|"))}"
+              data-context-select-discounts="${escapeHtml(paymentOption.placementCostReductionResources.join("|"))}"
+              type="button"
+              role="menuitem"
+              ${disabledAttribute}
+              ${titleAttribute}
+            >
+              ${escapeHtml(buttonLabel)}
+            </button>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderContextPlacementOptionDetails(option, { travelPreview = false, paymentOptions = [option] } = {}) {
   const isMultihex = Number(option.tile.size_hexes ?? 1) > 1;
   const pairedStables = isStablesTile(option.tile);
   const useTravelPreview = travelPreview && !pairedStables;
@@ -1919,27 +1997,12 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
   const actionCostText = pairedStables ? "1 Action" : `${renderActionCost(option.actionCost)} Action`;
   const resourceCostText = renderCost(option.cost);
   const summaryText = useTravelPreview
-    ? `${terrainMatchText}Select preview, rotate if needed, then left-click to place${blockedText}`
+    ? `${terrainMatchText}Choose payment here · then confirm, rotate, or cancel on map${blockedText}`
     : pairedStables
       ? `${terrainMatchText}${option.supply?.available ?? 0}/${option.supply?.stock ?? 0} left · choose 2 sites · 1 Action${blockedText}`
     : `${terrainMatchText}${option.supply?.available ?? 0}/${option.supply?.stock ?? 0} left · ${renderActionCost(option.actionCost)} Action · ${renderCost(option.cost)}${choiceText}${orientationText}${footprintText}${discountText}${substitutionText}${blockedText}`;
-  const disabledAttribute = option.blockedReason ? "disabled" : "";
-  const titleAttribute = option.blockedReason ? `title="${escapeHtml(option.blockedReason)}"` : "";
   const actionButton = useTravelPreview
-    ? `<button
-        class="map-context-action${option.blockedReason ? " is-blocked" : ""}"
-        data-context-select-tile-id="${escapeHtml(option.tile.tile_id)}"
-        data-context-select-coordinate="${escapeHtml(option.coordinate)}"
-        data-context-select-orientation="${escapeHtml(option.orientation)}"
-        data-context-select-cost-choices="${escapeHtml((option.placementCostChoiceResources ?? []).join("|"))}"
-        data-context-select-discounts="${escapeHtml(option.placementCostReductionResources.join("|"))}"
-        type="button"
-        role="menuitem"
-        ${disabledAttribute}
-        ${titleAttribute}
-      >
-        ${option.blockedReason ? "Needs More Actions" : `Preview ${escapeHtml(option.tile.tile_name)}`}
-      </button>`
+    ? renderContextTravelPaymentActions(option, paymentOptions)
     : `<button
         class="map-context-action${option.blockedReason ? " is-blocked" : ""}"
         data-context-place-tile-id="${escapeHtml(option.tile.tile_id)}"
@@ -1949,8 +2012,8 @@ function renderContextPlacementOptionDetails(option, { travelPreview = false } =
         data-context-place-discounts="${escapeHtml(option.placementCostReductionResources.join("|"))}"
         type="button"
         role="menuitem"
-        ${disabledAttribute}
-        ${titleAttribute}
+        ${option.blockedReason ? "disabled" : ""}
+        ${option.blockedReason ? `title="${escapeHtml(option.blockedReason)}"` : ""}
       >
         ${option.blockedReason ? "Needs More Actions" : pairedStables ? "Choose First Stables Site" : `Place ${escapeHtml(option.tile.tile_name)}`}
       </button>`;
@@ -1993,7 +2056,10 @@ function renderContextTravelPlacementOptions(options) {
       const option = getPreferredContextPlacementOption(tileOptions);
       const needsPreview = Number(option.tile.size_hexes ?? 1) > 1 && !isStablesTile(option.tile);
 
-      return renderContextPlacementOptionDetails(option, { travelPreview: needsPreview });
+      return renderContextPlacementOptionDetails(option, {
+        travelPreview: needsPreview,
+        paymentOptions: tileOptions
+      });
     })
     .join("");
 }
@@ -2186,34 +2252,53 @@ function getMapContextMenuPosition({ x, y, placedTile, upgradeTile }) {
   };
 }
 
+function getPendingPlacementFootprintCoordinates(tile) {
+  if (!tile || state.pendingPlacementPreview?.tileId !== tile.tile_id) {
+    return [];
+  }
+
+  return (
+    getFootprintCoordinates(
+      state.pendingPlacementPreview.coordinate,
+      tile.size_hexes,
+      state.selectedOrientation,
+      state.game?.map?.hexes ?? []
+    ) ?? [state.pendingPlacementPreview.coordinate]
+  );
+}
+
 function isPendingTravelPlacementPreview(tile, coordinate) {
   return (
     Boolean(tile) &&
     tile.tile_category === "Travel" &&
     state.pendingPlacementPreview?.tileId === tile.tile_id &&
-    state.pendingPlacementPreview?.coordinate === coordinate
+    getPendingPlacementFootprintCoordinates(tile).includes(coordinate)
   );
 }
 
 function renderPendingTravelPlacementMenu(tile) {
+  const paymentText = hasResourceCostChoices(tile.place_cost)
+    ? ` Payment: ${renderCost(parseResourceCostForDisplay(tile.place_cost, getPlacementCostChoiceAction(tile.tile_id, tile.place_cost)).cost)}.`
+    : "";
+
   return `
     <p class="context-empty-note">
-      ${escapeHtml(`${tile.tile_name} is selected for preview. Rotate if needed, then place it here or cancel.`)}
+      ${escapeHtml(`${tile.tile_name} is laid down for review.${paymentText} Rotate, confirm, or cancel.`)}
     </p>
   `;
 }
 
 function renderPendingTravelPlacementActions(tile, { canPlace = false, canRotate = false } = {}) {
   return `
-    <div class="map-context-preview-actions" aria-label="${escapeHtml(`${tile?.tile_name ?? "Tile"} preview actions`)}">
+    <div class="map-context-preview-actions" aria-label="${escapeHtml(`${tile?.tile_name ?? "Tile"} placement actions`)}">
       <button class="map-context-action" data-context-action="place" type="button" role="menuitem" ${canPlace ? "" : "disabled"}>
-        Place Preview
+        Confirm Placement
       </button>
       <button class="map-context-action" data-context-action="rotate" type="button" role="menuitem" ${canRotate ? "" : "disabled"}>
-        Rotate Preview
+        Rotate Shape
       </button>
       <button class="map-context-action" data-context-action="cancel-preview" type="button" role="menuitem">
-        Cancel Preview
+        Cancel Placement
       </button>
     </div>
   `;
@@ -2340,7 +2425,7 @@ function renderMapContextLayer(game, tileIndex) {
             ${
               !pendingTravelPreview && canRotatePreview
                 ? `<button class="map-context-action" data-context-action="rotate" type="button" role="menuitem">
-                    Rotate Multihex Preview
+                    Rotate Shape
                   </button>`
                 : ""
             }
@@ -6708,16 +6793,16 @@ function getCurrentActionState(game, tileIndex, encounterIndex) {
     return {
       tone: "active",
       label: "Placement",
-      title: `${selectedPlacementTile.tile_name} preview active`,
+      title: `${selectedPlacementTile.tile_name} placement ready`,
       detail: canRotate
-        ? "Use Rotate if needed, then press Place Tile or click the preview hex. Cancel clears the preview."
-        : "Left-click the preview hex to place it, or cancel if the player changes their mind.",
+        ? "Confirm payment, adjust the shape if needed, then press Place Tile. Cancel clears the placement."
+        : "Press Place Tile, or cancel if the player changes their mind.",
       actions: [
         { action: "place-placement-preview", label: "Place Tile", style: "primary" },
         canRotate
-          ? { action: "rotate-placement-preview", label: "Rotate", style: "secondary" }
+          ? { action: "rotate-placement-preview", label: "Rotate Shape", style: "secondary" }
           : null,
-        { action: "cancel-placement-preview", label: "Cancel Preview", style: "secondary" }
+        { action: "cancel-placement-preview", label: "Cancel Placement", style: "secondary" }
       ].filter(Boolean)
     };
   }
@@ -7656,12 +7741,16 @@ function renderResourceCostChoiceControls({ mode, targetId, costText, selectedCh
     return "";
   }
 
-  const className = mode === "upgrade" ? "upgrade-cost-choice-resource" : "placement-cost-choice-resource";
+  const className = mode === "upgrade" ? "upgrade-cost-choice-button" : "placement-cost-choice-button";
   const dataAttribute =
     mode === "upgrade"
       ? `data-placed-tile-id="${escapeHtml(targetId)}"`
       : `data-tile-id="${escapeHtml(targetId)}"`;
-  const title = mode === "upgrade" ? "Choose upgrade cost" : "Choose placement cost";
+  const title = mode === "upgrade" ? "Choose upgrade payment" : "1. Choose payment";
+  const helperText =
+    mode === "upgrade"
+      ? "Pick what the Warehouse will spend before upgrading."
+      : "Pick what the Warehouse will spend before choosing the final hex.";
 
   return `
     <div class="placement-choice-panel is-ready" aria-label="${escapeHtml(title)}">
@@ -7669,19 +7758,29 @@ function renderResourceCostChoiceControls({ mode, targetId, costText, selectedCh
         <span>${escapeHtml(title)}</span>
         <strong>${escapeHtml(formatResourceCostOptionsForDisplay(costText) ?? formatRawCostText(costText))}</strong>
       </header>
-      <p>Select which resource the Warehouse will spend. Discounts apply after this choice.</p>
-      <div class="burden-payment-grid cost-choice-grid">
+      <p>${escapeHtml(helperText)} Discounts apply after this choice.</p>
+      <div class="cost-choice-grid">
         ${groups
           .map(
             (group, index) => `
-              <select class="${className}" ${dataAttribute} data-choice-index="${index}" aria-label="${escapeHtml(`${title} ${index + 1}`)}">
+              <div class="cost-choice-group" role="group" aria-label="${escapeHtml(`${title} ${index + 1}`)}">
                 ${group.options
                   .map(
-                    (option) =>
-                      `<option value="${escapeHtml(option.resource)}" ${option.resource === selectedChoices[index] ? "selected" : ""}>${escapeHtml(formatResourceCostOption(option))}</option>`
+                    (option) => `
+                      <button
+                        class="cost-choice-button ${className}${option.resource === selectedChoices[index] ? " is-selected" : ""}"
+                        ${dataAttribute}
+                        data-choice-index="${index}"
+                        data-choice-resource="${escapeHtml(option.resource)}"
+                        type="button"
+                        aria-pressed="${option.resource === selectedChoices[index] ? "true" : "false"}"
+                      >
+                        ${escapeHtml(`Pay ${formatResourceCostOption(option)}`)}
+                      </button>
+                    `
                   )
                   .join("")}
-              </select>
+              </div>
             `
           )
           .join("")}
@@ -8870,6 +8969,7 @@ function renderSelectedTilePlacementControls({
   const pendingPair =
     state.pendingPairedPlacement?.tileId === selectedTile.tile_id;
   const stablesTile = isStablesTile(selectedTile);
+  const useContextPaymentFlow = isMultihex && hasResourceCostChoices(selectedTile.place_cost);
   const previewCost = getCostAfterSelectedResourceDiscount(
     cost,
     placementResourceDiscount,
@@ -8877,7 +8977,12 @@ function renderSelectedTilePlacementControls({
   );
   const visibleCost = resourceCostSubstitution?.cost ?? displayCost ?? previewCost;
   const discountReady = placementCostDiscountChoices.every(Boolean);
-  const placeButtonLabel = !discountReady
+  const canSubmitPlacement = canPlace && !(useContextPaymentFlow && !pendingPreview);
+  const placeButtonLabel = useContextPaymentFlow && !pendingPreview
+    ? "Right-click a map hex to choose payment"
+    : pendingPreview
+      ? `Confirm for ${renderActionCountLabel(displayedActionCost)}, pay ${renderCost(visibleCost)}`
+      : !discountReady
     ? "Choose discount resource to continue"
     : blockedReason && !canPlace
       ? blockedReason
@@ -8892,12 +8997,15 @@ function renderSelectedTilePlacementControls({
     providers: placementStewardPowerProviders,
     selectedId: selectedPlacementStewardPowerId
   });
-  const costChoiceControls = renderResourceCostChoiceControls({
-    mode: "placement",
-    targetId: selectedTile.tile_id,
-    costText: selectedTile.place_cost,
-    selectedChoices: placementCostChoiceResources
-  });
+  const costChoiceControls = useContextPaymentFlow
+    ? ""
+    : renderResourceCostChoiceControls({
+        mode: "placement",
+        targetId: selectedTile.tile_id,
+        costText: selectedTile.place_cost,
+        selectedChoices: placementCostChoiceResources
+      });
+  const hasPaymentChoice = Boolean(costChoiceControls);
   const discountControls = renderPlacementCostDiscountChoices(selectedTile, cost, placementResourceDiscount);
   const selectedTileIndex = state.data?.tiles ? createTileIndex(state.data.tiles) : new Map();
   const selectedUpgradeTile = findUpgradeTile(selectedTile, selectedTileIndex);
@@ -8912,29 +9020,32 @@ function renderSelectedTilePlacementControls({
         pendingPair
           ? `<p class="placement-guidance">First Stables site is ${escapeHtml(state.pendingPairedPlacement.coordinate)}. Select the second land hex, then place both for one action.</p>`
           : pendingPreview
-          ? `<p class="placement-guidance">Preview armed on the map. Rotate here if needed, then press Place Tile or click the preview hex.</p>`
+          ? `<p class="placement-guidance">Tile laid down for review. Right-click the tile footprint to rotate, confirm, or cancel.</p>`
           : stablesTile
             ? `<p class="placement-guidance">Stables place as two single-hex tiles in one action. Choose the first site, then the second site.</p>`
+            : useContextPaymentFlow
+              ? `<p class="placement-guidance">Right-click a legal map hex and choose the payment. The tile will be laid down for review before it is confirmed.</p>`
             : isMultihex
-              ? `<p class="placement-guidance">Use Rotate, then Place Tile. You can also right-click a legal hex to preview this tile there first.</p>`
+              ? `<p class="placement-guidance">${hasPaymentChoice ? "Choose payment first, then " : ""}select a map hex for the anchor, choose the shape direction, and place the tile.</p>`
               : `<p class="placement-guidance">Select a map hex, then Place Tile. Single-hex tiles do not need rotation.</p>`
       }
+      ${costChoiceControls}
       ${
         isMultihex
           ? `<div class="placement-rotation-row">
               <label class="stacked-field compact-field">
-                <span>Rotation</span>
-                <select id="tile-orientation" aria-label="Tile rotation">
+                <span>Shape</span>
+                <select id="tile-orientation" aria-label="Tile shape direction">
                   ${HEX_DIRECTIONS.map(
                     (direction) =>
                       `<option value="${escapeHtml(direction.id)}" ${direction.id === state.selectedOrientation ? "selected" : ""}>${escapeHtml(direction.label)}</option>`
                   ).join("")}
                 </select>
               </label>
-              <button id="rotate-placement-preview" class="secondary-button compact-action" type="button">Rotate</button>
+              <button id="rotate-placement-preview" class="secondary-button compact-action" type="button">Rotate Shape</button>
               ${
                 pendingPreview
-                  ? `<button id="cancel-placement-preview" class="secondary-button compact-action" type="button">Cancel</button>`
+                  ? `<button id="cancel-placement-preview" class="secondary-button compact-action" type="button">Cancel Placement</button>`
                   : ""
               }
             </div>`
@@ -8958,10 +9069,9 @@ function renderSelectedTilePlacementControls({
       })}
       ${renderResourceCostSubstitutionNotice(resourceCostSubstitution)}
       ${renderStewardHouseUpgradePreview(selectedTile, selectedTileIndex)}
-      ${costChoiceControls}
       ${stewardPowerControls}
       ${discountControls}
-      <button id="place-tile" class="primary-button placement-submit-button" type="button" ${canPlace ? "" : "disabled"}>
+      <button id="place-tile" class="primary-button placement-submit-button" type="button" ${canSubmitPlacement ? "" : "disabled"}>
         ${escapeHtml(placeButtonLabel)}
       </button>
     </div>
@@ -9581,12 +9691,14 @@ function selectCoordinate(coordinate, options = {}) {
   renderApp();
 }
 
-function rotateSelectedPlacementTileAt(coordinate) {
+function rotateSelectedPlacementTileAt(coordinate, { keepContextMenu = false } = {}) {
   const tileIndex = createTileIndex(state.data.tiles);
   const selectedTile = getSelectedPlacementTile(tileIndex);
 
   state.selectedCoordinate = coordinate;
-  state.contextMenu = null;
+  if (!keepContextMenu) {
+    state.contextMenu = null;
+  }
   state.seedContextMenu = null;
   if (state.pendingPlacementPreview?.tileId === selectedTile?.tile_id) {
     state.pendingPlacementPreview = {
@@ -9604,7 +9716,7 @@ function rotateSelectedPlacementTileAt(coordinate) {
   state.lastActionResult = {
     ok: true,
     action: "ROTATE_TILE_PREVIEW",
-    message: `${selectedTile.tile_name} preview rotated to ${getOrientationLabel(state.selectedOrientation)} at ${coordinate}.`
+    message: `${selectedTile.tile_name} shape set to ${getOrientationLabel(state.selectedOrientation)} at ${coordinate}.`
   };
   renderApp();
 }
@@ -9613,20 +9725,14 @@ function openMapContextMenu(event, coordinate) {
   const placedTile = getPlacedTileAt(state.game, coordinate);
   const tileIndex = createTileIndex(state.data.tiles);
   const selectedTile = getSelectedPlacementTile(tileIndex);
-  const shouldRotatePendingPreview =
-    !placedTile &&
-    state.pendingPlacementPreview?.coordinate === coordinate &&
-    state.pendingPlacementPreview?.tileId === selectedTile?.tile_id &&
-    selectedPlacementTileCanRotate(tileIndex);
+  const pendingContextCoordinate =
+    !placedTile && isPendingTravelPlacementPreview(selectedTile, coordinate)
+      ? state.pendingPlacementPreview.coordinate
+      : coordinate;
 
   event.preventDefault();
 
-  if (shouldRotatePendingPreview) {
-    rotateSelectedPlacementTileAt(coordinate);
-    return;
-  }
-
-  state.selectedCoordinate = coordinate;
+  state.selectedCoordinate = pendingContextCoordinate;
   state.seedContextMenu = null;
 
   if (placedTile) {
@@ -9643,7 +9749,7 @@ function openMapContextMenu(event, coordinate) {
   state.contextMenu = {
     x: event.clientX,
     y: event.clientY,
-    coordinate,
+    coordinate: pendingContextCoordinate,
     placedTileId: null
   };
   renderApp();
@@ -10179,17 +10285,26 @@ function selectTilePreviewFromContext(
   coordinate,
   orientation,
   placementCostReductionResources = [],
-  placementCostChoiceResources = []
+  placementCostChoiceResources = [],
+  menuPosition = null
 ) {
   const tile = state.data.tiles.find((candidate) => candidate.tile_id === tileId);
   const placementCostDiscounts = { ...state.placementCostDiscounts };
   const placementCostChoices = { ...state.placementCostChoices };
+  const nextContextMenu = menuPosition
+    ? {
+        x: menuPosition.x,
+        y: menuPosition.y,
+        coordinate,
+        placedTileId: null
+      }
+    : null;
 
   state.selectedTileId = tileId;
   state.selectedCoordinate = coordinate;
   state.selectedOrientation = orientation || HEX_DIRECTIONS[0].id;
   state.stewardPlacementPowerId = "";
-  state.contextMenu = null;
+  state.contextMenu = nextContextMenu;
   state.seedContextMenu = null;
   state.pendingPlacementPreview = {
     tileId,
@@ -10220,13 +10335,13 @@ function selectTilePreviewFromContext(
   state.lastActionResult = {
     ok: true,
     action: "SELECT_TILE_PREVIEW",
-    message: `${tile?.tile_name ?? "Tile"} preview selected at ${coordinate}. Rotate or cancel in the Current Action panel, then left-click the preview hex or press Place.`
+    message: `${tile?.tile_name ?? "Tile"} laid down at ${coordinate}. Right-click the tile footprint to rotate, confirm, or cancel.`
   };
   renderApp();
 }
 
 function cancelPendingPlacementPreview() {
-  const message = state.pendingPairedPlacement ? "Stables placement cancelled." : "Tile placement preview cancelled.";
+  const message = state.pendingPairedPlacement ? "Stables placement cancelled." : "Tile placement cancelled.";
 
   if (clearTransientActionState({ message })) {
     renderApp();
@@ -10271,7 +10386,9 @@ function runMapContextAction(actionName) {
   }
 
   if (actionName === "rotate") {
-    rotateSelectedPlacementTileAt(state.contextMenu?.coordinate ?? state.selectedCoordinate);
+    rotateSelectedPlacementTileAt(state.contextMenu?.coordinate ?? state.selectedCoordinate, {
+      keepContextMenu: true
+    });
     return;
   }
 
@@ -10616,7 +10733,7 @@ function bindEvents() {
   });
 
   root.querySelectorAll("[data-context-select-tile-id]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
       const costChoiceResources = (button.dataset.contextSelectCostChoices ?? "").split("|").filter(Boolean);
       const discountResources = (button.dataset.contextSelectDiscounts ?? "").split("|").filter(Boolean);
 
@@ -10625,7 +10742,8 @@ function bindEvents() {
         button.dataset.contextSelectCoordinate,
         button.dataset.contextSelectOrientation,
         discountResources,
-        costChoiceResources
+        costChoiceResources,
+        { x: event.clientX, y: event.clientY }
       );
     });
   });
@@ -11434,6 +11552,20 @@ function bindEvents() {
     });
   });
 
+  root.querySelectorAll(".upgrade-cost-choice-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const placedTileId = button.dataset.placedTileId;
+      const index = Number(button.dataset.choiceIndex);
+      const choices = [...(state.upgradeCostChoices[placedTileId] ?? [])];
+      choices[index] = button.dataset.choiceResource;
+      state.upgradeCostChoices = {
+        ...state.upgradeCostChoices,
+        [placedTileId]: choices
+      };
+      renderApp();
+    });
+  });
+
   root.querySelectorAll(".placement-cost-choice-resource").forEach((select) => {
     select.addEventListener("change", () => {
       rememberTileTrayScroll();
@@ -11441,6 +11573,21 @@ function bindEvents() {
       const index = Number(select.dataset.choiceIndex);
       const choices = [...(state.placementCostChoices[tileId] ?? [])];
       choices[index] = select.value;
+      state.placementCostChoices = {
+        ...state.placementCostChoices,
+        [tileId]: choices
+      };
+      renderApp();
+    });
+  });
+
+  root.querySelectorAll(".placement-cost-choice-button").forEach((button) => {
+    button.addEventListener("click", () => {
+      rememberTileTrayScroll();
+      const tileId = button.dataset.tileId;
+      const index = Number(button.dataset.choiceIndex);
+      const choices = [...(state.placementCostChoices[tileId] ?? [])];
+      choices[index] = button.dataset.choiceResource;
       state.placementCostChoices = {
         ...state.placementCostChoices,
         [tileId]: choices
