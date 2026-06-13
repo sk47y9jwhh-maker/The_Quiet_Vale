@@ -213,9 +213,15 @@ const TABLE_WORKSPACES = Object.freeze({
 });
 
 const TABLE_WORKSPACE_LABELS = Object.freeze({
-  [TABLE_WORKSPACES.ENCOUNTERS]: "Encounters",
-  [TABLE_WORKSPACES.TILES]: "Tiles",
+  [TABLE_WORKSPACES.ENCOUNTERS]: "Stewards Board",
+  [TABLE_WORKSPACES.TILES]: "Tile Tray",
   [TABLE_WORKSPACES.STEWARDS]: "Stewards"
+});
+
+const TABLE_WORKSPACE_DETAILS = Object.freeze({
+  [TABLE_WORKSPACES.ENCOUNTERS]: "Reveal, resolve, and review Encounter cards.",
+  [TABLE_WORKSPACES.TILES]: "Choose tiles, inspect effects, and build the settlement.",
+  [TABLE_WORKSPACES.STEWARDS]: "Use powers, track tokens, and review bonuses."
 });
 
 const HEADER_MENUS = Object.freeze({
@@ -7616,6 +7622,7 @@ function renderTableWorkspaceTabs(game, tileIndex) {
             >
               <span>${escapeHtml(TABLE_WORKSPACE_LABELS[workspace])}</span>
               <strong>${escapeHtml(getTableWorkspaceBadge(workspace, game, tileIndex))}</strong>
+              <small>${escapeHtml(TABLE_WORKSPACE_DETAILS[workspace])}</small>
             </button>
           `;
         })
@@ -7661,8 +7668,9 @@ function renderTableWorkspace(game, tileIndex, encounterIndex) {
     <section id="table-workspace" class="table-workspace is-${escapeHtml(activeWorkspace)}" aria-label="Main table workspace">
       <header class="table-workspace-header">
         <div>
-          <p class="eyebrow">Table Workspace</p>
+          <p class="eyebrow">Play Area</p>
           <h2>${escapeHtml(TABLE_WORKSPACE_LABELS[activeWorkspace])}</h2>
+          <p class="workspace-summary">${escapeHtml(TABLE_WORKSPACE_DETAILS[activeWorkspace])}</p>
         </div>
         ${renderTableWorkspaceTabs(game, tileIndex)}
       </header>
@@ -8948,7 +8956,7 @@ function renderStewardHouseSetupPlacementPanel(game, tileIndex, encounterIndex, 
   return `
     <section id="placement-panel" class="state-panel placement-panel tile-console-panel">
       <header class="tile-console-header">
-        <h2>Tiles</h2>
+        <h2>Token Setup</h2>
         <span>Setup</span>
       </header>
       <p class="phase-note opening-note">${escapeHtml(`${formatPlayerName(activePlayer)} places their ${pending.role.name} token for free. Click a highlighted token hex.`)}</p>
@@ -9078,7 +9086,7 @@ function renderTilePlacementPanel(game, tileIndex, encounterIndex) {
   return `
     <section id="placement-panel" class="state-panel placement-panel tile-console-panel">
       <header class="tile-console-header">
-        <h2>Tiles</h2>
+        <h2>Tile Tray</h2>
         <span>${escapeHtml(activePlayer ? `${activePlayer.actionsRemaining}/${game.rules.actionsPerPlayer} Actions` : "No active Steward")}</span>
       </header>
       ${openingRequirement ? `<p class="phase-note opening-note">${escapeHtml(`Opening move required: ${openingRequirement.summary}.`)}</p>` : ""}
