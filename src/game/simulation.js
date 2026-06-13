@@ -115,20 +115,20 @@ const HUMAN_PLAYTESTER_PRIORITIES = Object.freeze({
     "resolve_burden",
     "burden_utility",
     "complete_arrival",
-    "arrival_utility",
     "remove_strain",
     "discounted_place",
     "discounted_upgrade",
     "place_resource",
     "upgrade_resource",
     "produce",
+    "place_housing",
+    "upgrade_housing",
     "place_utility",
+    "arrival_utility",
     "utility",
     "place_special",
     "upgrade_utility",
     "steward_exchange",
-    "place_housing",
-    "upgrade_housing",
     "place",
     "upgrade"
   ]),
@@ -137,20 +137,20 @@ const HUMAN_PLAYTESTER_PRIORITIES = Object.freeze({
     "resolve_burden",
     "burden_utility",
     "complete_arrival",
-    "arrival_utility",
     "remove_strain",
     "discounted_place",
     "discounted_upgrade",
+    "place_housing",
+    "upgrade_housing",
     "upgrade_resource",
     "place_special",
-    "place_utility",
-    "utility",
     "produce",
+    "place_utility",
+    "arrival_utility",
+    "utility",
     "place_resource",
     "upgrade_utility",
     "steward_exchange",
-    "place_housing",
-    "upgrade_housing",
     "place",
     "upgrade"
   ]),
@@ -159,16 +159,16 @@ const HUMAN_PLAYTESTER_PRIORITIES = Object.freeze({
     "burden_utility",
     "suppress_burden",
     "complete_arrival",
-    "arrival_utility",
     "remove_strain",
     "discounted_place",
     "discounted_upgrade",
     "place_housing",
     "upgrade_housing",
+    "upgrade_utility",
+    "arrival_utility",
     "produce",
     "steward_exchange",
     "upgrade_resource",
-    "upgrade_utility",
     "upgrade",
     "utility",
     "place_resource",
@@ -534,6 +534,11 @@ function countMissingResources(warehouse, cost) {
   );
 }
 
+function getRequiredHousingCount(requirementText) {
+  const match = /^Have at least (\d+) Housing Tiles?/i.exec(String(requirementText ?? ""));
+  return match ? Number(match[1]) : 0;
+}
+
 function getBoonSeedValue(card, state) {
   const effectText = String(getEncounterSeasonEffect(card, state.season) ?? "");
   let value = 42;
@@ -665,7 +670,7 @@ function getBalancedTileValue(tile) {
   const category = tile.tile_category;
 
   if (category === "Housing") {
-    value += 1800;
+    value += 2400;
   }
 
   if (category === "Special") {
@@ -693,7 +698,7 @@ function getBalancedTileValue(tile) {
   }
 
   if (activation?.type === "add_arrival_timer") {
-    value += 1050 + numberValue(activation.amount) * 120;
+    value += 360 + numberValue(activation.amount) * 80;
   }
 
   if (activation?.type === "remove_strain_adjacent") {
@@ -877,6 +882,53 @@ function isSpecialTile(tile) {
 
 function isUtilityTile(tile) {
   return UTILITY_TILE_CATEGORIES.has(tile?.tile_category) || isSpecialTile(tile);
+}
+
+function countPlacedTilesByCategory(state, context, category) {
+  return (state.map.placedTiles ?? []).filter((placedTile) => {
+    if (isOverstrainedPlacedTile(placedTile)) {
+      return false;
+    }
+
+    return context.tileIndex.get(placedTile.tileId)?.tile_category === category;
+  }).length;
+}
+
+function getMatureTravelTileLimit(state) {
+  return 4 + numberValue(state.playerCount) * 2;
+}
+
+function hasMatureTravelNetwork(state, context) {
+  return countPlacedTilesByCategory(state, context, "Travel") >= getMatureTravelTileLimit(state);
+}
+
+function isBridgePlacementTile(tile) {
+  return /bridge/i.test(String(tile?.tile_name ?? "")) ||
+    /Water terrain|River hex/i.test(String(tile?.placement_rules ?? ""));
+}
+
+function shouldPlaceTravelTileForSeason(state, tile, context) {
+  if (tile?.tile_category !== "Travel") {
+    return true;
+  }
+
+  return isBridgePlacementTile(tile) || isSpecialTile(tile) || !hasMatureTravelNetwork(state, context);
+}
+
+function isUtilityPlacementTileForState(state, tile, context) {
+  if (!isUtilityTile(tile)) {
+    return false;
+  }
+
+  return shouldPlaceTravelTileForSeason(state, tile, context);
+}
+
+function isLateGameDiscountPlacementTile(state, tile, context) {
+  if (!shouldPlaceTravelTileForSeason(state, tile, context)) {
+    return false;
+  }
+
+  return isHousingTile(tile) || isResourceTile(tile) || isSpecialTile(tile) || isUtilityTile(tile);
 }
 
 function hasUsableDiscountRoundEffect(state) {
@@ -1282,7 +1334,7 @@ function getUpgradeCandidateValue(placedTile, tileIndex, context) {
     Social: 260,
     Crafting: 220,
     Merchant: 180,
-    Travel: 140
+    Travel: 520
   }[upgradeTile.tile_category] ?? 0;
 
   return balancedGain + scoreGain * 420 + productionGain * 0.65 + categoryBonus - upgradeCost * 65;
@@ -1799,6 +1851,41 @@ function buildProductionCandidates(state, profile, context) {
     .map((candidate) => candidate.action);
 }
 
+function getArrivalTimerCandidateValue(state, activeArrival, context) {
+  const encounterIndex = getEncounterIndex(context.encounterCards ?? []);
+  const card = encounterIndex.get(activeArrival.cardId);
+
+  if (!card) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const timerTokens = numberValue(activeArrival.timerTokens ?? state.rules.arrivalStartTimerTokens);
+  const resourceCost = parseSeedResourceCost(card.requirement, state.rules.resources);
+  const missingResources = countMissingResources(state.warehouse, resourceCost);
+  const requiredHousing = getRequiredHousingCount(card.requirement);
+  const missingHousing = Math.max(0, requiredHousing - countPlacedTilesByCategory(state, context, "Housing"));
+  const missingScore = missingResources + missingHousing * 4;
+  const playerCount = Math.max(1, numberValue(state.playerCount));
+  const seasonLimit = {
+    I: 6 + playerCount,
+    II: 4 + playerCount,
+    III: 2 + Math.ceil(playerCount / 2)
+  }[state.season] ?? 4;
+  const lateLimit = numberValue(state.round) >= 11 ? Math.max(1, Math.floor(playerCount / 2)) : seasonLimit;
+  const limit = numberValue(state.round) >= 10 && state.season === "III"
+    ? Math.min(seasonLimit, 1 + Math.ceil(playerCount / 2))
+    : lateLimit;
+
+  if (missingScore > limit) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const timerPressure = Math.max(0, (state.rules.arrivalTimerMax ?? 3) - timerTokens);
+  const rewardValue = /Special Tile|unlock|x\s*2/i.test(String(card.reward ?? "")) ? 90 : 40;
+
+  return rewardValue + timerPressure * 35 - missingScore * 80 - sumCost(resourceCost) * 4;
+}
+
 function buildUtilityActivationCandidates(state, profile, context, options = {}) {
   const tileIndex = context.tileIndex;
   const candidates = [];
@@ -1833,11 +1920,19 @@ function buildUtilityActivationCandidates(state, profile, context, options = {})
 
     if (activation.type === "add_arrival_timer") {
       const timerMax = state.rules.arrivalTimerMax ?? 3;
-      const activeArrivals = state.encounter.active.filter((active) => {
-        const timerTokens = numberValue(active.timerTokens ?? state.rules.arrivalStartTimerTokens);
+      const activeArrivals = state.encounter.active
+        .filter((active) => {
+          const timerTokens = numberValue(active.timerTokens ?? state.rules.arrivalStartTimerTokens);
 
-        return active.encounterType === ENCOUNTER_TYPES.ARRIVAL && !active.completed && timerTokens < timerMax;
-      });
+          return active.encounterType === ENCOUNTER_TYPES.ARRIVAL && !active.completed && timerTokens < timerMax;
+        })
+        .map((active) => ({
+          active,
+          value: getArrivalTimerCandidateValue(state, active, context)
+        }))
+        .filter((entry) => Number.isFinite(entry.value))
+        .sort((left, right) => right.value - left.value || left.active.id.localeCompare(right.active.id))
+        .map((entry) => entry.active);
 
       for (const activeArrival of activeArrivals) {
         candidates.push({
@@ -2295,6 +2390,7 @@ function buildPlacementCandidates(state, profile, context, options = {}) {
   };
   const tiles = getAvailablePlacementTiles(state, context)
     .filter(tileFilter)
+    .filter((tile) => shouldPlaceTravelTileForSeason(state, tile, context))
     .filter((tile) => shouldEvaluatePlacementTile(state, tile, context))
     .sort((left, right) => compareTilesForProfile(profile, left, right))
     .slice(0, profile.maxPlacementTilesConsidered ?? 12);
@@ -2422,7 +2518,12 @@ function buildActionCandidates(state, profile, context, priority) {
     steward_exchange: (currentState) => buildStewardExchangeCandidates(currentState, profile, context),
     discounted_place: (currentState) =>
       hasUsableDiscountRoundEffect(currentState)
-        ? buildPlacementCandidates(currentState, profile, context)
+        ? buildPlacementCandidates(currentState, profile, context, {
+            tileFilter: (tile) =>
+              currentState.season === "III"
+                ? isLateGameDiscountPlacementTile(currentState, tile, context)
+                : true
+          })
         : [],
     discounted_upgrade: (currentState) =>
       hasUsableDiscountRoundEffect(currentState)
@@ -2433,7 +2534,10 @@ function buildActionCandidates(state, profile, context, priority) {
     upgrade_resource: (currentState) =>
       buildUpgradeCandidates(currentState, profile, context, { tileFilter: isResourceTile }),
     place_utility: (currentState) =>
-      buildPlacementCandidates(currentState, profile, context, { tileFilter: isUtilityTile }),
+      buildPlacementCandidates(currentState, profile, context, {
+        tileFilter: (tile) =>
+          isUtilityPlacementTileForState(currentState, tile, context)
+      }),
     upgrade_utility: (currentState) =>
       buildUpgradeCandidates(currentState, profile, context, { tileFilter: isUtilityTile }),
     place_special: (currentState) =>

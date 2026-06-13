@@ -1,0 +1,15 @@
+The Quiet Vale automated playtester bot export
+Generated: 2026-06-13T19:02:26.287Z
+Bot: Playtester Bot
+Games: 80 total, 20 per player count for 1p, 2p, 3p, 4p
+Seed prefix: playtester-bot-balance-2026-06-13
+
+Files:
+- summary_by_player_count.csv: averages/min/max by player count
+- games_summary.csv: one row per completed game with extended balance metrics
+- rounds.csv: one row per round
+- production_activations.csv: one row per produced resource per activation
+- burdens_by_card.csv: one row per Burden card per game, including reveal, resolution, hit/miss, Strain, and payment metrics
+- action_log.csv: simplified action log rows
+- final_tiles.csv: final board tile rows
+- results.json: all exported rows in one JSON bundle
