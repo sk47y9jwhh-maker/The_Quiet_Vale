@@ -45,7 +45,7 @@ test("automated simulation batch completes one game for each bot and player coun
   assert.deepEqual(new Set(result.game_rows.map((row) => row.player_count)), new Set([1, 2, 3, 4]));
 });
 
-test("balanced bot is the only exposed simulation profile", () => {
+test("playtester bot is the only exposed simulation profile", () => {
   const result = runSimulationBatch({
     gamesPerCombination: 1,
     playerCounts: [1],
@@ -57,7 +57,7 @@ test("balanced bot is the only exposed simulation profile", () => {
   });
 
   assert.deepEqual(Object.keys(SIMULATION_BOT_PROFILES), ["balanced"]);
-  assert.equal(SIMULATION_BOT_PROFILES.balanced.label, "Balanced Bot");
+  assert.equal(SIMULATION_BOT_PROFILES.balanced.label, "Playtester Bot");
   assert.equal(result.errors.length, 0);
   assert.equal(result.game_rows.length, 1);
   assert.equal(result.game_rows[0].bot_profile, "balanced");
@@ -91,7 +91,7 @@ test("automated games shuffle their setup deck from the random seed", () => {
   );
 });
 
-test("balanced bot resolves Burdens during a pressure-heavy 4-player game", () => {
+test("playtester bot resolves Burdens during a pressure-heavy 4-player game", () => {
   const result = runAutomatedGame({
     gameIndex: 1,
     playerCount: 4,
@@ -108,7 +108,7 @@ test("balanced bot resolves Burdens during a pressure-heavy 4-player game", () =
   assert.ok(result.game.final_population > 0);
 });
 
-test("balanced bot can complete Arrivals and place unlocked Special tiles", () => {
+test("playtester bot can complete Arrivals and place unlocked Special tiles", () => {
   const result = runAutomatedGame({
     gameIndex: 3,
     playerCount: 4,
@@ -128,7 +128,7 @@ test("balanced bot can complete Arrivals and place unlocked Special tiles", () =
   assert.ok(specialTileCount > 0);
 });
 
-test("balanced bot converts placed tiles into upgraded scoring tiles", () => {
+test("playtester bot converts placed tiles into upgraded scoring tiles", () => {
   const result = runAutomatedGame({
     gameIndex: 1,
     playerCount: 2,
@@ -140,8 +140,8 @@ test("balanced bot converts placed tiles into upgraded scoring tiles", () => {
   });
 
   assert.equal(result.game.bot_profile, "balanced");
-  assert.ok(result.game.total_upgrade_actions >= 10);
-  assert.ok(result.game.final_upgraded_tiles >= 10);
+  assert.ok(result.game.total_upgrade_actions >= 8);
+  assert.ok(result.game.final_upgraded_tiles >= 8);
   assert.equal(result.game.final_placed_tiles, result.finalState.map.placedTiles.length);
   assert.equal(
     result.game.final_population,

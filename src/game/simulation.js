@@ -6,6 +6,8 @@ import { calculateScore } from "./scoring.js";
 import { ENCOUNTER_TYPES, GAME_PHASES, createInitialGameState } from "./setup.js";
 import { isSupportedPlacedTile } from "./strain.js";
 import {
+  STEWARD_POWER_TYPES,
+  getAvailableStewardPowerProviders,
   getPendingOpeningResourcePlacement,
   getPendingStewardHousePlacement,
   isStewardHousePlacementTerrainForRole
@@ -26,27 +28,17 @@ import {
 export const SIMULATION_BOT_PROFILES = Object.freeze({
   balanced: Object.freeze({
     id: "balanced",
-    label: "Balanced Bot",
+    label: "Playtester Bot",
     burdenCostLimit: 99,
     strainRemovalThreshold: 2,
     choicePressure: "pay_if_affordable",
     smartSeeding: true,
-    maxPlacementCandidates: 10,
-    maxPlacementTilesConsidered: 12,
+    maxPlacementCandidates: 16,
+    maxPlacementTilesConsidered: 24,
     maxPlacementCoordinateCandidates: 14,
-    maxPlacementsPerTile: 1,
-    maxUpgradeCandidates: 10,
-    priorities: [
-      "resolve_burden",
-      "burden_utility",
-      "complete_arrival",
-      "arrival_utility",
-      "remove_strain",
-      "upgrade",
-      "place",
-      "produce",
-      "utility"
-    ]
+    maxPlacementsPerTile: 2,
+    maxUpgradeCandidates: 16,
+    strategy: "human_playtester"
   })
 });
 
@@ -114,8 +106,87 @@ export const SIMULATION_ROUND_FIELDS = Object.freeze([
 ]);
 
 const TILE_CATEGORY_PRIORITY = Object.freeze({
-  balanced: Object.freeze(["Housing", "Special", "Wellbeing", "Social", "Resource", "Crafting", "Merchant", "Travel"])
+  balanced: Object.freeze(["Resource", "Special", "Travel", "Crafting", "Merchant", "Wellbeing", "Social", "Housing"])
 });
+
+const HUMAN_PLAYTESTER_PRIORITIES = Object.freeze({
+  I: Object.freeze([
+    "starting_exchange",
+    "resolve_burden",
+    "burden_utility",
+    "complete_arrival",
+    "arrival_utility",
+    "remove_strain",
+    "discounted_place",
+    "discounted_upgrade",
+    "place_resource",
+    "upgrade_resource",
+    "produce",
+    "place_utility",
+    "utility",
+    "place_special",
+    "upgrade_utility",
+    "steward_exchange",
+    "place_housing",
+    "upgrade_housing",
+    "place",
+    "upgrade"
+  ]),
+  II: Object.freeze([
+    "starting_exchange",
+    "resolve_burden",
+    "burden_utility",
+    "complete_arrival",
+    "arrival_utility",
+    "remove_strain",
+    "discounted_place",
+    "discounted_upgrade",
+    "upgrade_resource",
+    "place_special",
+    "place_utility",
+    "utility",
+    "produce",
+    "place_resource",
+    "upgrade_utility",
+    "steward_exchange",
+    "place_housing",
+    "upgrade_housing",
+    "place",
+    "upgrade"
+  ]),
+  III: Object.freeze([
+    "resolve_burden",
+    "burden_utility",
+    "suppress_burden",
+    "complete_arrival",
+    "arrival_utility",
+    "remove_strain",
+    "discounted_place",
+    "discounted_upgrade",
+    "place_housing",
+    "upgrade_housing",
+    "produce",
+    "steward_exchange",
+    "upgrade_resource",
+    "upgrade_utility",
+    "upgrade",
+    "utility",
+    "place_resource",
+    "place_special",
+    "place_utility"
+  ])
+});
+
+const UTILITY_TILE_CATEGORIES = new Set(["Special", "Travel", "Crafting", "Merchant", "Wellbeing", "Social"]);
+const DISCOUNT_ROUND_EFFECT_TYPES = new Set([
+  "free_tile_placement_cost",
+  "placement_resource_discount",
+  "tile_resource_discount",
+  "tile_action_discount",
+  "core_upgrade_discount",
+  "arrival_requirement_discount",
+  "burden_resolution_discount"
+]);
 
 const SCORE_RESOURCE_WEIGHTS = Object.freeze({
   Goods: 0.35,
@@ -726,6 +797,30 @@ function getScoreBotResourceNeeds(state, context) {
     }
   }
 
+  if (state.season === "III") {
+    const lateHousingGoals = getAvailablePlacementTiles(state, context)
+      .filter(isHousingTile)
+      .sort((left, right) => {
+        const scoreDifference = getScoreBotTileValue(right) - getScoreBotTileValue(left);
+
+        if (scoreDifference !== 0) {
+          return scoreDifference;
+        }
+
+        return sumCost(parseResourceCost(left.place_cost)) - sumCost(parseResourceCost(right.place_cost));
+      })
+      .slice(0, 6);
+
+    for (const tile of lateHousingGoals) {
+      for (const costEntry of parseResourceCost(tile.place_cost)) {
+        const available = numberValue(state.warehouse.resources[costEntry.resource]);
+        const missing = Math.max(0, numberValue(costEntry.amount) - available);
+
+        addResourceNeed(needs, costEntry.resource, (missing + numberValue(costEntry.amount) * 0.55) * 6);
+      }
+    }
+  }
+
   const upgradeTileGoals = state.map.placedTiles
     .filter((placedTile) => !isOverstrainedPlacedTile(placedTile))
     .map((placedTile) => {
@@ -758,6 +853,40 @@ function getScoreBotResourceNeeds(state, context) {
 
 function getResourceNeedValue(context, resource) {
   return context.scoreResourceNeeds?.get(resource) ?? SCORE_RESOURCE_WEIGHTS[resource] ?? 0.1;
+}
+
+function getPrioritiesForState(profile, state) {
+  if (profile.strategy === "human_playtester") {
+    return HUMAN_PLAYTESTER_PRIORITIES[state.season] ?? HUMAN_PLAYTESTER_PRIORITIES.I;
+  }
+
+  return profile.priorities ?? HUMAN_PLAYTESTER_PRIORITIES[state.season] ?? HUMAN_PLAYTESTER_PRIORITIES.I;
+}
+
+function isResourceTile(tile) {
+  return tile?.tile_category === "Resource";
+}
+
+function isHousingTile(tile) {
+  return tile?.tile_category === "Housing";
+}
+
+function isSpecialTile(tile) {
+  return tile?.tile_source_type === "Special" || tile?.tile_category === "Special";
+}
+
+function isUtilityTile(tile) {
+  return UTILITY_TILE_CATEGORIES.has(tile?.tile_category) || isSpecialTile(tile);
+}
+
+function hasUsableDiscountRoundEffect(state) {
+  return (state.encounter?.roundEffects ?? []).some((effect) => {
+    if (!DISCOUNT_ROUND_EFFECT_TYPES.has(effect.type)) {
+      return false;
+    }
+
+    return (effect.uses ?? 0) < (effect.maxUses ?? 1);
+  });
 }
 
 function getProductionPotentialValue(tile, context, multiplier = SCORE_BOT_WEIGHTS.resourceEngine) {
@@ -1206,6 +1335,95 @@ function getPendingBurdenResolutionDiscountEffect(state) {
   );
 }
 
+function uniqueStewardPowerProviders(providers) {
+  const seen = new Set();
+  return providers.filter((provider) => {
+    const providerId = provider?.placedTile?.id;
+
+    if (!providerId || seen.has(providerId)) {
+      return false;
+    }
+
+    seen.add(providerId);
+    return true;
+  });
+}
+
+function addStewardPowerActionVariants(action, providers = []) {
+  const poweredActions = uniqueStewardPowerProviders(providers).map((provider) => ({
+    ...action,
+    stewardPowerPlacedTileId: provider.placedTile.id
+  }));
+
+  return [...poweredActions, action];
+}
+
+function getPlacementStewardPowerProviders(state, tile, context) {
+  return uniqueStewardPowerProviders([
+    ...getAvailableStewardPowerProviders(
+      state,
+      context,
+      STEWARD_POWER_TYPES.FREE_PLACEMENT_ACTION,
+      (provider) => provider.details.categories.includes(tile.tile_category)
+    ),
+    ...getAvailableStewardPowerProviders(
+      state,
+      context,
+      STEWARD_POWER_TYPES.PLACEMENT_RESOURCE_DISCOUNT,
+      (provider) => provider.details.categories.includes(tile.tile_category)
+    ),
+    ...getAvailableStewardPowerProviders(
+      state,
+      context,
+      STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION
+    )
+  ]);
+}
+
+function getUpgradeStewardPowerProviders(state, upgradeTile, context) {
+  return uniqueStewardPowerProviders([
+    ...getAvailableStewardPowerProviders(
+      state,
+      context,
+      STEWARD_POWER_TYPES.FREE_CORE_UPGRADE_ACTION,
+      () => upgradeTile?.tile_source_type === "Core"
+    ),
+    ...getAvailableStewardPowerProviders(
+      state,
+      context,
+      STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION
+    )
+  ]);
+}
+
+function getStewardPowerVariantValue(provider, tile) {
+  if (!provider?.details) {
+    return 0;
+  }
+
+  if (provider.details.type === STEWARD_POWER_TYPES.FREE_PLACEMENT_ACTION) {
+    return 1050;
+  }
+
+  if (provider.details.type === STEWARD_POWER_TYPES.FREE_CORE_UPGRADE_ACTION) {
+    return 980;
+  }
+
+  if (provider.details.type === STEWARD_POWER_TYPES.PLACEMENT_RESOURCE_DISCOUNT) {
+    return numberValue(provider.details.amount) * 520 + (isResourceTile(tile) ? 160 : 0);
+  }
+
+  if (provider.details.type === STEWARD_POWER_TYPES.IGNORE_DISCONNECTED_TRAVEL_ACTION) {
+    return 260;
+  }
+
+  if (provider.details.type === STEWARD_POWER_TYPES.FREE_BURDEN_RESOLUTION_ACTION) {
+    return 1200;
+  }
+
+  return 0;
+}
+
 function chooseCostReductionResources(cost, discountEffect, context) {
   if (!discountEffect || cost.length === 0) {
     return [];
@@ -1318,6 +1536,123 @@ function resolvePendingBurdenChoices(state, profile, context, dispatchWithTeleme
   return workingState;
 }
 
+function getResourceNeedOrder(state, context, direction = "gain") {
+  const needs = getScoreBotResourceNeeds(state, context);
+
+  return [...state.rules.resources].sort((left, right) => {
+    const needDifference = (needs.get(right) ?? 0) - (needs.get(left) ?? 0);
+
+    if (needDifference !== 0) {
+      return direction === "gain" ? needDifference : -needDifference;
+    }
+
+    const amountDifference = numberValue(state.warehouse.resources[left]) - numberValue(state.warehouse.resources[right]);
+    return direction === "gain" ? amountDifference : -amountDifference;
+  });
+}
+
+function buildResourceExchangePaymentAndGains(state, context, maxAmount) {
+  const paymentResources = getResourceNeedOrder(state, context, "pay").filter(
+    (resource) => numberValue(state.warehouse.resources[resource]) > 0
+  );
+  const gainResources = getResourceNeedOrder(state, context, "gain").filter(
+    (resource) => numberValue(state.warehouse.resources[resource]) < state.warehouse.cap
+  );
+  const payment = [];
+  const gains = [];
+
+  for (const gainResource of gainResources) {
+    if (gains.length >= maxAmount) {
+      break;
+    }
+
+    const paymentResource = paymentResources.find(
+      (resource) =>
+        resource !== gainResource &&
+        numberValue(state.warehouse.resources[resource]) >
+          payment.filter((entry) => entry.resource === resource).reduce((total, entry) => total + entry.amount, 0)
+    );
+
+    if (!paymentResource) {
+      continue;
+    }
+
+    payment.push({ resource: paymentResource, amount: 1 });
+    gains.push({ resource: gainResource, amount: 1 });
+  }
+
+  return gains.length > 0 ? { payment: summarizePayment(payment), gains: summarizePayment(gains) } : null;
+}
+
+function buildQuartermasterStartingExchangeCandidates(state, profile, context) {
+  if (state.season !== "I" || state.phase === GAME_PHASES.PLACE_STEWARD_HOUSES) {
+    return [];
+  }
+
+  const quartermaster = state.players.find(
+    (player) => player.stewardRoleId === "quartermaster" && !player.stewardStartingBenefitUsed
+  );
+
+  if (!quartermaster) {
+    return [];
+  }
+
+  const exchange = buildResourceExchangePaymentAndGains(state, context, 2);
+
+  return exchange
+    ? [
+        {
+          type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+          stewardPowerType: STEWARD_POWER_TYPES.STARTING_RESOURCE_EXCHANGE,
+          playerId: quartermaster.id,
+          payment: exchange.payment,
+          gains: exchange.gains
+        }
+      ]
+    : [];
+}
+
+function buildStewardExchangeCandidates(state, profile, context) {
+  const providers = getAvailableStewardPowerProviders(state, context, STEWARD_POWER_TYPES.RESOURCE_EXCHANGE);
+  const candidates = [];
+
+  for (const provider of providers) {
+    const exchange = buildResourceExchangePaymentAndGains(state, context, provider.details.maxAmount ?? 3);
+
+    if (!exchange) {
+      continue;
+    }
+
+    candidates.push({
+      type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+      placedTileId: provider.placedTile.id,
+      payment: exchange.payment,
+      gains: exchange.gains
+    });
+  }
+
+  return candidates;
+}
+
+function buildSuppressBurdenCandidates(state, profile, context) {
+  const providers = getAvailableStewardPowerProviders(state, context, STEWARD_POWER_TYPES.SUPPRESS_BURDEN);
+  const activeBurdens = state.encounter.active.filter(
+    (active) =>
+      active.encounterType === ENCOUNTER_TYPES.BURDEN &&
+      !active.resolved &&
+      !active.suppressedByStewardPower
+  );
+
+  return providers.flatMap((provider) =>
+    activeBurdens.map((activeBurden) => ({
+      type: TILE_ACTION_TYPES.USE_STEWARD_POWER,
+      stewardPowerType: STEWARD_POWER_TYPES.SUPPRESS_BURDEN,
+      placedTileId: provider.placedTile.id,
+      activeEncounterId: activeBurden.id
+    }))
+  );
+}
+
 function buildCompleteArrivalCandidates(state) {
   return state.encounter.active
     .filter((active) => active.encounterType === ENCOUNTER_TYPES.ARRIVAL && !active.completed)
@@ -1334,6 +1669,11 @@ function buildResolveBurdenCandidates(state, profile, context) {
   );
   const candidates = [];
   const discountEffect = getPendingBurdenResolutionDiscountEffect(state);
+  const stewardPowerProviders = getAvailableStewardPowerProviders(
+    state,
+    context,
+    STEWARD_POWER_TYPES.FREE_BURDEN_RESOLUTION_ACTION
+  );
 
   for (const activeBurden of activeBurdens) {
     const card = encounterIndex.get(activeBurden.cardId);
@@ -1358,12 +1698,14 @@ function buildResolveBurdenCandidates(state, profile, context) {
       continue;
     }
 
-    candidates.push({
+    const action = {
       type: TILE_ACTION_TYPES.RESOLVE_BURDEN,
       activeEncounterId: activeBurden.id,
       payment,
       burdenResolutionReductionResources
-    });
+    };
+
+    candidates.push(...addStewardPowerActionVariants(action, stewardPowerProviders));
   }
 
   return candidates;
@@ -1422,6 +1764,7 @@ function buildRemoveStrainCandidates(state, profile, context) {
 function buildProductionCandidates(state, profile, context) {
   const tileIndex = context.tileIndex;
   const candidates = [];
+  const resourceNeeds = getScoreBotResourceNeeds(state, context);
 
   for (const placedTile of sortTilesForProfile(profile.id, tileIndex, state.map.placedTiles)) {
     const tile = tileIndex.get(placedTile.tileId);
@@ -1437,13 +1780,23 @@ function buildProductionCandidates(state, profile, context) {
 
     if (hasWarehouseSpace) {
       candidates.push({
-        type: TILE_ACTION_TYPES.ACTIVATE_TILE,
-        placedTileId: placedTile.id
+        action: {
+          type: TILE_ACTION_TYPES.ACTIVATE_TILE,
+          placedTileId: placedTile.id
+        },
+        value: activation.gains.reduce((total, gain) => {
+          const availableSpace = state.warehouse.cap - numberValue(state.warehouse.resources[gain.resource]);
+          const usefulAmount = Math.min(numberValue(gain.amount), Math.max(0, availableSpace));
+
+          return total + usefulAmount * (resourceNeeds.get(gain.resource) ?? SCORE_RESOURCE_WEIGHTS[gain.resource] ?? 0.1);
+        }, 0)
       });
     }
   }
 
-  return candidates;
+  return candidates
+    .sort((left, right) => right.value - left.value || left.action.placedTileId.localeCompare(right.action.placedTileId))
+    .map((candidate) => candidate.action);
 }
 
 function buildUtilityActivationCandidates(state, profile, context, options = {}) {
@@ -1672,6 +2025,8 @@ function getPlacementCoordinateCandidates(state, tile, context) {
   const categoryRules = {
     "Place adjacent to a Housing Tile.": ["Housing"],
     "Place adjacent to a Travel Tile.": ["Travel"],
+    "Place adjacent to a Travel Tile": ["Travel"],
+    "Place adjacent to Travel Tile": ["Travel"],
     "Place adjacent to a Social Tile.": ["Social"],
     "Place adjacent to a Merchant Tile.": ["Merchant"],
     "Place adjacent to a Wellbeing Tile.": ["Wellbeing"],
@@ -1679,10 +2034,14 @@ function getPlacementCoordinateCandidates(state, tile, context) {
   };
   const nameRules = {
     "Place adjacent to a Farm.": ["Farm"],
+    "Place adjacent to a Farmstead.": ["Farmstead", "Artisan Farmstead"],
     "Place adjacent to a Forest.": ["Forest"],
+    "Place adjacent to a Lumber Yard.": ["Lumber Yard", "Sustainable Lumber Yard"],
     "Place adjacent to a Mine.": ["Mine"],
+    "Place adjacent to a Mine Shaft tile.": ["Mine Shaft", "Deep Mine Shaft"],
     "Place adjacent to a Dig Site.": ["Dig Site"],
-    "Place adjacent to Wildlands.": ["Wildlands"]
+    "Place adjacent to Wildlands.": ["Wildlands"],
+    "Place adjacent to a Gatherers Lodge.": ["Gatherers Lodge", "Skilled Gatherers Lodge"]
   };
 
   if (terrainRules[rule]) {
@@ -1876,30 +2235,40 @@ function buildRankedPlacementCandidatesForTile(state, tile, context, options = {
               pairedOrientation: HEX_DIRECTIONS[0].id
             }
           : action;
-        const actionKey = [
-          candidateAction.tileId,
-          candidateAction.coordinate,
-          candidateAction.pairedCoordinate ?? "",
-          candidateAction.orientation,
-          candidateAction.placementCostReductionResource ?? ""
-        ].join("|");
+        const stewardPowerProviders = getPlacementStewardPowerProviders(state, tile, context);
+        const providerById = new Map(stewardPowerProviders.map((provider) => [provider.placedTile.id, provider]));
 
-        if (seen.has(actionKey)) {
-          continue;
+        for (const variantAction of addStewardPowerActionVariants(candidateAction, stewardPowerProviders)) {
+          const actionKey = [
+            variantAction.tileId,
+            variantAction.coordinate,
+            variantAction.pairedCoordinate ?? "",
+            variantAction.orientation,
+            variantAction.placementCostReductionResource ?? "",
+            variantAction.stewardPowerPlacedTileId ?? ""
+          ].join("|");
+
+          if (seen.has(actionKey)) {
+            continue;
+          }
+          seen.add(actionKey);
+
+          const validation = validatePlaceTile(state, variantAction, { ...context, tileIndex });
+
+          if (!validation.valid) {
+            continue;
+          }
+
+          const provider = providerById.get(variantAction.stewardPowerPlacedTileId);
+
+          ranked.push({
+            action: variantAction,
+            value:
+              getPlacementPositionValue(state, variantAction, validation, context) +
+              getStewardPowerVariantValue(provider, tile),
+            coordinateIndex
+          });
         }
-        seen.add(actionKey);
-
-        const validation = validatePlaceTile(state, candidateAction, { ...context, tileIndex });
-
-        if (!validation.valid) {
-          continue;
-        }
-
-        ranked.push({
-          action: candidateAction,
-          value: getPlacementPositionValue(state, candidateAction, validation, context),
-          coordinateIndex
-        });
       }
     }
   }
@@ -1915,15 +2284,17 @@ function buildRankedPlacementCandidatesForTile(state, tile, context, options = {
   );
 }
 
-function buildPlacementCandidates(state, profile, context) {
+function buildPlacementCandidates(state, profile, context, options = {}) {
   const candidates = [];
-  const maxCandidates = profile.maxPlacementCandidates ?? 8;
+  const maxCandidates = options.maxCandidates ?? profile.maxPlacementCandidates ?? 8;
   const maxPlacementsPerTile = profile.maxPlacementsPerTile ?? 1;
+  const tileFilter = options.tileFilter ?? (() => true);
   const placementContext = {
     ...context,
     maxPlacementCoordinateCandidates: profile.maxPlacementCoordinateCandidates
   };
   const tiles = getAvailablePlacementTiles(state, context)
+    .filter(tileFilter)
     .filter((tile) => shouldEvaluatePlacementTile(state, tile, context))
     .sort((left, right) => compareTilesForProfile(profile, left, right))
     .slice(0, profile.maxPlacementTilesConsidered ?? 12);
@@ -1986,10 +2357,11 @@ function buildStewardHouseSetupPlacementCandidates(state, context) {
     }));
 }
 
-function buildUpgradeCandidates(state, profile, context) {
+function buildUpgradeCandidates(state, profile, context, options = {}) {
   const tileIndex = context.tileIndex;
   const candidates = [];
-  const maxCandidates = profile.maxUpgradeCandidates ?? 8;
+  const maxCandidates = options.maxCandidates ?? profile.maxUpgradeCandidates ?? 8;
+  const tileFilter = options.tileFilter ?? (() => true);
 
   const upgradeTargets = state.map.placedTiles
     .map((placedTile, index) => ({
@@ -2004,21 +2376,25 @@ function buildUpgradeCandidates(state, profile, context) {
     const tile = tileIndex.get(placedTile.tileId);
     const upgradeTile = findUpgradeTile(tile, tileIndex);
 
-    if (!upgradeTile || isOverstrainedPlacedTile(placedTile)) {
+    if (!upgradeTile || isOverstrainedPlacedTile(placedTile) || !tileFilter(upgradeTile, tile, placedTile)) {
       continue;
     }
 
-    const action = {
+    const baseAction = {
       type: TILE_ACTION_TYPES.UPGRADE_TILE,
       placedTileId: placedTile.id
     };
-    const validation = validateUpgradeTile(state, action, context);
+    const stewardPowerProviders = getUpgradeStewardPowerProviders(state, upgradeTile, context);
 
-    if (validation.valid) {
-      candidates.push(action);
+    for (const action of addStewardPowerActionVariants(baseAction, stewardPowerProviders)) {
+      const validation = validateUpgradeTile(state, action, context);
 
-      if (candidates.length >= maxCandidates) {
-        return candidates;
+      if (validation.valid) {
+        candidates.push(action);
+
+        if (candidates.length >= maxCandidates) {
+          return candidates;
+        }
       }
     }
   }
@@ -2028,8 +2404,10 @@ function buildUpgradeCandidates(state, profile, context) {
 
 function buildActionCandidates(state, profile, context, priority) {
   const builders = {
+    starting_exchange: (currentState) => buildQuartermasterStartingExchangeCandidates(currentState, profile, context),
     complete_arrival: buildCompleteArrivalCandidates,
     resolve_burden: (currentState) => buildResolveBurdenCandidates(currentState, profile, context),
+    suppress_burden: (currentState) => buildSuppressBurdenCandidates(currentState, profile, context),
     burden_utility: (currentState) =>
       buildUtilityActivationCandidates(currentState, profile, context, { allowedTypes: ["resolve_active_burden"] }),
     arrival_utility: (currentState) =>
@@ -2040,6 +2418,30 @@ function buildActionCandidates(state, profile, context, priority) {
       buildUtilityActivationCandidates(currentState, profile, context, {
         allowedTypes: ["resource_exchange", "flexible_resource_exchange", "give_supported_adjacent"]
       }),
+    stewardship_exchange: (currentState) => buildStewardExchangeCandidates(currentState, profile, context),
+    steward_exchange: (currentState) => buildStewardExchangeCandidates(currentState, profile, context),
+    discounted_place: (currentState) =>
+      hasUsableDiscountRoundEffect(currentState)
+        ? buildPlacementCandidates(currentState, profile, context)
+        : [],
+    discounted_upgrade: (currentState) =>
+      hasUsableDiscountRoundEffect(currentState)
+        ? buildUpgradeCandidates(currentState, profile, context)
+        : [],
+    place_resource: (currentState) =>
+      buildPlacementCandidates(currentState, profile, context, { tileFilter: isResourceTile }),
+    upgrade_resource: (currentState) =>
+      buildUpgradeCandidates(currentState, profile, context, { tileFilter: isResourceTile }),
+    place_utility: (currentState) =>
+      buildPlacementCandidates(currentState, profile, context, { tileFilter: isUtilityTile }),
+    upgrade_utility: (currentState) =>
+      buildUpgradeCandidates(currentState, profile, context, { tileFilter: isUtilityTile }),
+    place_special: (currentState) =>
+      buildPlacementCandidates(currentState, profile, context, { tileFilter: isSpecialTile }),
+    place_housing: (currentState) =>
+      buildPlacementCandidates(currentState, profile, context, { tileFilter: isHousingTile }),
+    upgrade_housing: (currentState) =>
+      buildUpgradeCandidates(currentState, profile, context, { tileFilter: isHousingTile }),
     place: (currentState) => buildPlacementCandidates(currentState, profile, context),
     upgrade: (currentState) => buildUpgradeCandidates(currentState, profile, context)
   };
@@ -2162,7 +2564,9 @@ function estimateScoreCandidateValue(state, action, context, candidateIndex) {
 }
 
 function buildScoreOptimizedCandidates(state, profile, context) {
-  return profile.priorities.flatMap((priority) => buildActionCandidates(state, profile, context, priority));
+  return getPrioritiesForState(profile, state).flatMap((priority) =>
+    buildActionCandidates(state, profile, context, priority)
+  );
 }
 
 function tryScoreOptimizedAction(state, profile, context, dispatchWithTelemetry) {
@@ -2228,7 +2632,7 @@ function playActivePlayerTurn(state, profile, context, dispatchWithTelemetry) {
     if (profile.optimizeForScore) {
       outcome = tryScoreOptimizedAction(workingState, profile, context, dispatchWithTelemetry);
     } else {
-      for (const priority of profile.priorities) {
+      for (const priority of getPrioritiesForState(profile, workingState)) {
         const candidates = buildActionCandidates(workingState, profile, context, priority);
         outcome = tryActionCandidates(workingState, candidates, context, dispatchWithTelemetry);
 
@@ -2315,6 +2719,16 @@ export function runAutomatedGame({
     }
 
     if (state.phase === GAME_PHASES.SEED_ENCOUNTERS) {
+      const exchangeCandidates = buildQuartermasterStartingExchangeCandidates(state, profile, context);
+      const exchangeOutcome = exchangeCandidates.length
+        ? tryActionCandidates(state, exchangeCandidates, context, dispatchWithTelemetry)
+        : null;
+
+      if (exchangeOutcome) {
+        state = exchangeOutcome.state;
+        continue;
+      }
+
       const outcome = dispatchWithTelemetry(state, buildScoreSeedAction(state, profile, context), context);
       if (!outcome.result.ok) {
         throw new Error(outcome.result.errors.join(" "));
