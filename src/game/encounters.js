@@ -116,6 +116,13 @@ const SEASON_THREE_NO_ARRIVAL_FALLBACK_STRAIN_TARGET =
   /^If there are no active Arrivals in Season III, choose 1 (.+?) with fewer than 3 Strain and place 1 Strain on it instead\.$/i;
 const SEASON_THREE_NO_ARRIVAL_FALLBACK_STRAIN_SPREAD =
   /^If there are no active Arrivals in Season III, place (\d+) Strain on each of (\d+) (.+?) with fewer than 3 Strain\.$/i;
+const PLAYER_COUNT_CAPPED_BURDEN_TARGETS = new Set([
+  "burden_bare_walls",
+  "burden_return_to_the_trenches",
+  "burden_roads_too_far_from_home",
+  "burden_the_burden_of_command",
+  "burden_the_rot_within_the_vault"
+]);
 
 function normalizeV26GainText(gainText) {
   return String(gainText ?? "").replace(/\+(\d+) ([A-Za-z]+)/g, "$1 additional $2");
@@ -1616,9 +1623,14 @@ function applySeasonThreeFallbackStrainTarget(state, card, reason, context, effe
     return null;
   }
 
-  const target = getEligibleBurdenStrainTargets(state, context, (placedTile) =>
-    placedTileMatchesAnyCategory(context, placedTile, fallback.targetCategories)
-  ).slice(0, fallback.maxTargets ?? 1);
+  const target = limitBurdenTargets(
+    state,
+    card,
+    getEligibleBurdenStrainTargets(state, context, (placedTile) =>
+      placedTileMatchesAnyCategory(context, placedTile, fallback.targetCategories)
+    ),
+    fallback.maxTargets ?? 1
+  );
   const placement = target.length > 0
     ? applyStrainPlacementToTargets(state, target, context, fallbackReason, fallback.strainAmount ?? 1)
     : {
@@ -1638,6 +1650,7 @@ function applySeasonThreeFallbackStrainTarget(state, card, reason, context, effe
       fallbackTargetText: fallback.targetText,
       targetCategories: fallback.targetCategories,
       maxTargets: fallback.maxTargets ?? 1,
+      targetLimit: getBurdenTargetLimit(state, card, fallback.maxTargets ?? 1),
       strainAmount: fallback.strainAmount ?? 1
     },
     placement.applications,
@@ -1734,6 +1747,23 @@ function getEligibleBurdenStrainTargets(state, context, predicate) {
   return sortPlacedTilesById(
     state.map.placedTiles.filter((placedTile) => (placedTile.strain ?? 0) < 3 && predicate(placedTile))
   );
+}
+
+function getBurdenTargetLimit(state, card, requestedLimit = Number.POSITIVE_INFINITY) {
+  const printedLimit = Number.isFinite(requestedLimit) ? requestedLimit : Number.POSITIVE_INFINITY;
+
+  if (!PLAYER_COUNT_CAPPED_BURDEN_TARGETS.has(card?.card_id)) {
+    return printedLimit;
+  }
+
+  const playerCount = Number(state.playerCount ?? state.players?.length ?? 1);
+  const playerLimit = playerCount <= 2 ? 2 : 3;
+
+  return Math.min(printedLimit, playerLimit);
+}
+
+function limitBurdenTargets(state, card, targets, requestedLimit = Number.POSITIVE_INFINITY) {
+  return targets.slice(0, getBurdenTargetLimit(state, card, requestedLimit));
 }
 
 function getStewardOccupiedPlacedTiles(state) {
@@ -2069,7 +2099,7 @@ function resolveV28DirectCategoryBurden(state, card, reason, context, effectText
   const lossAmount = match[4] ? Number(match[4]) : 0;
   const lossResource = match[5] ?? null;
   const predicate = createBurdenTargetPredicate(context, targetText);
-  const targets = getEligibleBurdenStrainTargets(state, context, predicate).slice(0, maxTargets);
+  const targets = limitBurdenTargets(state, card, getEligibleBurdenStrainTargets(state, context, predicate), maxTargets);
   const placement = applyStrainPlacementToTargets(state, targets, context, "direct_category", strainAmount);
   const resourceLoss = lossResource ? loseWarehouseResourceIfAble(placement.state, lossResource, lossAmount) : null;
 
@@ -2081,6 +2111,7 @@ function resolveV28DirectCategoryBurden(state, card, reason, context, effectText
     {
       mode: "direct_category",
       maxTargets,
+      targetLimit: getBurdenTargetLimit(state, card, maxTargets),
       targetText,
       strainAmount,
       resourceLosses: resourceLoss ? [resourceLoss.loss] : []
@@ -2117,38 +2148,43 @@ function resolveV28AdjacentCategoryBurden(state, card, reason, context, effectTe
     : adjacentCategoryMatch
       ? "adjacent_category"
       : "not_adjacent_category";
-  const targets = getEligibleBurdenStrainTargets(state, context, (placedTile) => {
-    if (!targetPredicate(placedTile)) {
-      return false;
-    }
+  const targets = limitBurdenTargets(
+    state,
+    card,
+    getEligibleBurdenStrainTargets(state, context, (placedTile) => {
+      if (!targetPredicate(placedTile)) {
+        return false;
+      }
 
-    const adjacent = getAdjacentPlacedTiles(state, placedTile);
+      const adjacent = getAdjacentPlacedTiles(state, placedTile);
 
-    if (adjacentCountMatch) {
-      const comparator = adjacentCountMatch[3].toLowerCase();
-      const countTarget = Number(adjacentCountMatch[4]);
-      const relatedText = adjacentCountMatch[5];
-      const count = adjacent.filter((adjacentTile) => {
-        if (/placed/i.test(relatedText)) {
-          return true;
-        }
+      if (adjacentCountMatch) {
+        const comparator = adjacentCountMatch[3].toLowerCase();
+        const countTarget = Number(adjacentCountMatch[4]);
+        const relatedText = adjacentCountMatch[5];
+        const count = adjacent.filter((adjacentTile) => {
+          if (/placed/i.test(relatedText)) {
+            return true;
+          }
 
-        return placedTileMatchesCategory(context, adjacentTile, "Travel");
-      }).length;
+          return placedTileMatchesCategory(context, adjacentTile, "Travel");
+        }).length;
 
-      return comparator === "exactly" ? count === countTarget : count >= countTarget;
-    }
+        return comparator === "exactly" ? count === countTarget : count >= countTarget;
+      }
 
-    const relatedCategory = adjacentCategoryMatch?.[3] ?? notAdjacentMatch?.[3];
-    const requireStrained = Boolean(adjacentCategoryMatch?.[4]);
-    const hasRelatedNeighbor = adjacent.some(
-      (adjacentTile) =>
-        placedTileMatchesCategory(context, adjacentTile, relatedCategory) &&
-        (!requireStrained || (adjacentTile.strain ?? 0) > 0)
-    );
+      const relatedCategory = adjacentCategoryMatch?.[3] ?? notAdjacentMatch?.[3];
+      const requireStrained = Boolean(adjacentCategoryMatch?.[4]);
+      const hasRelatedNeighbor = adjacent.some(
+        (adjacentTile) =>
+          placedTileMatchesCategory(context, adjacentTile, relatedCategory) &&
+          (!requireStrained || (adjacentTile.strain ?? 0) > 0)
+      );
 
-    return notAdjacentMatch ? !hasRelatedNeighbor : hasRelatedNeighbor;
-  }).slice(0, maxTargets);
+      return notAdjacentMatch ? !hasRelatedNeighbor : hasRelatedNeighbor;
+    }),
+    maxTargets
+  );
   const placement = applyStrainPlacementToTargets(state, targets, context, mode, strainAmount);
 
   if (placement.applications.length === 0) {
@@ -2175,6 +2211,7 @@ function resolveV28AdjacentCategoryBurden(state, card, reason, context, effectTe
     {
       mode,
       maxTargets,
+      targetLimit: getBurdenTargetLimit(state, card, maxTargets),
       targetText,
       relatedCategory: adjacentCategoryMatch?.[3] ?? notAdjacentMatch?.[3] ?? adjacentCountMatch?.[5],
       strainAmount
@@ -2291,6 +2328,7 @@ function resolveBurdenStrainPlacementEffect(state, card, reason, context, effect
   const primaryAmount = Number(match[2]);
   const hasAdjacentTarget = Boolean(match[3]);
   const adjacentCategories = match[3] ? parseAdjacentTargetCategories(match[3]) : null;
+  const targetLimit = getBurdenTargetLimit(state, card);
   let workingState = state;
   const applications = [];
   const primaryTarget = getEligibleBurdenStrainTargets(workingState, context, (placedTile) =>
@@ -2305,7 +2343,7 @@ function resolveBurdenStrainPlacementEffect(state, card, reason, context, effect
       applications.push(primary.application);
     }
 
-    if (hasAdjacentTarget) {
+    if (hasAdjacentTarget && applications.length < targetLimit) {
       const updatedPrimaryTarget = workingState.map.placedTiles.find((tile) => tile.id === primaryTarget.id);
       const adjacentTarget = getAdjacentPlacedTiles(workingState, updatedPrimaryTarget).find(
         (placedTile) =>
@@ -2349,6 +2387,7 @@ function resolveBurdenStrainPlacementEffect(state, card, reason, context, effect
       primaryFamilyName: familyName,
       primaryAmount,
       hasAdjacentTarget,
+      targetLimit,
       adjacentCategories
     },
     applications,
@@ -2370,18 +2409,23 @@ function resolveCategoryBurdenStrainPlacementEffect(state, card, reason, context
   const maxTargets = Number(match[1]);
   const targetCategory = match[2];
   const relatedCategory = match[3];
-  const targets = getEligibleBurdenStrainTargets(state, context, (placedTile) => {
-    if (!placedTileMatchesCategory(context, placedTile, targetCategory)) {
-      return false;
-    }
+  const targets = limitBurdenTargets(
+    state,
+    card,
+    getEligibleBurdenStrainTargets(state, context, (placedTile) => {
+      if (!placedTileMatchesCategory(context, placedTile, targetCategory)) {
+        return false;
+      }
 
-    const relatedPredicate = (adjacentTile) =>
-      placedTileMatchesCategory(context, adjacentTile, relatedCategory) &&
-      (!adjacentStrainedMatch || (adjacentTile.strain ?? 0) > 0);
-    const hasRelatedNeighbor = hasAdjacentPlacedTile(state, placedTile, relatedPredicate);
+      const relatedPredicate = (adjacentTile) =>
+        placedTileMatchesCategory(context, adjacentTile, relatedCategory) &&
+        (!adjacentStrainedMatch || (adjacentTile.strain ?? 0) > 0);
+      const hasRelatedNeighbor = hasAdjacentPlacedTile(state, placedTile, relatedPredicate);
 
-    return notAdjacentMatch ? !hasRelatedNeighbor : hasRelatedNeighbor;
-  }).slice(0, maxTargets);
+      return notAdjacentMatch ? !hasRelatedNeighbor : hasRelatedNeighbor;
+    }),
+    maxTargets
+  );
   const placement = applyStrainPlacementToTargets(state, targets, context, mode);
 
   if (placement.applications.length === 0) {
@@ -2408,6 +2452,7 @@ function resolveCategoryBurdenStrainPlacementEffect(state, card, reason, context
     {
       mode,
       maxTargets,
+      targetLimit: getBurdenTargetLimit(state, card, maxTargets),
       targetCategory,
       relatedCategory
     },
@@ -2488,9 +2533,14 @@ function resolveDirectCategoryChoiceBurdenStrainPlacementEffect(state, card, rea
   const maxTargets = Number(match[1]);
   const targetCategories = [match[2], match[3]];
   const lossResource = match[4] ?? null;
-  const targets = getEligibleBurdenStrainTargets(state, context, (placedTile) =>
-    placedTileMatchesAnyCategory(context, placedTile, targetCategories)
-  ).slice(0, maxTargets);
+  const targets = limitBurdenTargets(
+    state,
+    card,
+    getEligibleBurdenStrainTargets(state, context, (placedTile) =>
+      placedTileMatchesAnyCategory(context, placedTile, targetCategories)
+    ),
+    maxTargets
+  );
   const placement = applyStrainPlacementToTargets(state, targets, context, "category_choice");
   const resourceLoss = lossResource ? loseWarehouseResourceIfAble(placement.state, lossResource, 1) : null;
 
@@ -2518,6 +2568,7 @@ function resolveDirectCategoryChoiceBurdenStrainPlacementEffect(state, card, rea
     {
       mode: "category_choice",
       maxTargets,
+      targetLimit: getBurdenTargetLimit(state, card, maxTargets),
       targetCategories,
       resourceLosses: resourceLoss ? [resourceLoss.loss] : []
     },
@@ -2544,9 +2595,14 @@ function createBurdenPayOrStrainChoiceEffect(state, card, reason, context, effec
     return null;
   }
 
-  const targets = getEligibleBurdenStrainTargets(state, context, (placedTile) =>
-    placedTileMatchesAnyCategory(context, placedTile, targetCategories)
-  ).slice(0, maxTargets);
+  const targets = limitBurdenTargets(
+    state,
+    card,
+    getEligibleBurdenStrainTargets(state, context, (placedTile) =>
+      placedTileMatchesAnyCategory(context, placedTile, targetCategories)
+    ),
+    maxTargets
+  );
 
   if (targets.length === 0) {
     const fallback = applySeasonThreeFallbackStrainTarget(
@@ -2576,6 +2632,7 @@ function createBurdenPayOrStrainChoiceEffect(state, card, reason, context, effec
     effectText,
     mode: "pay_or_strain_choice",
     maxTargets,
+    targetLimit: getBurdenTargetLimit(state, card, maxTargets),
     targetCategories,
     decisionMode,
     paymentOptions,
@@ -2680,9 +2737,14 @@ function createBurdenResourceLossChoiceEffect(state, card, reason, context, effe
   const targetText = chosenResourceMatch?.[4] ?? "placed tiles";
   const strainAmount = Number(chosenResourceMatch?.[5] ?? mostResourceMatch?.[3] ?? 1);
   const targetCategories = /Resource Tiles?/i.test(targetText) ? ["Resource"] : null;
-  const targets = getEligibleBurdenStrainTargets(state, context, (placedTile) =>
-    placedTileMatchesAnyCategory(context, placedTile, targetCategories)
-  ).slice(0, maxTargets);
+  const targets = limitBurdenTargets(
+    state,
+    card,
+    getEligibleBurdenStrainTargets(state, context, (placedTile) =>
+      placedTileMatchesAnyCategory(context, placedTile, targetCategories)
+    ),
+    maxTargets
+  );
 
   return {
     state,
@@ -2696,6 +2758,7 @@ function createBurdenResourceLossChoiceEffect(state, card, reason, context, effe
     effectText,
     mode: "resource_loss_or_strain_choice",
     maxTargets,
+    targetLimit: getBurdenTargetLimit(state, card, maxTargets),
     targetCategories,
     strainAmount,
     decisionMode: "resource_loss_or_strain",
@@ -2916,13 +2979,18 @@ function resolveStewardTokenBurdenStrainPlacementEffect(state, card, reason, con
   }
 
   const hasStewardHouseTarget = /Then choose 1 Steward House/.test(effectText);
-  const stewardTargets = getStewardOccupiedPlacedTiles(state).filter((placedTile) => (placedTile.strain ?? 0) < 3);
+  const targetLimit = getBurdenTargetLimit(state, card);
+  const stewardTargets = limitBurdenTargets(
+    state,
+    card,
+    getStewardOccupiedPlacedTiles(state).filter((placedTile) => (placedTile.strain ?? 0) < 3)
+  );
   const stewardPlacement = applyStrainPlacementToTargets(state, stewardTargets, context, "steward_token");
   let workingState = stewardPlacement.state;
   const applications = [...stewardPlacement.applications];
   let stewardHouseTarget = null;
 
-  if (hasStewardHouseTarget) {
+  if (hasStewardHouseTarget && stewardTargets.length < targetLimit) {
     stewardHouseTarget = getEligibleBurdenStrainTargets(workingState, context, (placedTile) =>
       placedTileIsStewardHouse(context, placedTile)
     )[0];
@@ -2951,6 +3019,7 @@ function resolveStewardTokenBurdenStrainPlacementEffect(state, card, reason, con
     {
       mode: "steward_token",
       stewardOccupiedPlacedTileIds: stewardTargets.map((placedTile) => placedTile.id),
+      targetLimit,
       hasStewardHouseTarget,
       stewardHouseTargetPlacedTileId: stewardHouseTarget?.id ?? null
     },

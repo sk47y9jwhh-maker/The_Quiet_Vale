@@ -138,6 +138,14 @@ function firstCardIdOfType(encounterType) {
   return encounterCards.find((card) => card.encounter_type === encounterType).card_id;
 }
 
+function fillerStandardEncounterIds(count, excludedCardIds = []) {
+  const excluded = new Set(excludedCardIds);
+  return encounterCards
+    .filter((card) => card.encounter_type !== ENCOUNTER_TYPES.GOLDEN_BOON && !excluded.has(card.card_id))
+    .slice(0, count)
+    .map((card) => card.card_id);
+}
+
 test("seasonal seeding removes top, middle, and bottom cards per player", () => {
   const state = newState(2);
   const firstPlayerCards = state.players[0].hand.slice(0, 3);
@@ -1049,7 +1057,7 @@ test("not-adjacent Burdens ignore targets beside the excluded category", () => {
     },
     encounter: {
       ...base.encounter,
-      deck: ["burden_roads_too_far_from_home"],
+      deck: ["burden_roads_too_far_from_home", ...fillerStandardEncounterIds(1, ["burden_roads_too_far_from_home"])],
       discard: [],
       active: [],
       revealedRounds: []
@@ -1069,6 +1077,45 @@ test("not-adjacent Burdens ignore targets beside the excluded category", () => {
     effect.applications.map((application) => application.placedTileId),
     ["tile-003"]
   );
+});
+
+test("high-impact Travel Burdens cap Strain targets by player count", () => {
+  const base = newState(2);
+  const state = {
+    ...base,
+    round: 11,
+    season: "III",
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    map: {
+      ...base.map,
+      placedTiles: [
+        { id: "tile-001", tileId: "core_gravel_path_basic", coordinate: "A3", coordinates: ["A3"], strain: 0 },
+        { id: "tile-002", tileId: "core_gravel_path_basic", coordinate: "A5", coordinates: ["A5"], strain: 0 },
+        { id: "tile-003", tileId: "core_gravel_track_basic", coordinate: "B10", coordinates: ["B10"], strain: 0 }
+      ]
+    },
+    encounter: {
+      ...base.encounter,
+      deck: ["burden_roads_too_far_from_home", ...fillerStandardEncounterIds(1, ["burden_roads_too_far_from_home"])],
+      discard: [],
+      active: [],
+      revealedRounds: []
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+  const strainedTiles = Object.fromEntries(nextState.map.placedTiles.map((tile) => [tile.id, tile.strain]));
+  const effect = result.revealed[0].burdenEffect;
+
+  assert.equal(result.ok, true);
+  assert.equal(effect.maxTargets, 3);
+  assert.equal(effect.targetLimit, 2);
+  assert.deepEqual(
+    effect.applications.map((application) => application.placedTileId),
+    ["tile-001", "tile-002"]
+  );
+  assert.equal(strainedTiles["tile-001"], 1);
+  assert.equal(strainedTiles["tile-002"], 1);
+  assert.equal(strainedTiles["tile-003"], 0);
 });
 
 test("Coin Before Craft targets Merchant and Crafting tiles adjacent to each other", () => {
@@ -1396,7 +1443,7 @@ test("The Burden of Command strains each unique last-interacted tile", () => {
     },
     encounter: {
       ...base.encounter,
-      deck: ["burden_the_burden_of_command"],
+      deck: ["burden_the_burden_of_command", ...fillerStandardEncounterIds(3, ["burden_the_burden_of_command"])],
       discard: [],
       active: [],
       revealedRounds: []
@@ -1416,6 +1463,51 @@ test("The Burden of Command strains each unique last-interacted tile", () => {
     effect.applications.map((application) => application.reason),
     ["steward_token", "steward_token"]
   );
+});
+
+test("The Burden of Command caps steward-token targets in larger games", () => {
+  const base = newState(4);
+  const state = {
+    ...base,
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    players: base.players.map((player, index) => ({
+      ...player,
+      lastInteraction: {
+        type: "activate",
+        placedTileId: `tile-00${index + 1}`,
+        coordinate: ["A3", "A4", "A5", "A6"][index],
+        round: 1,
+        season: "I"
+      }
+    })),
+    map: {
+      ...base.map,
+      placedTiles: [
+        { id: "tile-001", tileId: "core_forest_basic", coordinate: "A3", coordinates: ["A3"], strain: 0 },
+        { id: "tile-002", tileId: "core_mine_basic", coordinate: "A4", coordinates: ["A4"], strain: 0 },
+        { id: "tile-003", tileId: "core_wildlands_basic", coordinate: "A5", coordinates: ["A5"], strain: 0 },
+        { id: "tile-004", tileId: "core_farm_basic", coordinate: "A6", coordinates: ["A6"], strain: 0 }
+      ]
+    },
+    encounter: {
+      ...base.encounter,
+      deck: ["burden_the_burden_of_command", ...fillerStandardEncounterIds(3, ["burden_the_burden_of_command"])],
+      discard: [],
+      active: [],
+      revealedRounds: []
+    }
+  };
+  const { state: nextState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+  const strainedTiles = Object.fromEntries(nextState.map.placedTiles.map((tile) => [tile.id, tile.strain]));
+  const effect = result.revealed[0].burdenEffect;
+
+  assert.equal(result.ok, true);
+  assert.equal(effect.targetLimit, 3);
+  assert.deepEqual(effect.stewardOccupiedPlacedTileIds, ["tile-001", "tile-002", "tile-003"]);
+  assert.equal(strainedTiles["tile-001"], 1);
+  assert.equal(strainedTiles["tile-002"], 1);
+  assert.equal(strainedTiles["tile-003"], 1);
+  assert.equal(strainedTiles["tile-004"], 0);
 });
 
 test("The Burden of Command Season III also strains one Steward House", () => {
@@ -1562,7 +1654,7 @@ test("Bare Walls stays active for a no-action pay-or-Strain reveal choice", () =
     },
     encounter: {
       ...base.encounter,
-      deck: ["burden_bare_walls"],
+      deck: ["burden_bare_walls", ...fillerStandardEncounterIds(1, ["burden_bare_walls"])],
       discard: [],
       active: [],
       revealedRounds: []
@@ -1592,6 +1684,41 @@ test("Bare Walls stays active for a no-action pay-or-Strain reveal choice", () =
   assert.equal(nextState.players[0].actionsRemaining, 4);
   assert.equal(nextState.encounter.active[0].applications[0].effect.resolved, true);
   assert.equal(nextState.encounter.active[0].applications[0].effect.strainAdded, 1);
+});
+
+test("Bare Walls caps Season III pay-or-Strain targets by player count", () => {
+  const base = newState(2);
+  const state = {
+    ...base,
+    round: 11,
+    season: "III",
+    phase: GAME_PHASES.REVEAL_ENCOUNTERS,
+    map: {
+      ...base.map,
+      placedTiles: [
+        { id: "tile-001", tileId: "core_cottage_basic", coordinate: "A3", coordinates: ["A3"], strain: 0 },
+        { id: "tile-002", tileId: "core_terrace_basic", coordinate: "A4", coordinates: ["A4"], strain: 0 },
+        { id: "tile-003", tileId: "core_neighborhood_basic", coordinate: "B10", coordinates: ["B10"], strain: 0 }
+      ]
+    },
+    encounter: {
+      ...base.encounter,
+      deck: ["burden_bare_walls", ...fillerStandardEncounterIds(1, ["burden_bare_walls"])],
+      discard: [],
+      active: [],
+      revealedRounds: []
+    }
+  };
+  const { state: revealedState, result } = dispatch(state, { type: TILE_ACTION_TYPES.REVEAL_ENCOUNTERS });
+  const effect = result.revealed[0].burdenEffect;
+
+  assert.equal(result.ok, true);
+  assert.equal(effect.maxTargets, 3);
+  assert.equal(effect.targetLimit, 2);
+  assert.deepEqual(
+    revealedState.encounter.active[0].pendingChoice.targets.map((target) => target.placedTileId),
+    ["tile-001", "tile-002"]
+  );
 });
 
 test("active Burdens with pending choices cannot be resolved before applying the choice", () => {
@@ -1839,13 +1966,16 @@ test("Season III Arrival-pressure Burdens strain a fallback tile when no Arrival
   assert.equal(nextState.encounter.active[0].pendingChoice, null);
 });
 
-test("previously unresolvable Burdens gain only a Season III 4 Goods resolution", () => {
+test("previously Season III-only Goods Burdens are resolvable in every Season", () => {
   const card = encounterCards.find((candidate) => candidate.card_id === "burden_smoke_over_hearths");
+  const seasonOneResolution = getBurdenResolutionCost(card, "I");
   const seasonTwoResolution = getBurdenResolutionCost(card, "II");
   const seasonThreeResolution = getBurdenResolutionCost(card, "III");
 
-  assert.equal(seasonTwoResolution.supported, false);
-  assert.match(seasonTwoResolution.errors.join(" "), /Season III/);
+  assert.equal(seasonOneResolution.supported, true);
+  assert.deepEqual(seasonOneResolution.cost, [{ amount: 2, resource: "Goods" }]);
+  assert.equal(seasonTwoResolution.supported, true);
+  assert.deepEqual(seasonTwoResolution.cost, [{ amount: 3, resource: "Goods" }]);
   assert.equal(seasonThreeResolution.supported, true);
   assert.deepEqual(seasonThreeResolution.cost, [{ amount: 4, resource: "Goods" }]);
   assert.equal(seasonThreeResolution.actionCost, 1);
@@ -3673,13 +3803,20 @@ test("resolving a fixed-cost Burden spends 1 Action, pays resources, and discard
   assert.equal(nextState.log.at(-1).type, "encounter");
 });
 
-test("Season III-only Burdens stay active and cannot be resolved before Season III", () => {
+test("formerly Season III-only Burdens can be resolved before Season III with Goods", () => {
   const base = newState(1);
   const burdenCard = encounterCards.find((card) => card.card_id === "burden_smoke_over_hearths");
   const state = {
     ...base,
     phase: GAME_PHASES.PLAYER_TURNS,
     activePlayerId: "P1",
+    warehouse: {
+      ...base.warehouse,
+      resources: {
+        ...base.warehouse.resources,
+        Goods: 2
+      }
+    },
     encounter: {
       ...base.encounter,
       active: [
@@ -3700,7 +3837,9 @@ test("Season III-only Burdens stay active and cannot be resolved before Season I
             }
           ]
         }
-      ]
+      ],
+      discard: [],
+      completed: []
     }
   };
   const { state: nextState, result } = dispatch(state, {
@@ -3708,9 +3847,12 @@ test("Season III-only Burdens stay active and cannot be resolved before Season I
     activeEncounterId: "burden-active"
   });
 
-  assert.equal(result.ok, false);
-  assert.match(result.errors.join(" "), /can only be resolved in Season III/);
-  assert.equal(nextState, state);
+  assert.equal(result.ok, true);
+  assert.equal(nextState.players[0].actionsRemaining, 3);
+  assert.equal(nextState.warehouse.resources.Goods, 0);
+  assert.deepEqual(nextState.encounter.active, []);
+  assert.deepEqual(nextState.encounter.discard, [burdenCard.card_id]);
+  assert.equal(nextState.encounter.completed[0].resolved, true);
 });
 
 test("Shared Hands, Lighter Loads discounts the next fixed-cost Burden resolution and is discarded", () => {

@@ -1,0 +1,781 @@
+game_id,random_seed,player_count,card_id,card_name,revealed,resolved,active_unresolved_final,resolution_actions,effect_events,target_hits,target_misses,target_count,strain_attempted,strain_added,strain_prevented,strain_blocked_by_cap,pay_decisions,strain_decisions,timer_decisions,payment_total
+sim-balanced-1p-001,playtester-bot-balance-2026-06-13-deal-01-1p,1,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-001,playtester-bot-balance-2026-06-13-deal-01-1p,1,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-001,playtester-bot-balance-2026-06-13-deal-01-1p,1,burden_empty_shelves,Empty Shelves,1,0,1,0,2,2,0,6,3,1,2,0,0,3,0,0
+sim-balanced-2p-001,playtester-bot-balance-2026-06-13-deal-01-2p,2,burden_the_rot_within_the_vault,Rot in the Vault,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-001,playtester-bot-balance-2026-06-13-deal-01-2p,2,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-001,playtester-bot-balance-2026-06-13-deal-01-2p,2,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-001,playtester-bot-balance-2026-06-13-deal-01-2p,2,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,6
+sim-balanced-2p-001,playtester-bot-balance-2026-06-13-deal-01-2p,2,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-2p-001,playtester-bot-balance-2026-06-13-deal-01-2p,2,burden_awoken_in_the_deep,Awoken Below,1,0,1,0,1,1,0,2,3,1,2,0,0,0,0,0
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,2,2,0,4,0,0,0,0,0,0,2,0
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,1,0,3,3,1,2,0,0,0,0,0
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-3p-001,playtester-bot-balance-2026-06-13-deal-01-3p,3,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,2
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,2,0,0,0,0,0,0,1,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,1,2,1,1,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,3,3,0,6,2,1,1,0,0,0,2,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,2,2,0,5,5,3,2,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_stampede,Stampede,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-001,playtester-bot-balance-2026-06-13-deal-01-4p,4,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,6
+sim-balanced-1p-002,playtester-bot-balance-2026-06-13-deal-02-1p,1,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,2
+sim-balanced-1p-002,playtester-bot-balance-2026-06-13-deal-02-1p,1,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-002,playtester-bot-balance-2026-06-13-deal-02-1p,1,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-002,playtester-bot-balance-2026-06-13-deal-02-1p,1,burden_over_promising_to_over_compensate,Promises Overstretched,1,0,1,0,1,1,0,2,2,0,2,0,0,0,0,0
+sim-balanced-2p-002,playtester-bot-balance-2026-06-13-deal-02-2p,2,burden_blighted_lands,Blighted Lands,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-002,playtester-bot-balance-2026-06-13-deal-02-2p,2,burden_empty_shelves,Empty Shelves,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-002,playtester-bot-balance-2026-06-13-deal-02-2p,2,burden_stores_run_thin,Stores Run Thin,1,0,1,0,4,4,0,8,0,0,0,0,2,0,0,10
+sim-balanced-2p-002,playtester-bot-balance-2026-06-13-deal-02-2p,2,burden_over_promising_to_over_compensate,Promises Overstretched,1,0,1,0,4,4,0,10,0,0,0,0,0,0,5,0
+sim-balanced-2p-002,playtester-bot-balance-2026-06-13-deal-02-2p,2,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,4,4,0,10,0,0,0,0,0,0,5,0
+sim-balanced-2p-002,playtester-bot-balance-2026-06-13-deal-02-2p,2,burden_old_names_old_debts,"Old Names, Old Debts",1,0,1,0,1,1,0,3,3,1,2,0,0,0,0,0
+sim-balanced-2p-002,playtester-bot-balance-2026-06-13-deal-02-2p,2,burden_bare_walls,Bare Walls,1,0,1,0,2,2,0,4,4,4,0,0,0,2,0,0
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_empty_shelves,Empty Shelves,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_the_quiet_fractures,The Quiet Fractures,1,0,0,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_the_rot_within_the_vault,Rot in the Vault,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,2,2,0,5,5,5,0,0,0,0,0,0
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,0,0,3,3,0,6,2,2,0,0,0,0,2,0
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,2,0,1,0,0,0,0
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,6
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,5
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-3p-002,playtester-bot-balance-2026-06-13-deal-02-3p,3,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_stampede,Stampede,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,0,0,2,2,0,4,0,0,0,0,0,0,2,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,0,0,0,2,2,0,5,5,2,3,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_only_road_in,Only Road In,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,2,2,0,3,5,3,2,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_awoken_in_the_deep,Awoken Below,1,0,1,0,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_roads_carry_needs,Roads Carry Needs,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-002,playtester-bot-balance-2026-06-13-deal-02-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-1p-003,playtester-bot-balance-2026-06-13-deal-03-1p,1,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-1p-003,playtester-bot-balance-2026-06-13-deal-03-1p,1,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-1p-003,playtester-bot-balance-2026-06-13-deal-03-1p,1,burden_old_names_old_debts,"Old Names, Old Debts",1,0,1,0,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-1p-003,playtester-bot-balance-2026-06-13-deal-03-1p,1,burden_over_promising_to_over_compensate,Promises Overstretched,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-003,playtester-bot-balance-2026-06-13-deal-03-2p,2,burden_old_wounds_reopen,Old Wounds Reopen,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-003,playtester-bot-balance-2026-06-13-deal-03-2p,2,burden_bare_walls,Bare Walls,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-003,playtester-bot-balance-2026-06-13-deal-03-2p,2,burden_over_promising_to_over_compensate,Promises Overstretched,1,0,0,0,2,2,0,4,0,0,0,0,0,0,2,0
+sim-balanced-2p-003,playtester-bot-balance-2026-06-13-deal-03-2p,2,burden_wares_of_war,Wares of War,1,0,0,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-003,playtester-bot-balance-2026-06-13-deal-03-2p,2,burden_empty_shelves,Empty Shelves,1,0,1,0,2,2,0,4,2,2,0,0,0,2,0,0
+sim-balanced-2p-003,playtester-bot-balance-2026-06-13-deal-03-2p,2,burden_stores_run_thin,Stores Run Thin,1,0,1,0,2,2,0,4,0,0,0,0,1,0,0,6
+sim-balanced-2p-003,playtester-bot-balance-2026-06-13-deal-03-2p,2,burden_the_rot_within_the_vault,Rot in the Vault,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_old_wounds_reopen,Old Wounds Reopen,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,0,0,2,1,1,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,2,1,1,1,1,0,1,0,0,0,0,0
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,3,3,0,4,2,2,0,0,0,0,1,0
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_the_burden_of_command,Burden of Command,1,1,0,1,2,2,0,6,6,5,1,0,0,0,0,0
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_empty_shelves,Empty Shelves,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-3p-003,playtester-bot-balance-2026-06-13-deal-03-3p,3,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,1,2,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,4
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,2,2,0,2,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_stampede,Stampede,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_roads_carry_needs,Roads Carry Needs,1,0,1,0,2,2,0,3,4,2,2,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,2,2,1,1,0,0,1,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_empty_shelves,Empty Shelves,1,1,0,1,2,2,0,4,2,2,0,0,0,2,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_awoken_in_the_deep,Awoken Below,1,0,1,0,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_only_road_in,Only Road In,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,1,2,0,0,0,0,0
+sim-balanced-4p-003,playtester-bot-balance-2026-06-13-deal-03-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-1p-004,playtester-bot-balance-2026-06-13-deal-04-1p,1,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-004,playtester-bot-balance-2026-06-13-deal-04-1p,1,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,4
+sim-balanced-1p-004,playtester-bot-balance-2026-06-13-deal-04-1p,1,burden_the_storehouses_disagree,Storehouses Disagree,1,0,1,0,4,4,0,6,0,0,0,0,2,0,0,8
+sim-balanced-1p-004,playtester-bot-balance-2026-06-13-deal-04-1p,1,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-004,playtester-bot-balance-2026-06-13-deal-04-1p,1,burden_awoken_in_the_deep,Awoken Below,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-004,playtester-bot-balance-2026-06-13-deal-04-2p,2,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-004,playtester-bot-balance-2026-06-13-deal-04-2p,2,burden_empty_shelves,Empty Shelves,1,1,0,1,4,4,0,4,0,0,0,0,2,0,0,2
+sim-balanced-2p-004,playtester-bot-balance-2026-06-13-deal-04-2p,2,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-004,playtester-bot-balance-2026-06-13-deal-04-2p,2,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-004,playtester-bot-balance-2026-06-13-deal-04-2p,2,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-004,playtester-bot-balance-2026-06-13-deal-04-2p,2,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-2p-004,playtester-bot-balance-2026-06-13-deal-04-2p,2,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,1,2,0,0,0,0,0
+sim-balanced-2p-004,playtester-bot-balance-2026-06-13-deal-04-2p,2,burden_awoken_in_the_deep,Awoken Below,1,0,1,0,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-3p-004,playtester-bot-balance-2026-06-13-deal-04-3p,3,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-004,playtester-bot-balance-2026-06-13-deal-04-3p,3,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-004,playtester-bot-balance-2026-06-13-deal-04-3p,3,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-004,playtester-bot-balance-2026-06-13-deal-04-3p,3,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-004,playtester-bot-balance-2026-06-13-deal-04-3p,3,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-004,playtester-bot-balance-2026-06-13-deal-04-3p,3,burden_awoken_in_the_deep,Awoken Below,1,0,1,0,2,2,0,3,5,3,1,1,0,0,0,0
+sim-balanced-3p-004,playtester-bot-balance-2026-06-13-deal-04-3p,3,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-3p-004,playtester-bot-balance-2026-06-13-deal-04-3p,3,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,2,2,0,4,4,2,2,0,0,0,0,0
+sim-balanced-3p-004,playtester-bot-balance-2026-06-13-deal-04-3p,3,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-004,playtester-bot-balance-2026-06-13-deal-04-3p,3,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,6
+sim-balanced-3p-004,playtester-bot-balance-2026-06-13-deal-04-3p,3,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,2
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,1,0,2,2,0,2,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,2,2,0,3,5,5,0,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-004,playtester-bot-balance-2026-06-13-deal-04-4p,4,burden_empty_shelves,Empty Shelves,1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-1p-005,playtester-bot-balance-2026-06-13-deal-05-1p,1,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,4
+sim-balanced-1p-005,playtester-bot-balance-2026-06-13-deal-05-1p,1,burden_stores_run_thin,Stores Run Thin,1,0,1,0,4,4,0,8,0,0,0,0,2,0,0,10
+sim-balanced-1p-005,playtester-bot-balance-2026-06-13-deal-05-1p,1,burden_old_names_old_debts,"Old Names, Old Debts",1,0,1,0,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-1p-005,playtester-bot-balance-2026-06-13-deal-05-1p,1,burden_blighted_lands,Blighted Lands,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-005,playtester-bot-balance-2026-06-13-deal-05-2p,2,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-005,playtester-bot-balance-2026-06-13-deal-05-2p,2,burden_blighted_lands,Blighted Lands,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-005,playtester-bot-balance-2026-06-13-deal-05-2p,2,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-005,playtester-bot-balance-2026-06-13-deal-05-2p,2,burden_the_burden_of_command,Burden of Command,1,1,0,1,2,2,0,4,4,3,1,0,0,0,0,0
+sim-balanced-2p-005,playtester-bot-balance-2026-06-13-deal-05-2p,2,burden_the_long_cough,The Long Cough,1,0,1,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-005,playtester-bot-balance-2026-06-13-deal-05-2p,2,burden_over_promising_to_over_compensate,Promises Overstretched,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-005,playtester-bot-balance-2026-06-13-deal-05-2p,2,burden_ill_omen_of_discontent,Omen of Discontent,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-005,playtester-bot-balance-2026-06-13-deal-05-2p,2,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_old_wounds_reopen,Old Wounds Reopen,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,0,0,4,4,0,8,0,0,0,0,0,0,4,0
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_empty_shelves,Empty Shelves,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_stores_run_thin,Stores Run Thin,1,0,1,0,2,2,0,4,0,0,0,0,1,0,0,6
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_old_names_old_debts,"Old Names, Old Debts",1,0,1,0,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_smoke_over_hearths,Smoke over Hearths,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-005,playtester-bot-balance-2026-06-13-deal-05-3p,3,burden_return_to_the_trenches,Old Trenches Return,1,0,1,0,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_bare_walls,Bare Walls,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,1,0,4,4,0,8,0,0,0,0,0,0,4,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,2,2,0,3,5,3,2,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_stores_run_thin,Stores Run Thin,1,1,0,1,4,4,0,8,0,0,0,0,2,0,0,10
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,4,2,1,1,0,0,2,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_roads_carry_needs,Roads Carry Needs,1,0,1,0,1,1,0,2,2,0,2,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_old_names_old_debts,"Old Names, Old Debts",1,0,1,0,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_only_road_in,Only Road In,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-005,playtester-bot-balance-2026-06-13-deal-05-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-1p-006,playtester-bot-balance-2026-06-13-deal-06-1p,1,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,2,2,0,3,5,4,0,1,0,0,0,0
+sim-balanced-1p-006,playtester-bot-balance-2026-06-13-deal-06-1p,1,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-1p-006,playtester-bot-balance-2026-06-13-deal-06-1p,1,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,4
+sim-balanced-1p-006,playtester-bot-balance-2026-06-13-deal-06-1p,1,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-1p-006,playtester-bot-balance-2026-06-13-deal-06-1p,1,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-2p-006,playtester-bot-balance-2026-06-13-deal-06-2p,2,burden_stores_run_thin,Stores Run Thin,1,1,0,1,4,4,0,8,4,2,0,2,1,2,0,4
+sim-balanced-2p-006,playtester-bot-balance-2026-06-13-deal-06-2p,2,burden_old_wounds_reopen,Old Wounds Reopen,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-006,playtester-bot-balance-2026-06-13-deal-06-2p,2,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,2,1,1,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-006,playtester-bot-balance-2026-06-13-deal-06-2p,2,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-2p-006,playtester-bot-balance-2026-06-13-deal-06-2p,2,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-006,playtester-bot-balance-2026-06-13-deal-06-2p,2,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-006,playtester-bot-balance-2026-06-13-deal-06-2p,2,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-2p-006,playtester-bot-balance-2026-06-13-deal-06-2p,2,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-006,playtester-bot-balance-2026-06-13-deal-06-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-006,playtester-bot-balance-2026-06-13-deal-06-3p,3,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,2
+sim-balanced-3p-006,playtester-bot-balance-2026-06-13-deal-06-3p,3,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-006,playtester-bot-balance-2026-06-13-deal-06-3p,3,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-3p-006,playtester-bot-balance-2026-06-13-deal-06-3p,3,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-3p-006,playtester-bot-balance-2026-06-13-deal-06-3p,3,burden_the_long_cough,The Long Cough,1,0,1,0,2,2,0,2,2,0,2,0,0,0,0,0
+sim-balanced-3p-006,playtester-bot-balance-2026-06-13-deal-06-3p,3,burden_old_wounds_reopen,Old Wounds Reopen,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-006,playtester-bot-balance-2026-06-13-deal-06-3p,3,burden_the_burden_of_command,Burden of Command,1,0,1,0,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-3p-006,playtester-bot-balance-2026-06-13-deal-06-3p,3,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-3p-006,playtester-bot-balance-2026-06-13-deal-06-3p,3,burden_only_road_in,Only Road In,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_the_long_cough,The Long Cough,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_stampede,Stampede,1,1,0,1,1,1,0,1,2,1,1,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,6
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,6
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_the_burden_of_command,Burden of Command,1,0,1,0,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-006,playtester-bot-balance-2026-06-13-deal-06-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,2,0,1,0,0,0,0
+sim-balanced-1p-007,playtester-bot-balance-2026-06-13-deal-07-1p,1,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-007,playtester-bot-balance-2026-06-13-deal-07-1p,1,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-007,playtester-bot-balance-2026-06-13-deal-07-1p,1,burden_roads_carry_needs,Roads Carry Needs,1,0,1,0,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-2p-007,playtester-bot-balance-2026-06-13-deal-07-2p,2,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-007,playtester-bot-balance-2026-06-13-deal-07-2p,2,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-007,playtester-bot-balance-2026-06-13-deal-07-2p,2,burden_wares_of_war,Wares of War,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-007,playtester-bot-balance-2026-06-13-deal-07-2p,2,burden_stores_run_thin,Stores Run Thin,1,0,1,0,4,4,0,8,0,0,0,0,2,0,0,10
+sim-balanced-2p-007,playtester-bot-balance-2026-06-13-deal-07-2p,2,burden_bare_walls,Bare Walls,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-007,playtester-bot-balance-2026-06-13-deal-07-2p,2,burden_roads_too_far_from_home,Roads Too Far,1,0,1,0,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-2p-007,playtester-bot-balance-2026-06-13-deal-07-2p,2,burden_only_road_in,Only Road In,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-007,playtester-bot-balance-2026-06-13-deal-07-2p,2,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-007,playtester-bot-balance-2026-06-13-deal-07-2p,2,burden_smoke_over_hearths,Smoke over Hearths,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-007,playtester-bot-balance-2026-06-13-deal-07-3p,3,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-007,playtester-bot-balance-2026-06-13-deal-07-3p,3,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-3p-007,playtester-bot-balance-2026-06-13-deal-07-3p,3,burden_the_rot_within_the_vault,Rot in the Vault,1,0,0,0,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-3p-007,playtester-bot-balance-2026-06-13-deal-07-3p,3,burden_the_quiet_fractures,The Quiet Fractures,1,0,0,0,2,1,1,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-007,playtester-bot-balance-2026-06-13-deal-07-3p,3,burden_tools_left_to_rust,Tools Left to Rust,1,0,1,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-007,playtester-bot-balance-2026-06-13-deal-07-3p,3,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-3p-007,playtester-bot-balance-2026-06-13-deal-07-3p,3,burden_awoken_in_the_deep,Awoken Below,1,0,1,0,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-3p-007,playtester-bot-balance-2026-06-13-deal-07-3p,3,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-3p-007,playtester-bot-balance-2026-06-13-deal-07-3p,3,burden_roads_too_far_from_home,Roads Too Far,1,0,1,0,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-3p-007,playtester-bot-balance-2026-06-13-deal-07-3p,3,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-3p-007,playtester-bot-balance-2026-06-13-deal-07-3p,3,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,1,0,6,6,0,8,0,0,0,0,1,0,3,1
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_bare_walls,Bare Walls,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_empty_shelves,Empty Shelves,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_the_long_cough,The Long Cough,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,1,1,0,2,3,2,0,1,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,2,0,1,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,0,1,0,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,6
+sim-balanced-4p-007,playtester-bot-balance-2026-06-13-deal-07-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-1p-008,playtester-bot-balance-2026-06-13-deal-08-1p,1,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-008,playtester-bot-balance-2026-06-13-deal-08-1p,1,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-1p-008,playtester-bot-balance-2026-06-13-deal-08-1p,1,burden_old_wounds_reopen,Old Wounds Reopen,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-008,playtester-bot-balance-2026-06-13-deal-08-1p,1,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-2p-008,playtester-bot-balance-2026-06-13-deal-08-2p,2,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-008,playtester-bot-balance-2026-06-13-deal-08-2p,2,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,2,2,0,4,4,4,0,0,0,0,0,0
+sim-balanced-2p-008,playtester-bot-balance-2026-06-13-deal-08-2p,2,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,1,0,3,3,0,6,2,2,0,0,0,0,2,0
+sim-balanced-2p-008,playtester-bot-balance-2026-06-13-deal-08-2p,2,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-008,playtester-bot-balance-2026-06-13-deal-08-2p,2,burden_empty_shelves,Empty Shelves,1,0,1,0,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-2p-008,playtester-bot-balance-2026-06-13-deal-08-2p,2,burden_smoke_over_hearths,Smoke over Hearths,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-008,playtester-bot-balance-2026-06-13-deal-08-2p,2,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-2p-008,playtester-bot-balance-2026-06-13-deal-08-2p,2,burden_bare_walls,Bare Walls,1,0,1,0,2,2,0,4,4,3,1,0,0,2,0,0
+sim-balanced-2p-008,playtester-bot-balance-2026-06-13-deal-08-2p,2,burden_the_burden_of_command,Burden of Command,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,4,4,0,6,0,0,0,0,2,0,0,8
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_stampede,Stampede,1,1,0,1,1,1,0,1,2,1,1,0,0,0,0,0
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_wares_of_war,Wares of War,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_stores_run_thin,Stores Run Thin,1,0,1,0,2,2,0,4,0,0,0,0,1,0,0,6
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_coin_before_craft,Coin Before Craft,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_the_long_cough,The Long Cough,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-3p-008,playtester-bot-balance-2026-06-13-deal-08-3p,3,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,3,3,0,4,6,5,1,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,1,2,1,1,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_stampede,Stampede,1,1,0,1,2,2,0,2,4,3,1,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,1,0,4,4,0,6,0,0,0,0,0,0,3,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,4
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_empty_shelves,Empty Shelves,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,5
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,1,2,0,0,0,0,0
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-4p-008,playtester-bot-balance-2026-06-13-deal-08-4p,4,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-009,playtester-bot-balance-2026-06-13-deal-09-1p,1,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-009,playtester-bot-balance-2026-06-13-deal-09-1p,1,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,4
+sim-balanced-1p-009,playtester-bot-balance-2026-06-13-deal-09-1p,1,burden_empty_shelves,Empty Shelves,1,0,0,0,2,2,0,2,1,1,0,0,0,1,0,0
+sim-balanced-2p-009,playtester-bot-balance-2026-06-13-deal-09-2p,2,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-009,playtester-bot-balance-2026-06-13-deal-09-2p,2,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-009,playtester-bot-balance-2026-06-13-deal-09-2p,2,burden_ill_omen_of_discontent,Omen of Discontent,1,0,1,0,3,1,2,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-009,playtester-bot-balance-2026-06-13-deal-09-2p,2,burden_roads_carry_needs,Roads Carry Needs,1,0,1,0,2,2,0,3,4,4,0,0,0,0,0,0
+sim-balanced-2p-009,playtester-bot-balance-2026-06-13-deal-09-2p,2,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-009,playtester-bot-balance-2026-06-13-deal-09-2p,2,burden_old_wounds_reopen,Old Wounds Reopen,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-009,playtester-bot-balance-2026-06-13-deal-09-2p,2,burden_the_burden_of_command,Burden of Command,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-009,playtester-bot-balance-2026-06-13-deal-09-2p,2,burden_return_to_the_trenches,Old Trenches Return,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-009,playtester-bot-balance-2026-06-13-deal-09-3p,3,burden_empty_shelves,Empty Shelves,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-009,playtester-bot-balance-2026-06-13-deal-09-3p,3,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-3p-009,playtester-bot-balance-2026-06-13-deal-09-3p,3,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-009,playtester-bot-balance-2026-06-13-deal-09-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-3p-009,playtester-bot-balance-2026-06-13-deal-09-3p,3,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-3p-009,playtester-bot-balance-2026-06-13-deal-09-3p,3,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-009,playtester-bot-balance-2026-06-13-deal-09-3p,3,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-009,playtester-bot-balance-2026-06-13-deal-09-3p,3,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-009,playtester-bot-balance-2026-06-13-deal-09-3p,3,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,2,0,0,0,0,0,0,1,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_empty_shelves,Empty Shelves,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,4,4,0,8,0,0,0,0,0,0,4,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,5
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,1,0,2,2,0,2,0,0,0,0,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_foundations_remember_war,Foundations Remember War,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_the_burden_of_command,Burden of Command,1,0,1,0,1,1,0,3,3,1,2,0,0,0,0,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-009,playtester-bot-balance-2026-06-13-deal-09-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,0,1,0,1,1,0,3,3,1,2,0,0,0,0,0
+sim-balanced-1p-010,playtester-bot-balance-2026-06-13-deal-10-1p,1,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,2,2,0,3,5,4,0,1,0,0,0,0
+sim-balanced-1p-010,playtester-bot-balance-2026-06-13-deal-10-1p,1,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-1p-010,playtester-bot-balance-2026-06-13-deal-10-1p,1,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-1p-010,playtester-bot-balance-2026-06-13-deal-10-1p,1,burden_smoke_over_hearths,Smoke over Hearths,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-010,playtester-bot-balance-2026-06-13-deal-10-2p,2,burden_blighted_lands,Blighted Lands,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-010,playtester-bot-balance-2026-06-13-deal-10-2p,2,burden_old_wounds_reopen,Old Wounds Reopen,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,2
+sim-balanced-2p-010,playtester-bot-balance-2026-06-13-deal-10-2p,2,burden_the_storehouses_disagree,Storehouses Disagree,1,0,0,0,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-2p-010,playtester-bot-balance-2026-06-13-deal-10-2p,2,burden_stores_run_thin,Stores Run Thin,1,0,0,0,4,4,0,8,0,0,0,0,2,0,0,10
+sim-balanced-2p-010,playtester-bot-balance-2026-06-13-deal-10-2p,2,burden_tools_left_to_rust,Tools Left to Rust,1,0,1,0,2,1,1,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-010,playtester-bot-balance-2026-06-13-deal-10-2p,2,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-2p-010,playtester-bot-balance-2026-06-13-deal-10-2p,2,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-010,playtester-bot-balance-2026-06-13-deal-10-2p,2,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-010,playtester-bot-balance-2026-06-13-deal-10-3p,3,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-010,playtester-bot-balance-2026-06-13-deal-10-3p,3,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-010,playtester-bot-balance-2026-06-13-deal-10-3p,3,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-010,playtester-bot-balance-2026-06-13-deal-10-3p,3,burden_the_burden_of_command,Burden of Command,1,1,0,1,2,2,0,5,5,5,0,0,0,0,0,0
+sim-balanced-3p-010,playtester-bot-balance-2026-06-13-deal-10-3p,3,burden_empty_shelves,Empty Shelves,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-3p-010,playtester-bot-balance-2026-06-13-deal-10-3p,3,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,2,3,2,0,1,0,0,0,0
+sim-balanced-3p-010,playtester-bot-balance-2026-06-13-deal-10-3p,3,burden_stampede,Stampede,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-010,playtester-bot-balance-2026-06-13-deal-10-3p,3,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-3p-010,playtester-bot-balance-2026-06-13-deal-10-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_stampede,Stampede,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,2,2,0,4,0,0,0,0,0,0,2,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_old_wounds_reopen,Old Wounds Reopen,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,1,0,2,2,0,2,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,2,2,0,3,5,3,2,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-010,playtester-bot-balance-2026-06-13-deal-10-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,5
+sim-balanced-1p-011,playtester-bot-balance-2026-06-13-deal-11-1p,1,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-011,playtester-bot-balance-2026-06-13-deal-11-1p,1,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-011,playtester-bot-balance-2026-06-13-deal-11-1p,1,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-1p-011,playtester-bot-balance-2026-06-13-deal-11-1p,1,burden_stampede,Stampede,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-011,playtester-bot-balance-2026-06-13-deal-11-2p,2,burden_bare_walls,Bare Walls,1,0,0,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-011,playtester-bot-balance-2026-06-13-deal-11-2p,2,burden_stampede,Stampede,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-2p-011,playtester-bot-balance-2026-06-13-deal-11-2p,2,burden_wares_of_war,Wares of War,1,0,0,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-011,playtester-bot-balance-2026-06-13-deal-11-2p,2,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-011,playtester-bot-balance-2026-06-13-deal-11-2p,2,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,2,0,1,0,0,0,0
+sim-balanced-2p-011,playtester-bot-balance-2026-06-13-deal-11-2p,2,burden_return_to_the_trenches,Old Trenches Return,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-011,playtester-bot-balance-2026-06-13-deal-11-2p,2,burden_stores_run_thin,Stores Run Thin,1,0,1,0,2,2,0,4,0,0,0,0,1,0,0,6
+sim-balanced-2p-011,playtester-bot-balance-2026-06-13-deal-11-2p,2,burden_old_names_old_debts,"Old Names, Old Debts",1,0,1,0,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_stores_run_thin,Stores Run Thin,1,1,0,1,4,4,0,8,0,0,0,0,2,0,0,10
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,1,2,0,0,0,0,0
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_empty_shelves,Empty Shelves,1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,1,0,3,3,1,2,0,0,0,0,0
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_awoken_in_the_deep,Awoken Below,1,0,1,0,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_the_long_cough,The Long Cough,1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-3p-011,playtester-bot-balance-2026-06-13-deal-11-3p,3,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,0,3,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_coin_before_craft,Coin Before Craft,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_empty_shelves,Empty Shelves,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,1,0,3,3,0,6,2,2,0,0,0,0,2,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_stampede,Stampede,1,1,0,1,1,1,0,2,3,1,2,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_stores_run_thin,Stores Run Thin,1,0,1,0,2,2,0,4,0,0,0,0,1,0,0,6
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,4,2,1,1,0,0,2,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_the_long_cough,The Long Cough,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,0,1,0,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_foundations_remember_war,Foundations Remember War,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-011,playtester-bot-balance-2026-06-13-deal-11-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-1p-012,playtester-bot-balance-2026-06-13-deal-12-1p,1,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-012,playtester-bot-balance-2026-06-13-deal-12-1p,1,burden_blighted_lands,Blighted Lands,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-012,playtester-bot-balance-2026-06-13-deal-12-2p,2,burden_empty_shelves,Empty Shelves,1,1,0,1,4,4,0,6,3,3,0,0,0,3,0,0
+sim-balanced-2p-012,playtester-bot-balance-2026-06-13-deal-12-2p,2,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-012,playtester-bot-balance-2026-06-13-deal-12-2p,2,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,4,4,0,6,0,0,0,0,2,0,0,8
+sim-balanced-2p-012,playtester-bot-balance-2026-06-13-deal-12-2p,2,burden_awoken_in_the_deep,Awoken Below,1,0,1,0,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-2p-012,playtester-bot-balance-2026-06-13-deal-12-2p,2,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-2p-012,playtester-bot-balance-2026-06-13-deal-12-2p,2,burden_the_long_cough,The Long Cough,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-012,playtester-bot-balance-2026-06-13-deal-12-2p,2,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,4,4,3,1,0,0,2,0,0
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_stampede,Stampede,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_stores_run_thin,Stores Run Thin,1,0,0,0,2,2,0,4,0,0,0,0,1,0,0,4
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_wares_of_war,Wares of War,1,0,0,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-012,playtester-bot-balance-2026-06-13-deal-12-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,2,1,1,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_stampede,Stampede,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_only_road_in,Only Road In,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_the_rot_within_the_vault,Rot in the Vault,1,1,0,1,2,2,0,2,4,3,0,1,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_empty_shelves,Empty Shelves,1,1,0,1,2,2,0,2,1,1,0,0,0,1,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,1,0,4,4,0,6,0,0,0,0,1,0,2,1
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,4,4,3,1,0,0,2,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_the_burden_of_command,Burden of Command,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,0,1,0,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-012,playtester-bot-balance-2026-06-13-deal-12-4p,4,burden_foundations_remember_war,Foundations Remember War,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-013,playtester-bot-balance-2026-06-13-deal-13-1p,1,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-013,playtester-bot-balance-2026-06-13-deal-13-1p,1,burden_old_wounds_reopen,Old Wounds Reopen,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-013,playtester-bot-balance-2026-06-13-deal-13-1p,1,burden_foundations_remember_war,Foundations Remember War,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-013,playtester-bot-balance-2026-06-13-deal-13-1p,1,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-2p-013,playtester-bot-balance-2026-06-13-deal-13-2p,2,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-013,playtester-bot-balance-2026-06-13-deal-13-2p,2,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-013,playtester-bot-balance-2026-06-13-deal-13-2p,2,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-013,playtester-bot-balance-2026-06-13-deal-13-2p,2,burden_old_wounds_reopen,Old Wounds Reopen,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-013,playtester-bot-balance-2026-06-13-deal-13-2p,2,burden_the_storehouses_disagree,Storehouses Disagree,1,0,1,0,4,4,0,6,0,0,0,0,2,0,0,8
+sim-balanced-2p-013,playtester-bot-balance-2026-06-13-deal-13-2p,2,burden_wares_of_war,Wares of War,1,0,1,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-013,playtester-bot-balance-2026-06-13-deal-13-2p,2,burden_smoke_over_hearths,Smoke over Hearths,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-013,playtester-bot-balance-2026-06-13-deal-13-2p,2,burden_stampede,Stampede,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_empty_shelves,Empty Shelves,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_the_long_cough,The Long Cough,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_the_rot_within_the_vault,Rot in the Vault,1,1,0,1,2,2,0,2,4,4,0,0,0,0,0,0
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_smoke_over_hearths,Smoke over Hearths,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_old_names_old_debts,"Old Names, Old Debts",1,0,1,0,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_roads_too_far_from_home,Roads Too Far,1,0,1,0,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_stores_run_thin,Stores Run Thin,1,0,1,0,2,2,0,4,0,0,0,0,1,0,0,6
+sim-balanced-3p-013,playtester-bot-balance-2026-06-13-deal-13-3p,3,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_bare_walls,Bare Walls,1,0,0,0,2,2,0,2,2,1,1,0,0,1,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,6
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_old_names_old_debts,"Old Names, Old Debts",1,0,1,0,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,2,0,1,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_stampede,Stampede,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-013,playtester-bot-balance-2026-06-13-deal-13-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-014,playtester-bot-balance-2026-06-13-deal-14-1p,1,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-014,playtester-bot-balance-2026-06-13-deal-14-1p,1,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,4
+sim-balanced-1p-014,playtester-bot-balance-2026-06-13-deal-14-1p,1,burden_blighted_lands,Blighted Lands,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-014,playtester-bot-balance-2026-06-13-deal-14-1p,1,burden_empty_shelves,Empty Shelves,1,0,1,0,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-2p-014,playtester-bot-balance-2026-06-13-deal-14-2p,2,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-014,playtester-bot-balance-2026-06-13-deal-14-2p,2,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-014,playtester-bot-balance-2026-06-13-deal-14-2p,2,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,4,4,0,6,4,4,0,0,1,2,0,3
+sim-balanced-2p-014,playtester-bot-balance-2026-06-13-deal-14-2p,2,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-014,playtester-bot-balance-2026-06-13-deal-14-2p,2,burden_stampede,Stampede,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-2p-014,playtester-bot-balance-2026-06-13-deal-14-2p,2,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-014,playtester-bot-balance-2026-06-13-deal-14-2p,2,burden_empty_shelves,Empty Shelves,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-2p-014,playtester-bot-balance-2026-06-13-deal-14-2p,2,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,4
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_stampede,Stampede,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_the_rot_within_the_vault,Rot in the Vault,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,4,4,0,6,0,0,0,0,2,0,0,8
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_the_long_cough,The Long Cough,1,0,0,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,2,2,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_only_road_in,Only Road In,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_coin_before_craft,Coin Before Craft,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-014,playtester-bot-balance-2026-06-13-deal-14-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_stores_run_thin,Stores Run Thin,1,0,0,0,2,2,0,4,0,0,0,0,1,0,0,4
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,0,0,0,2,2,0,5,5,3,2,0,0,0,0,0
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_empty_shelves,Empty Shelves,1,1,0,1,4,4,0,4,1,1,0,0,1,1,0,1
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_stampede,Stampede,1,1,0,1,1,1,0,1,2,1,1,0,0,0,0,0
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-4p-014,playtester-bot-balance-2026-06-13-deal-14-4p,4,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-015,playtester-bot-balance-2026-06-13-deal-15-1p,1,burden_blighted_lands,Blighted Lands,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-015,playtester-bot-balance-2026-06-13-deal-15-1p,1,burden_tools_left_to_rust,Tools Left to Rust,1,0,1,0,2,2,0,3,3,3,0,0,0,0,0,0
+sim-balanced-1p-015,playtester-bot-balance-2026-06-13-deal-15-1p,1,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-015,playtester-bot-balance-2026-06-13-deal-15-2p,2,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-015,playtester-bot-balance-2026-06-13-deal-15-2p,2,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-015,playtester-bot-balance-2026-06-13-deal-15-2p,2,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-015,playtester-bot-balance-2026-06-13-deal-15-2p,2,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-2p-015,playtester-bot-balance-2026-06-13-deal-15-2p,2,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,4
+sim-balanced-2p-015,playtester-bot-balance-2026-06-13-deal-15-2p,2,burden_roads_too_far_from_home,Roads Too Far,1,0,1,0,2,2,0,4,4,4,0,0,0,0,0,0
+sim-balanced-2p-015,playtester-bot-balance-2026-06-13-deal-15-2p,2,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_the_rot_within_the_vault,Rot in the Vault,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,4
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,1,2,0,0,0,0,0
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_empty_shelves,Empty Shelves,1,0,0,0,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_old_names_old_debts,"Old Names, Old Debts",1,0,0,0,1,1,0,3,3,1,2,0,0,0,0,0
+sim-balanced-3p-015,playtester-bot-balance-2026-06-13-deal-15-3p,3,burden_smoke_over_hearths,Smoke over Hearths,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_bare_walls,Bare Walls,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,2
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,1,2,1,1,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_only_road_in,Only Road In,1,0,1,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_empty_shelves,Empty Shelves,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_stampede,Stampede,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,0,1,0,2,2,0,4,0,0,0,0,1,0,0,5
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_the_long_cough,The Long Cough,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-015,playtester-bot-balance-2026-06-13-deal-15-4p,4,burden_over_promising_to_over_compensate,Promises Overstretched,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-1p-016,playtester-bot-balance-2026-06-13-deal-16-1p,1,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-016,playtester-bot-balance-2026-06-13-deal-16-1p,1,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-016,playtester-bot-balance-2026-06-13-deal-16-1p,1,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-016,playtester-bot-balance-2026-06-13-deal-16-2p,2,burden_the_rot_within_the_vault,Rot in the Vault,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-016,playtester-bot-balance-2026-06-13-deal-16-2p,2,burden_the_quiet_fractures,The Quiet Fractures,1,0,0,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-016,playtester-bot-balance-2026-06-13-deal-16-2p,2,burden_wares_of_war,Wares of War,1,0,0,0,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-016,playtester-bot-balance-2026-06-13-deal-16-2p,2,burden_roads_carry_needs,Roads Carry Needs,1,0,1,0,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-2p-016,playtester-bot-balance-2026-06-13-deal-16-2p,2,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-016,playtester-bot-balance-2026-06-13-deal-16-2p,2,burden_the_burden_of_command,Burden of Command,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-016,playtester-bot-balance-2026-06-13-deal-16-2p,2,burden_old_names_old_debts,"Old Names, Old Debts",1,0,1,0,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-3p-016,playtester-bot-balance-2026-06-13-deal-16-3p,3,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-016,playtester-bot-balance-2026-06-13-deal-16-3p,3,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-3p-016,playtester-bot-balance-2026-06-13-deal-16-3p,3,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-016,playtester-bot-balance-2026-06-13-deal-16-3p,3,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-3p-016,playtester-bot-balance-2026-06-13-deal-16-3p,3,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,4
+sim-balanced-3p-016,playtester-bot-balance-2026-06-13-deal-16-3p,3,burden_tools_left_to_rust,Tools Left to Rust,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-016,playtester-bot-balance-2026-06-13-deal-16-3p,3,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-016,playtester-bot-balance-2026-06-13-deal-16-3p,3,burden_only_road_in,Only Road In,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-016,playtester-bot-balance-2026-06-13-deal-16-3p,3,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-3p-016,playtester-bot-balance-2026-06-13-deal-16-3p,3,burden_foundations_remember_war,Foundations Remember War,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_the_rot_within_the_vault,Rot in the Vault,1,0,0,0,2,2,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,2,2,0,5,5,5,0,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,0,0,3,3,0,6,2,2,0,0,0,0,2,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,2,0,1,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_only_road_in,Only Road In,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-4p-016,playtester-bot-balance-2026-06-13-deal-16-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,0,1,0,2,2,0,4,0,0,0,0,1,0,0,5
+sim-balanced-1p-017,playtester-bot-balance-2026-06-13-deal-17-1p,1,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-017,playtester-bot-balance-2026-06-13-deal-17-1p,1,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-017,playtester-bot-balance-2026-06-13-deal-17-1p,1,burden_over_promising_to_over_compensate,Promises Overstretched,1,0,1,0,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-1p-017,playtester-bot-balance-2026-06-13-deal-17-1p,1,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,6,3,1,2,0,0,3,0,0
+sim-balanced-2p-017,playtester-bot-balance-2026-06-13-deal-17-2p,2,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-017,playtester-bot-balance-2026-06-13-deal-17-2p,2,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,2
+sim-balanced-2p-017,playtester-bot-balance-2026-06-13-deal-17-2p,2,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-2p-017,playtester-bot-balance-2026-06-13-deal-17-2p,2,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-017,playtester-bot-balance-2026-06-13-deal-17-2p,2,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-017,playtester-bot-balance-2026-06-13-deal-17-2p,2,burden_stampede,Stampede,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-2p-017,playtester-bot-balance-2026-06-13-deal-17-2p,2,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-2p-017,playtester-bot-balance-2026-06-13-deal-17-2p,2,burden_empty_shelves,Empty Shelves,1,0,1,0,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-2p-017,playtester-bot-balance-2026-06-13-deal-17-2p,2,burden_roads_carry_needs,Roads Carry Needs,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-3p-017,playtester-bot-balance-2026-06-13-deal-17-3p,3,burden_empty_shelves,Empty Shelves,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-017,playtester-bot-balance-2026-06-13-deal-17-3p,3,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-017,playtester-bot-balance-2026-06-13-deal-17-3p,3,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,2,2,0,3,5,3,2,0,0,0,0,0
+sim-balanced-3p-017,playtester-bot-balance-2026-06-13-deal-17-3p,3,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,4
+sim-balanced-3p-017,playtester-bot-balance-2026-06-13-deal-17-3p,3,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,4,2,2,0,0,0,2,0,0
+sim-balanced-3p-017,playtester-bot-balance-2026-06-13-deal-17-3p,3,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-3p-017,playtester-bot-balance-2026-06-13-deal-17-3p,3,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-3p-017,playtester-bot-balance-2026-06-13-deal-17-3p,3,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-3p-017,playtester-bot-balance-2026-06-13-deal-17-3p,3,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-017,playtester-bot-balance-2026-06-13-deal-17-3p,3,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-017,playtester-bot-balance-2026-06-13-deal-17-3p,3,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,0,3,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_old_names_old_debts,"Old Names, Old Debts",1,1,0,1,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_the_long_cough,The Long Cough,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_the_rot_within_the_vault,Rot in the Vault,1,0,1,0,2,1,1,1,2,1,0,1,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,1,2,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,6,6,6,0,0,0,3,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_only_road_in,Only Road In,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,0,1,0,1,1,0,3,3,1,2,0,0,0,0,0
+sim-balanced-4p-017,playtester-bot-balance-2026-06-13-deal-17-4p,4,burden_stampede,Stampede,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-1p-018,playtester-bot-balance-2026-06-13-deal-18-1p,1,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-018,playtester-bot-balance-2026-06-13-deal-18-1p,1,burden_tools_left_to_rust,Tools Left to Rust,1,0,1,0,2,1,1,2,2,2,0,0,0,0,0,0
+sim-balanced-1p-018,playtester-bot-balance-2026-06-13-deal-18-1p,1,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-018,playtester-bot-balance-2026-06-13-deal-18-1p,1,burden_bare_walls,Bare Walls,1,0,1,0,2,2,0,4,4,3,1,0,0,2,0,0
+sim-balanced-2p-018,playtester-bot-balance-2026-06-13-deal-18-2p,2,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,2,1,1,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-018,playtester-bot-balance-2026-06-13-deal-18-2p,2,burden_the_rot_within_the_vault,Rot in the Vault,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-2p-018,playtester-bot-balance-2026-06-13-deal-18-2p,2,burden_wares_of_war,Wares of War,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-018,playtester-bot-balance-2026-06-13-deal-18-2p,2,burden_the_long_cough,The Long Cough,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-018,playtester-bot-balance-2026-06-13-deal-18-2p,2,burden_bare_walls,Bare Walls,1,0,1,0,2,2,0,4,4,3,1,0,0,2,0,0
+sim-balanced-2p-018,playtester-bot-balance-2026-06-13-deal-18-2p,2,burden_smoke_over_hearths,Smoke over Hearths,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,1,2,2,0,0,0,0,0,0
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,2,2,0,5,5,2,3,0,0,0,0,0
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_stampede,Stampede,1,1,0,1,1,1,0,1,2,1,1,0,0,0,0,0
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_the_burden_of_command,Burden of Command,1,1,0,1,2,2,0,4,4,4,0,0,0,0,0,0
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_awoken_in_the_deep,Awoken Below,1,0,1,0,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_old_wounds_reopen,Old Wounds Reopen,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-3p-018,playtester-bot-balance-2026-06-13-deal-18-3p,3,burden_bare_walls,Bare Walls,1,0,1,0,2,2,0,2,0,0,0,0,1,0,0,2
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,2
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_the_burden_of_command,Burden of Command,1,0,1,0,2,2,0,5,5,1,4,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_bare_walls,Bare Walls,1,0,1,0,2,2,0,2,0,0,0,0,1,0,0,2
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,1,2,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,0,1,0,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,0,1,0,1,1,0,3,3,0,3,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_stampede,Stampede,1,1,0,1,1,1,0,2,3,2,1,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-018,playtester-bot-balance-2026-06-13-deal-18-4p,4,burden_the_long_cough,The Long Cough,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-1p-019,playtester-bot-balance-2026-06-13-deal-19-1p,1,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-019,playtester-bot-balance-2026-06-13-deal-19-1p,1,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-019,playtester-bot-balance-2026-06-13-deal-19-1p,1,burden_stampede,Stampede,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-019,playtester-bot-balance-2026-06-13-deal-19-1p,1,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,1,0,2,1,1,2,2,1,1,0,0,0,0,0
+sim-balanced-1p-019,playtester-bot-balance-2026-06-13-deal-19-1p,1,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-019,playtester-bot-balance-2026-06-13-deal-19-2p,2,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-019,playtester-bot-balance-2026-06-13-deal-19-2p,2,burden_the_long_cough,The Long Cough,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-019,playtester-bot-balance-2026-06-13-deal-19-2p,2,burden_the_storehouses_disagree,Storehouses Disagree,1,0,0,0,4,4,0,6,0,0,0,0,2,0,0,8
+sim-balanced-2p-019,playtester-bot-balance-2026-06-13-deal-19-2p,2,burden_old_names_old_debts,"Old Names, Old Debts",1,0,1,0,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-2p-019,playtester-bot-balance-2026-06-13-deal-19-2p,2,burden_the_burden_of_command,Burden of Command,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-019,playtester-bot-balance-2026-06-13-deal-19-2p,2,burden_smoke_over_hearths,Smoke over Hearths,1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-019,playtester-bot-balance-2026-06-13-deal-19-2p,2,burden_ill_omen_of_discontent,Omen of Discontent,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,4
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_stampede,Stampede,1,1,0,1,2,2,0,3,5,3,1,1,0,0,0,0
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,2,2,0,4,4,3,1,0,0,0,0,0
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,2,3,1,1,1,0,0,0,0
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_empty_shelves,Empty Shelves,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,3
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_the_burden_of_command,Burden of Command,1,0,1,0,1,1,0,2,2,1,1,0,0,0,0,0
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_over_promising_to_over_compensate,Promises Overstretched,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-3p-019,playtester-bot-balance-2026-06-13-deal-19-3p,3,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,2,2,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_stampede,Stampede,1,1,0,1,1,1,0,1,2,1,1,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_return_to_the_trenches,Old Trenches Return,1,1,0,1,1,1,0,3,3,2,1,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,6
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_only_road_in,Only Road In,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_foundations_remember_war,Foundations Remember War,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_old_names_old_debts,"Old Names, Old Debts",1,0,1,0,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-019,playtester-bot-balance-2026-06-13-deal-19-4p,4,burden_awoken_in_the_deep,Awoken Below,1,0,1,0,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-1p-020,playtester-bot-balance-2026-06-13-deal-20-1p,1,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-020,playtester-bot-balance-2026-06-13-deal-20-1p,1,burden_only_road_in,Only Road In,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-1p-020,playtester-bot-balance-2026-06-13-deal-20-1p,1,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,2,0,0,0,0,1,0,0,3
+sim-balanced-1p-020,playtester-bot-balance-2026-06-13-deal-20-1p,1,burden_return_to_the_trenches,Old Trenches Return,1,0,1,0,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-1p-020,playtester-bot-balance-2026-06-13-deal-20-1p,1,burden_ill_omen_of_discontent,Omen of Discontent,1,0,1,0,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-2p-020,playtester-bot-balance-2026-06-13-deal-20-2p,2,burden_only_road_in,Only Road In,1,1,0,1,2,0,2,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-020,playtester-bot-balance-2026-06-13-deal-20-2p,2,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,1,0,2,1,1,2,2,1,1,0,0,0,0,0
+sim-balanced-2p-020,playtester-bot-balance-2026-06-13-deal-20-2p,2,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,4,4,0,6,4,4,0,0,1,2,0,3
+sim-balanced-2p-020,playtester-bot-balance-2026-06-13-deal-20-2p,2,burden_too_many_houses_too_little_homes,"Houses, Not Homes",1,1,0,1,2,2,0,4,0,0,0,0,2,0,0,2
+sim-balanced-2p-020,playtester-bot-balance-2026-06-13-deal-20-2p,2,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-2p-020,playtester-bot-balance-2026-06-13-deal-20-2p,2,burden_stampede,Stampede,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-2p-020,playtester-bot-balance-2026-06-13-deal-20-2p,2,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,2,3,3,0,0,0,0,0,0
+sim-balanced-2p-020,playtester-bot-balance-2026-06-13-deal-20-2p,2,burden_the_quiet_fractures,The Quiet Fractures,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-020,playtester-bot-balance-2026-06-13-deal-20-3p,3,burden_awoken_in_the_deep,Awoken Below,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-020,playtester-bot-balance-2026-06-13-deal-20-3p,3,burden_forest_s_grudge,Forest’s Grudge,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-3p-020,playtester-bot-balance-2026-06-13-deal-20-3p,3,burden_coin_before_craft,Coin Before Craft,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-020,playtester-bot-balance-2026-06-13-deal-20-3p,3,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-020,playtester-bot-balance-2026-06-13-deal-20-3p,3,burden_tools_left_to_rust,Tools Left to Rust,1,0,0,0,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-3p-020,playtester-bot-balance-2026-06-13-deal-20-3p,3,burden_the_burden_of_command,Burden of Command,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-3p-020,playtester-bot-balance-2026-06-13-deal-20-3p,3,burden_the_welcome_wears_thin,Welcome Wears Thin,1,0,0,0,2,2,0,2,0,0,0,0,1,0,0,1
+sim-balanced-3p-020,playtester-bot-balance-2026-06-13-deal-20-3p,3,burden_the_quiet_fractures,The Quiet Fractures,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+sim-balanced-3p-020,playtester-bot-balance-2026-06-13-deal-20-3p,3,burden_empty_shelves,Empty Shelves,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-3p-020,playtester-bot-balance-2026-06-13-deal-20-3p,3,burden_only_road_in,Only Road In,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_blighted_lands,Blighted Lands,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_wares_of_war,Wares of War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_the_quiet_fractures,The Quiet Fractures,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_tools_left_to_rust,Tools Left to Rust,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_stores_run_thin,Stores Run Thin,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,4
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_the_welcome_wears_thin,Welcome Wears Thin,1,1,0,1,2,2,0,4,0,0,0,0,0,0,2,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_the_long_cough,The Long Cough,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_foundations_remember_war,Foundations Remember War,1,1,0,1,1,0,1,0,0,0,0,0,0,0,0,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_ill_omen_of_discontent,Omen of Discontent,1,1,0,1,1,1,0,1,1,1,0,0,0,0,0,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_roads_too_far_from_home,Roads Too Far,1,1,0,1,1,1,0,3,3,3,0,0,0,0,0,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_roads_carry_needs,Roads Carry Needs,1,1,0,1,1,1,0,2,2,2,0,0,0,0,0,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_smoke_over_hearths,Smoke over Hearths,1,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_the_storehouses_disagree,Storehouses Disagree,1,1,0,1,2,2,0,4,0,0,0,0,1,0,0,5
+sim-balanced-4p-020,playtester-bot-balance-2026-06-13-deal-20-4p,4,burden_bare_walls,Bare Walls,1,1,0,1,2,2,0,6,0,0,0,0,3,0,0,6
