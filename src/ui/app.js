@@ -289,6 +289,7 @@ const state = {
     result: null,
     message: ""
   },
+  readerDrawer: null,
   contextMenu: null,
   seedContextMenu: null,
   lastActionResult: null,
@@ -2917,14 +2918,25 @@ function renderEncounterMechanics(card, activeState, game) {
 
 function renderEncounterFace(card, activeState, game, burdenResolution, { extraClass = "" } = {}) {
   const encounterType = activeState?.encounterType ?? card?.encounter_type ?? "Encounter";
-  const statusText = getActiveEncounterStatusText(activeState, burdenResolution);
+  const cardId = card?.card_id ?? activeState?.cardId ?? "";
+  const readButton = cardId
+    ? `<button
+        class="encounter-read-button"
+        data-open-reader-card-id="${escapeHtml(cardId)}"
+        data-open-reader-active-id="${escapeHtml(activeState?.id ?? "")}"
+        type="button"
+        aria-label="${escapeHtml(`Read ${card?.card_name ?? activeState?.cardId ?? "Encounter"} in detail`)}"
+      >
+        Read
+      </button>`
+    : "";
 
   return `
     <article class="encounter-face ${escapeHtml(extraClass)} type-${slug(encounterType)}">
       <div class="encounter-type-bar">
         <span class="encounter-type-mark" aria-hidden="true">${escapeHtml(getEncounterTypeMark(encounterType))}</span>
         <span>${escapeHtml(encounterType)}</span>
-        ${statusText ? `<strong>${escapeHtml(statusText)}</strong>` : ""}
+        ${readButton}
       </div>
       <h4 class="encounter-title-band">${escapeHtml(card?.card_name ?? activeState?.cardId ?? "Unknown Encounter")}</h4>
       ${renderEncounterFlavorText(card)}
@@ -2934,6 +2946,10 @@ function renderEncounterFace(card, activeState, game, burdenResolution, { extraC
 }
 
 function getActiveEncounterPrototypeText(activeState) {
+  if (!activeState) {
+    return "";
+  }
+
   if (activeState.effect?.type === "optional_resource_strain_relief") {
     return "Pending optional Boon choice.";
   }
@@ -3574,6 +3590,24 @@ function renderTileFlipButton(tile, upgradeTile, previewSide) {
   `;
 }
 
+function renderTileReadButton(tile, previewTile) {
+  if (!tile || !previewTile) {
+    return "";
+  }
+
+  return `
+    <button
+      class="tile-read-button"
+      data-open-reader-tile-id="${escapeHtml(previewTile.tile_id)}"
+      data-reader-base-tile-id="${escapeHtml(tile.tile_id)}"
+      type="button"
+      aria-label="${escapeHtml(`Read ${previewTile.tile_name} in detail`)}"
+    >
+      Read
+    </button>
+  `;
+}
+
 function renderMultihexTileNote(tile) {
   const size = Number(tile?.size_hexes ?? 1);
 
@@ -3615,6 +3649,7 @@ function renderTileWireframeCard(tile, options = {}) {
         <div class="tile-wire-tools">
           <strong>${escapeHtml(stockText)}</strong>
           ${renderTileFlipButton(tile, upgradeTile, previewSide)}
+          ${renderTileReadButton(tile, previewTile)}
         </div>
         ${unavailableText}
       </div>
@@ -3691,6 +3726,141 @@ function renderTileSourceText(tile, title = "Tile Says") {
       </dl>
     </article>
   `;
+}
+
+function getReaderActiveEncounter(game, activeEncounterId, cardId) {
+  return (
+    game.encounter.active.find((activeState) => activeState.id === activeEncounterId) ??
+    game.encounter.active.find((activeState) => activeState.cardId === cardId) ??
+    null
+  );
+}
+
+function renderEncounterReaderContent(game, encounterIndex, readerState) {
+  const card = encounterIndex.get(readerState.cardId);
+
+  if (!card) {
+    return `<p class="empty-note">This Encounter card could not be found.</p>`;
+  }
+
+  const activeState = getReaderActiveEncounter(game, readerState.activeEncounterId, card.card_id);
+  const burdenResolution =
+    activeState?.encounterType === ENCOUNTER_TYPES.BURDEN ? getBurdenResolutionCost(card, game.season) : null;
+
+  return `
+    <div class="reader-card-layout">
+      <div class="reader-card-face">
+        ${renderEncounterFace(card, activeState, game, burdenResolution, { extraClass: "reader-encounter-face" })}
+      </div>
+      <div class="reader-reference">
+        ${renderEncounterSourceText(card, game.season, getActiveEncounterPrototypeText(activeState))}
+      </div>
+    </div>
+  `;
+}
+
+function renderTileReaderContent(tileIndex, readerState) {
+  const tile = tileIndex.get(readerState.tileId) ?? tileIndex.get(readerState.baseTileId);
+  const baseTile = tileIndex.get(readerState.baseTileId) ?? tile;
+
+  if (!tile || !baseTile) {
+    return `<p class="empty-note">This tile could not be found.</p>`;
+  }
+
+  const upgradeTile = findUpgradeTile(baseTile, tileIndex);
+  const showUpgradePair = tile.tile_id === baseTile.tile_id && upgradeTile;
+  const selectableTileId = baseTile.side === "Upgraded" ? "" : baseTile.tile_id;
+
+  return `
+    <div class="reader-tile-layout">
+      <div class="reader-tile-faces">
+        <div class="reader-tile-face" style="${escapeHtml(getTileCardAccentStyle(tile))}">
+          <span class="reader-face-label">${escapeHtml(showUpgradePair ? "Place Side" : tile.side ?? "Tile")}</span>
+          ${renderTileFaceSvg(tile, { upgradeTile: showUpgradePair ? upgradeTile : null })}
+        </div>
+        ${
+          showUpgradePair
+            ? `<div class="reader-tile-face" style="${escapeHtml(getTileCardAccentStyle(upgradeTile))}">
+                <span class="reader-face-label">Upgrade Side</span>
+                ${renderTileFaceSvg(upgradeTile)}
+              </div>`
+            : ""
+        }
+      </div>
+      <div class="reader-reference">
+        ${renderTileSourceText(tile, tile.tile_id === baseTile.tile_id ? "Tile Detail" : "Upgrade Detail")}
+        ${
+          upgradeTile && tile.tile_id === baseTile.tile_id
+            ? renderTileSourceText(upgradeTile, "Upgrade Side")
+            : ""
+        }
+      </div>
+      <div class="reader-drawer-actions">
+        ${
+          selectableTileId
+            ? `<button class="primary-button compact-action" data-reader-select-tile-id="${escapeHtml(selectableTileId)}" type="button">
+                Select in Tile Tray
+              </button>`
+            : ""
+        }
+        <button class="secondary-button compact-action" data-reader-workspace="${TABLE_WORKSPACES.TILES}" type="button">
+          Open Tile Tray
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function renderReaderDrawer(game, tileIndex, encounterIndex) {
+  const readerState = state.readerDrawer;
+
+  if (!readerState) {
+    return "";
+  }
+
+  const isTile = readerState.type === "tile";
+  const title = isTile ? "Tile Reader" : "Encounter Reader";
+  const detail = isTile ? "Inspect costs, effect text, and upgrade side." : "Read the full card face and rules text.";
+  const content = isTile
+    ? renderTileReaderContent(tileIndex, readerState)
+    : renderEncounterReaderContent(game, encounterIndex, readerState);
+  const workspace = isTile ? TABLE_WORKSPACES.TILES : TABLE_WORKSPACES.ENCOUNTERS;
+  const workspaceLabel = isTile ? "Open Tile Tray" : "Open Stewards Board";
+
+  return `
+    <div class="reader-drawer-backdrop" aria-hidden="true"></div>
+    <aside class="reader-drawer" aria-label="${escapeHtml(title)}">
+      <header class="reader-drawer-header">
+        <div>
+          <span>${escapeHtml(title)}</span>
+          <strong>${escapeHtml(detail)}</strong>
+        </div>
+        <button id="reader-drawer-close" class="secondary-button compact-action" type="button">Close</button>
+      </header>
+      ${content}
+      <footer class="reader-drawer-footer">
+        <button class="secondary-button compact-action" data-reader-workspace="${escapeHtml(workspace)}" type="button">
+          ${escapeHtml(workspaceLabel)}
+        </button>
+      </footer>
+    </aside>
+  `;
+}
+
+function openReaderDrawer(readerState) {
+  state.readerDrawer = readerState;
+  state.contextMenu = null;
+  state.seedContextMenu = null;
+  renderApp();
+}
+
+function closeReaderDrawer() {
+  if (!state.readerDrawer) {
+    return;
+  }
+
+  state.readerDrawer = null;
+  renderApp();
 }
 
 function renderTileEffectPreview(
@@ -5943,7 +6113,7 @@ function getStewardMenuPowerUseState(playerEntry, tileIndex) {
     return {
       tone: "waiting",
       detail: "Start the game, then place this Steward token for free.",
-      action: { label: "Open Setup", command: "open-setup", target: "" }
+      action: null
     };
   }
 
@@ -9732,6 +9902,7 @@ function renderApp() {
         }
       </section>
       ${renderSiteFooter()}
+      ${renderReaderDrawer(state.game, tileIndex, encounterIndex)}
       ${renderMapContextLayer(state.game, tileIndex)}
       ${renderSeedCardContextLayer(encounterIndex)}
     </main>
@@ -10510,7 +10681,17 @@ function cancelPendingPlacementPreview() {
 }
 
 function handleGlobalEscape(event) {
-  if (event.key !== "Escape" || !hasTransientActionState()) {
+  if (event.key !== "Escape") {
+    return;
+  }
+
+  if (state.readerDrawer) {
+    event.preventDefault();
+    closeReaderDrawer();
+    return;
+  }
+
+  if (!hasTransientActionState()) {
     return;
   }
 
@@ -10697,6 +10878,25 @@ function focusPlayArea(selector) {
   element.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function switchTableWorkspace(workspace, { focus = false, closeReader = false } = {}) {
+  if (!isValidTableWorkspace(workspace)) {
+    return;
+  }
+
+  rememberTileTrayScroll();
+  state.activeWorkspace = workspace;
+  state.contextMenu = null;
+  state.seedContextMenu = null;
+  if (closeReader) {
+    state.readerDrawer = null;
+  }
+  renderApp();
+
+  if (focus) {
+    requestAnimationFrame(() => focusPlayArea("#table-workspace"));
+  }
+}
+
 function runQuartermasterStartingExchange(playerId) {
   if (!isPlaySessionPlaying()) {
     setBlockedPlaySessionResult("USE_STEWARD_POWER");
@@ -10763,12 +10963,6 @@ function runStewardMenuAction(button) {
     );
 
     applyGameOutcome(nextGame, result);
-    renderApp();
-    return;
-  }
-
-  if (command === "open-setup") {
-    state.openHeaderMenu = HEADER_MENUS.SETUP;
     renderApp();
     return;
   }
@@ -10867,6 +11061,53 @@ function bindEvents() {
 
   root.querySelector(".map-context-backdrop")?.addEventListener("click", closeMapContextMenu);
   root.querySelector(".seed-context-backdrop")?.addEventListener("click", closeSeedContextMenu);
+  root.querySelector(".reader-drawer-backdrop")?.addEventListener("click", closeReaderDrawer);
+  root.querySelector("#reader-drawer-close")?.addEventListener("click", closeReaderDrawer);
+
+  root.querySelectorAll("[data-open-reader-card-id]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openReaderDrawer({
+        type: "card",
+        cardId: button.dataset.openReaderCardId,
+        activeEncounterId: button.dataset.openReaderActiveId ?? ""
+      });
+    });
+  });
+
+  root.querySelectorAll("[data-open-reader-tile-id]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      rememberTileTrayScroll();
+      openReaderDrawer({
+        type: "tile",
+        tileId: button.dataset.openReaderTileId,
+        baseTileId: button.dataset.readerBaseTileId ?? button.dataset.openReaderTileId
+      });
+    });
+  });
+
+  root.querySelectorAll("[data-reader-workspace]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      switchTableWorkspace(button.dataset.readerWorkspace, { focus: true, closeReader: true });
+    });
+  });
+
+  root.querySelectorAll("[data-reader-select-tile-id]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      rememberTileTrayScroll();
+      state.selectedTileId = button.dataset.readerSelectTileId;
+      state.pendingPlacementPreview = null;
+      state.pendingPairedPlacement = null;
+      state.lastActionResult = null;
+      state.readerDrawer = null;
+      state.activeWorkspace = TABLE_WORKSPACES.TILES;
+      renderApp();
+      requestAnimationFrame(() => focusPlayArea("#placement-panel"));
+    });
+  });
 
   root.querySelectorAll("[data-context-action]").forEach((button) => {
     button.addEventListener("click", () => runMapContextAction(button.dataset.contextAction));
@@ -10955,15 +11196,7 @@ function bindEvents() {
 
   root.querySelectorAll("[data-workspace-tab]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (!isValidTableWorkspace(button.dataset.workspaceTab)) {
-        return;
-      }
-
-      rememberTileTrayScroll();
-      state.activeWorkspace = button.dataset.workspaceTab;
-      state.contextMenu = null;
-      state.seedContextMenu = null;
-      renderApp();
+      switchTableWorkspace(button.dataset.workspaceTab);
     });
   });
 
