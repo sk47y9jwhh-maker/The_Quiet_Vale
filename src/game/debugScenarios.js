@@ -4,17 +4,6 @@ import { TILE_ACTION_TYPES } from "./tiles.js";
 
 export const DEBUG_SCENARIO_DEFINITIONS = Object.freeze([
   {
-    id: "travel-steward-marker",
-    title: "Travel + Steward Marker",
-    focus: "Disconnected travel",
-    summary: "A connected settlement network exists, and Player 1's marker is on a disconnected Forest.",
-    expected: [
-      "Upgrade or activate the Forest at A13.",
-      "Expected: it costs only the main tile action because the marker tile is a local travel anchor.",
-      "Placing another tile away from both the connected settlement network and marker should still cost the extra Travel action."
-    ]
-  },
-  {
     id: "arrival-completion",
     title: "Arrival Completion",
     focus: "Arrival reward",
@@ -29,10 +18,10 @@ export const DEBUG_SCENARIO_DEFINITIONS = Object.freeze([
     id: "burden-resolution",
     title: "Burden Resolution",
     focus: "Active Burden",
-    summary: "Blighted Lands is active, with a strained Farm and enough Herbs to resolve it.",
+    summary: "Blighted Lands is active, with a strained Farmstead and enough Food to resolve it.",
     expected: [
       "Resolve Blighted Lands from the Encounter panel.",
-      "Expected: spend 1 Action and 2 Herbs.",
+      "Expected: spend 1 Action and 2 Food.",
       "The Burden should leave the active area and move to completed/discard tracking."
     ]
   },
@@ -40,33 +29,22 @@ export const DEBUG_SCENARIO_DEFINITIONS = Object.freeze([
     id: "boon-upgrade-discount",
     title: "Boon Upgrade Discount",
     focus: "Pending Boon",
-    summary: "Raised in Good Season is face-up and a Gravel Path is ready to upgrade.",
+    summary: "Raised in Season is face-up and a Street is ready to upgrade.",
     expected: [
-      "Choose Stone in the upgrade discount control, then upgrade the Gravel Path at C1.",
+      "Choose Stone in the upgrade discount control, then upgrade the Street at A1.",
       "Expected: the upgrade costs 1 fewer Stone and spends 1 Action.",
-      "Raised in Good Season should then be discarded."
+      "Raised in Season should then be discarded."
     ]
   },
   {
     id: "support-strain",
     title: "Supported Strain",
     focus: "Support timing",
-    summary: "A Farm is manually Supported and has not used that Support this round.",
+    summary: "A Farmstead is manually Supported and has not used that Support this round.",
     expected: [
-      "Apply Strain to the Farm at A5 once.",
-      "Expected: Supported prevents the first Strain and marks Support as used.",
-      "Apply Strain again in the same round; expected: the Farm takes 1 Strain."
-    ]
-  },
-  {
-    id: "golden-vial-travel",
-    title: "Golden Vial Travel",
-    focus: "Golden Boon",
-    summary: "The Golden Vial is active and a disconnected Forest placement is selected.",
-    expected: [
-      "Place the Forest on A13.",
-      "Expected: the first disconnected Travel action this round is waived, so placement costs 1 Action instead of 2.",
-      "A second disconnected travel action in the same round should cost the extra Action again."
+      "Apply Strain to the Farmstead at A6 once.",
+      "Expected: Supported prevents the first Strain and is removed.",
+      "Apply Strain again in the same round; expected: the Farmstead takes 1 Strain."
     ]
   }
 ]);
@@ -86,7 +64,8 @@ function getScenarioDefinition(scenarioId) {
 function createContext(options) {
   return {
     tiles: options.tiles,
-    encounterCards: options.encounterCards
+    encounterCards: options.encounterCards,
+    mapHexes: options.mapHexes
   };
 }
 
@@ -231,43 +210,10 @@ function createScenarioResult(definition, game, overrides = {}) {
     summary: definition.summary,
     expected: definition.expected,
     game,
-    selectedCoordinate: overrides.selectedCoordinate ?? "C1",
+    selectedCoordinate: overrides.selectedCoordinate ?? "A1",
     selectedTileId: overrides.selectedTileId ?? "core_gravel_path_basic",
     selectedOrientation: overrides.selectedOrientation ?? "rotation-0"
   };
-}
-
-function createTravelStewardScenario(options) {
-  const definition = getScenarioDefinition("travel-steward-marker");
-  const context = createContext(options);
-  let game = createPlayerTurnsGame(options, definition.id);
-
-  game = fillWarehouse(game, context);
-  game = dispatchOrThrow(
-    game,
-    {
-      type: TILE_ACTION_TYPES.PLACE_TILE,
-      tileId: "core_gravel_path_basic",
-      coordinate: "C1",
-      orientation: "rotation-0"
-    },
-    context
-  );
-  game = dispatchOrThrow(
-    game,
-    {
-      type: TILE_ACTION_TYPES.PLACE_TILE,
-      tileId: "core_forest_basic",
-      coordinate: "A13"
-    },
-    context
-  );
-  game = resetActions(game, context);
-
-  return createScenarioResult(definition, game, {
-    selectedCoordinate: "A13",
-    selectedTileId: "core_forest_basic"
-  });
 }
 
 function createArrivalCompletionScenario(options) {
@@ -280,7 +226,7 @@ function createArrivalCompletionScenario(options) {
   game = resetActions(game, context);
 
   return createScenarioResult(definition, game, {
-    selectedCoordinate: "C1",
+    selectedCoordinate: "A1",
     selectedTileId: "core_gravel_path_basic"
   });
 }
@@ -296,7 +242,7 @@ function createBurdenResolutionScenario(options) {
     {
       type: TILE_ACTION_TYPES.PLACE_TILE,
       tileId: "core_farm_basic",
-      coordinate: "A5"
+      coordinate: "A6"
     },
     context
   );
@@ -313,7 +259,7 @@ function createBurdenResolutionScenario(options) {
   game = resetActions(game, context);
 
   return createScenarioResult(definition, game, {
-    selectedCoordinate: "A5",
+    selectedCoordinate: "A6",
     selectedTileId: "core_gravel_path_basic"
   });
 }
@@ -330,7 +276,7 @@ function createBoonUpgradeDiscountScenario(options) {
     {
       type: TILE_ACTION_TYPES.PLACE_TILE,
       tileId: "core_gravel_path_basic",
-      coordinate: "C1",
+      coordinate: "A1",
       orientation: "rotation-0"
     },
     context
@@ -338,7 +284,7 @@ function createBoonUpgradeDiscountScenario(options) {
   game = resetActions(game, context);
 
   return createScenarioResult(definition, game, {
-    selectedCoordinate: "C1",
+    selectedCoordinate: "A1",
     selectedTileId: "core_gravel_path_basic"
   });
 }
@@ -353,7 +299,7 @@ function createSupportStrainScenario(options) {
     {
       type: TILE_ACTION_TYPES.PLACE_TILE,
       tileId: "core_farm_basic",
-      coordinate: "A5"
+      coordinate: "A6"
     },
     context
   );
@@ -369,47 +315,16 @@ function createSupportStrainScenario(options) {
   game = resetActions(game, context);
 
   return createScenarioResult(definition, game, {
-    selectedCoordinate: "A5",
+    selectedCoordinate: "A6",
     selectedTileId: "core_gravel_path_basic"
   });
 }
 
-function createGoldenVialTravelScenario(options) {
-  const definition = getScenarioDefinition("golden-vial-travel");
-  const context = createContext(options);
-  let game = createPlayerTurnsGame(options, definition.id);
-
-  game = revealScenarioCards(
-    game,
-    ["golden_boon_the_golden_vial", "boon_bounty_of_the_first_harvest"],
-    context
-  );
-  game = fillWarehouse(game, context);
-  game = dispatchOrThrow(
-    game,
-    {
-      type: TILE_ACTION_TYPES.PLACE_TILE,
-      tileId: "core_gravel_path_basic",
-      coordinate: "C1",
-      orientation: "rotation-0"
-    },
-    context
-  );
-  game = resetActions(game, context);
-
-  return createScenarioResult(definition, game, {
-    selectedCoordinate: "A13",
-    selectedTileId: "core_forest_basic"
-  });
-}
-
 const SCENARIO_BUILDERS = Object.freeze({
-  "travel-steward-marker": createTravelStewardScenario,
   "arrival-completion": createArrivalCompletionScenario,
   "burden-resolution": createBurdenResolutionScenario,
   "boon-upgrade-discount": createBoonUpgradeDiscountScenario,
-  "support-strain": createSupportStrainScenario,
-  "golden-vial-travel": createGoldenVialTravelScenario
+  "support-strain": createSupportStrainScenario
 });
 
 export function createDebugScenario(scenarioId, options) {

@@ -1,38 +1,25 @@
-# ChatGPT Document Update Prompt - Steward Setup And Opening Moves
+# ChatGPT Document Update Prompt - Current Steward Setup
 
-Use this prompt to update The Quiet Vale production documents, rulebook text, player aids, setup references, and component notes.
+Use this prompt to update The Quiet Vale production documents, player-facing rules, setup references, and component notes.
 
----
+This is a targeted rules-document update only. Do not redesign the game, rewrite unrelated flavour, change Encounter effects, alter component counts, or introduce new systems.
 
-Update all relevant documents for **The Quiet Vale: Seasons of Settlement** to reflect the current Steward setup and opening move rules.
+## Current Steward Setup
 
-This is a targeted rules-document update only. Do not redesign the game, rewrite unrelated prose, change scoring, alter tile costs, change Encounter effects, change component counts, or introduce new systems.
-
-## Rules Change Summary
-
-The old opening structure is no longer correct:
-
-- Players no longer have a forced Round 1 first action.
-- Players no longer must place an associated Resource Tile as their first move.
-- Associated Resource Tiles are not automatically placed during setup.
-
-The new opening structure is:
+Replace older opening-move and Steward House language with this current structure:
 
 1. During setup, each player chooses a unique Steward.
-2. Each chosen Steward unlocks their matching basic Steward House tile.
-3. After the game setup is confirmed, and before Encounter cards are seeded, each player places their Steward House for free.
-4. Steward House setup placement costs **0 Actions** and **0 resources**.
-5. Steward House setup placement ignores normal adjacency, reachability, and connected settlement network requirements.
-6. Steward House setup placement must use an empty, non-River hex on a valid setup terrain for that Steward.
-7. After a Steward House is placed, that player's Steward Token starts on that Steward House.
-8. Once all Steward Houses are placed, Round 1 begins with the Seed Encounter Cards phase.
-9. There is no forced opening Resource Tile. On their first normal Player Turn, each player may choose any legal action.
+2. Steward House tiles are not used in the current playtest build.
+3. Each selected Steward places their Steward Token for free before the first Encounter seeding step.
+4. Steward Token setup placement costs 0 Actions and 0 resources.
+5. Steward Token setup placement ignores adjacency and connected settlement network requirements.
+6. Steward Token setup placement must use an empty, non-River hex on a valid setup terrain for that Steward.
+7. Once all Steward Tokens are placed, Round 1 begins with the Season I seeding step.
+8. There is no forced opening Resource Tile. On their first normal Player Turn, each player may choose any legal action.
 
-## Steward House Setup Terrains
+## Steward Setup Terrains
 
-Use these setup terrain restrictions:
-
-| Steward | Free setup Steward House placement terrain |
+| Steward | Free setup Steward Token terrain |
 | --- | --- |
 | Vanguard | Woodland |
 | Knight | Arable Land |
@@ -43,31 +30,26 @@ Use these setup terrain restrictions:
 
 Quartermaster clarification:
 
-- Quartermaster may place Quartermaster House on any valid Steward terrain.
-- Quartermaster may not place Quartermaster House on Grasslands.
-- Quartermaster may not place Quartermaster House on River/Water.
+- Quartermaster may not start on Grasslands.
+- Quartermaster may not start on River/Water.
 - Quartermaster still must use an empty hex.
 
-## Steward House Rules To Preserve
+## Steward Powers
 
-Basic Steward Houses:
+Each Steward has their own once-per-Season power from the start of the game. Only that Steward may use their own power.
 
-- Are normal placed Housing tiles once on the map.
-- Count as placed tiles for adjacency and the connected settlement network while non-Overstrained.
-- May receive Strain and may become Overstrained.
-- Do not provide their Steward Power on the basic side.
+- Vanguard: once per Season, eligible Travel or Resource placement costs 2 fewer resources.
+- Knight: once per Season, eligible Housing placement costs 0 Actions.
+- Sentinel: once per Season, eligible Core upgrade costs 0 Actions.
+- Ranger: once per Season, travel to anywhere for free before taking a map action. In Season I, Ranger has one additional use of this movement power.
+- Quartermaster: once per Season, exchange up to 3 Warehouse resources. In Season I, Quartermaster also has one extra exchange of up to 2 Warehouse resources.
+- Warden: once per Season, resolve an active Burden without spending an Action.
 
-Upgraded Steward Homes:
-
-- Unlock that Steward's once-per-Season Steward Power.
-- Can only be used by the matching Steward.
-- Do not let other Stewards use that Steward Power.
-
-Shared network clarification:
+## Shared Network Clarification
 
 - All Stewards may use the shared connected settlement network for reachability.
-- A Steward may benefit from another player's placed tiles for travel/reachability if those tiles are connected and non-Overstrained.
-- This does not allow a Steward to activate or use another Steward's unique Steward Home power.
+- A Steward may benefit from another player's placed tiles if those tiles are connected and non-Overstrained.
+- This does not let a Steward use another Steward's unique Steward power.
 
 ## Text To Remove Or Replace
 
@@ -75,47 +57,28 @@ Remove or replace any wording that says or implies:
 
 - Round 1 first turn has a mandatory opening move.
 - Each Steward must place an associated Resource Tile as their first action.
-- Vanguard must open by placing Forest.
-- Knight must open by placing Farm.
-- Sentinel must open by placing Mine.
-- Ranger must open by placing Wildlands.
-- Warden must open by placing Dig Site.
-- Quartermaster must open by placing any Resource Tile.
-- The opening Resource Tile is free, automatic, or part of setup.
+- Steward Houses or Steward Homes are current components.
+- A Steward House must be placed during setup.
+- Steward House upgrades unlock Steward powers.
+- There is a normal disconnected Travel action available to all players.
 
 Replace that older wording with:
 
-- Each Steward places their matching Steward House for free during setup.
-- The first normal tile placement is now player choice and follows normal placement rules.
-- Resource Tiles remain available in the normal tile supply and may be placed later by normal rules.
-
-## Setup Sequence Wording
-
-Use this updated setup order where needed:
-
-1. Choose player count.
-2. Choose unique Stewards.
-3. Stock the shared Warehouse for the player count.
-4. Build Encounter hands and the Encounter Deck according to the current Encounter setup rules.
-5. Each player places their matching Steward House for free on a valid setup terrain.
-6. Place each Steward Token on its Steward House.
-7. Begin Round 1, Season I, with Seed Encounter Cards.
-8. Continue with Reveal Encounters, then Player Turns.
-
-If a document has a separate online prototype note, it may say:
-
-- In the online prototype, the Steward Token is represented by the player's last interacted tile marker. During setup, this begins on the player's placed Steward House.
+- Each Steward places their Steward Token for free during setup.
+- Steward powers are available from the start of the game.
+- The first normal tile placement is player choice and follows normal placement rules.
+- Players must act on their connected settlement network unless a Steward power, Bridge, or explicit card/tile rule permits otherwise.
 
 ## Acceptance Check
 
 After updating, search the documents for old opening-rule language, especially:
 
+- "Steward House"
+- "Steward Home"
 - "opening Resource"
 - "opening move"
 - "first Round 1 action"
-- "must place"
 - "associated Resource Tile"
-- "Starting Resource Tile"
+- "disconnected Travel action"
 
-Any remaining uses should be intentional historical notes only. Production-facing rules should use the new Steward House setup opening.
-
+Any remaining uses should be intentional historical notes only. Production-facing rules should use the current Steward Token setup.

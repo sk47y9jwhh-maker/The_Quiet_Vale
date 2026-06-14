@@ -5,6 +5,7 @@ import {
   createEncounterStorySummary,
   getEncounterFlavorText,
   getEncounterRuleLines,
+  getEncounterSeasonResolutionText,
   getEncounterSeasonText
 } from "../src/game/encounterPresentation.js";
 
@@ -44,4 +45,17 @@ test("encounter presentation handles fallback spelling and hides empty lines", (
   assert.equal(getEncounterFlavorText(card), "A short test story.");
   assert.equal(getEncounterSeasonText(card, "II"), "Gain 1 Wood.");
   assert.deepEqual(getEncounterRuleLines(card, "II"), [{ label: "This season", value: "Gain 1 Wood." }]);
+});
+
+test("encounter presentation shows Burden season resolution costs from dedicated fields", () => {
+  const card = encounterCards.find((candidate) => candidate.card_id === "burden_awoken_in_the_deep");
+
+  assert.equal(getEncounterSeasonResolutionText(card, "III"), "Spend 1 Action and pay 6 Stone. Then discard.");
+  assert.deepEqual(
+    getEncounterRuleLines(card, "III").map((line) => [line.label, line.value]),
+    [
+      ["This season", card.season_iii],
+      ["To resolve", card.season_iii_resolution]
+    ]
+  );
 });

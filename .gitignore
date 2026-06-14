@@ -8,3 +8,13 @@ coverage/
 ownership_proof/
 __pycache__/
 *.py[cod]
+
+# Abandoned local visual-generation experiments from tile mockup exploration.
+exports/tile_production_concept_images/
+exports/tile_production_concept_images.zip
+exports/tile_production_style_samples_v1/
+exports/tile_production_style_samples_v1.zip
+exports/tile_template_concept_v5_images/
+scripts/export_tile_production_concept_images.py
+scripts/export_tile_production_style_samples.py
+scripts/export_tile_template_concept_images.py

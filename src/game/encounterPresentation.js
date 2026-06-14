@@ -4,12 +4,22 @@ const ENCOUNTER_SEASON_FIELDS = Object.freeze({
   III: "season_iii"
 });
 
+const ENCOUNTER_SEASON_RESOLUTION_FIELDS = Object.freeze({
+  I: "season_i_resolution",
+  II: "season_ii_resolution",
+  III: "season_iii_resolution"
+});
+
 function normalizeText(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
 export function getEncounterSeasonText(card, season) {
   return normalizeText(card?.[ENCOUNTER_SEASON_FIELDS[season]]);
+}
+
+export function getEncounterSeasonResolutionText(card, season) {
+  return normalizeText(card?.[ENCOUNTER_SEASON_RESOLUTION_FIELDS[season]]);
 }
 
 export function getEncounterFlavorText(card) {
@@ -25,7 +35,13 @@ export function getEncounterRuleLines(card, season, prototypeText = "") {
     { label: "This season", value: getEncounterSeasonText(card, season) },
     { label: "Requirement", value: card.requirement },
     { label: "Reward", value: card.reward },
-    { label: "Resolution", value: card.lifecycle_or_resolution },
+    {
+      label: card.encounter_type === "Burden" ? "To resolve" : "Resolution",
+      value:
+        card.encounter_type === "Burden"
+          ? getEncounterSeasonResolutionText(card, season)
+          : card.lifecycle_or_resolution
+    },
     { label: "Effect", value: card.effect },
     { label: "Prototype did", value: prototypeText }
   ].filter(({ value }) => normalizeText(value) !== "");

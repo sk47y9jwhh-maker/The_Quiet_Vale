@@ -2816,7 +2816,7 @@ export function runAutomatedGame({
       const candidates = buildStewardHouseSetupPlacementCandidates(state, context);
       const outcome = candidates.length ? dispatchWithTelemetry(state, candidates[0], context) : null;
       if (!outcome?.result.ok) {
-        throw new Error(outcome?.result.errors?.join(" ") ?? "No legal Steward House setup placement.");
+        throw new Error(outcome?.result.errors?.join(" ") ?? "No legal Steward Token setup placement.");
       }
       state = outcome.state;
       continue;

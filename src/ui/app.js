@@ -2691,9 +2691,9 @@ function renderEncounterFlavorText(card, { compact = false } = {}) {
 }
 
 const ENCOUNTER_SEASON_ROWS = Object.freeze([
-  Object.freeze({ season: "I", field: "season_i" }),
-  Object.freeze({ season: "II", field: "season_ii" }),
-  Object.freeze({ season: "III", field: "season_iii" })
+  Object.freeze({ season: "I", field: "season_i", resolutionField: "season_i_resolution" }),
+  Object.freeze({ season: "II", field: "season_ii", resolutionField: "season_ii_resolution" }),
+  Object.freeze({ season: "III", field: "season_iii", resolutionField: "season_iii_resolution" })
 ]);
 
 const ENCOUNTER_TYPE_MARKS = Object.freeze({
@@ -2811,6 +2811,17 @@ function applyChoiceLanguageToSeasonCost(basePaymentText, seasonCostText) {
 }
 
 function getBurdenSeasonResolveRows(card) {
+  const explicitRows = Object.fromEntries(
+    ENCOUNTER_SEASON_ROWS.map(({ season, resolutionField }) => [
+      season,
+      normalizeDisplayText(card?.[resolutionField])
+    ]).filter(([, resolveText]) => Boolean(resolveText))
+  );
+
+  if (Object.keys(explicitRows).length > 0) {
+    return explicitRows;
+  }
+
   const resolveText = extractBurdenResolveText(card);
 
   if (!resolveText) {
@@ -2853,12 +2864,12 @@ function renderBoonMechanics(card, game) {
 }
 
 function renderBurdenMechanics(card, game) {
-  const resolveText = extractBurdenResolveText(card);
+  const resolveRows = getBurdenSeasonResolveRows(card);
 
   return `
     <div class="encounter-mechanics-panel">
       ${renderEncounterSeasonRows(card, game, { burden: true })}
-      ${resolveText ? "" : `<p class="encounter-manageable-note">No listed resolution.</p>`}
+      ${Object.keys(resolveRows).length > 0 ? "" : `<p class="encounter-manageable-note">No listed resolution.</p>`}
     </div>
   `;
 }
@@ -3829,7 +3840,7 @@ function renderReaderDrawer(game, tileIndex, encounterIndex) {
 
   return `
     <div class="reader-drawer-backdrop" aria-hidden="true"></div>
-    <aside class="reader-drawer" aria-label="${escapeHtml(title)}">
+    <aside class="reader-drawer ${isTile ? "is-tile-reader" : "is-encounter-reader"}" aria-label="${escapeHtml(title)}">
       <header class="reader-drawer-header">
         <div>
           <span>${escapeHtml(title)}</span>

@@ -1,6 +1,6 @@
 # Prototype Rules Coverage Notes
 
-This note tracks the local prototype as of the v2.0 aligned production-set pass. It is a working robustness checklist, not final rules documentation.
+This note tracks the local prototype after the current blind-playtest rules pass. It is a working robustness checklist, not final rules documentation.
 
 ## Supported Now
 
@@ -10,7 +10,7 @@ This note tracks the local prototype as of the v2.0 aligned production-set pass.
 - Stocks the starting Warehouse by player count: 15 of each resource at 1p, 10 at 2p, 5 at 3p, and 0 at 4p/5+ Council reference.
 - Renders the current flat-top hex map with terrain, features, placed tiles, Strain, Support, and player last-interaction markers.
 - Places, upgrades, activates, strains, supports, and overstrains local tiles through the prototype controls.
-- Applies disconnected Travel action costs to placement, activation, and upgrade actions on tiles away from the connected settlement network.
+- Removes the normal disconnected Travel action: players place, upgrade, and activate on the acting Steward's connected settlement network unless a Steward power, Bridge, or explicit card/tile rule permits otherwise.
 - Builds connected settlement networks from all placed, non-Overstrained tiles while keeping printed Travel Tile identity for Travel-specific effects.
 - Counts every hex in a multihex tile footprint when checking connected settlement adjacency and disconnected placement costs.
 - Handles local Encounter setup, debug seeding, reveal, active Arrivals, active Burdens, active Boons, and end-of-round/end-of-season flow.
@@ -22,13 +22,12 @@ This note tracks the local prototype as of the v2.0 aligned production-set pass.
 - Provides a compact dynamic helper panel for phase, round, season, selected hex, last action, and common turn-flow actions.
 - Prioritizes the playtest layout around the map, Warehouse, tile placement, selected tile actions, and Encounter cards before lower-priority debug and feedback tools.
 - Provides prototype map shortcuts: right-click an empty hex to rotate a selected multihex placement preview, and right-click a placed tile to open quick Produce/Interact and Upgrade actions.
-- Provides debug scenario presets for focused local checks of disconnected Travel, Steward marker travel anchoring, Arrival completion, Burden resolution, Boon discounts, Supported Strain, and legacy Golden Vial travel.
+- Provides debug scenario presets for focused local checks of Steward marker anchoring, Arrival completion, Burden resolution, Boon discounts, Supported Strain, and selected legacy reference cases.
 - Shows a Playtest Pulse panel with action mix, travel friction, Encounter pressure, board Strain, resource caps, and pacing signals for subjective playtesting.
 - Provides Playtest Notes and a generated markdown report for capturing subjective fun, pacing, tension, choice quality, friction, balance notes, and rule questions.
 - Gives previously unresolvable Burdens a Season III 4 Goods resolution opportunity where implemented, while keeping them persistent before that point.
 - Keeps legacy Golden Boon handling in code for isolated reference checks, but Golden Boons are not currently supported by normal online prototype setup.
 - Supports player last-interaction markers as the local stand-in for Steward Tokens.
-- Counts the acting player's last-interaction marker as the local travel anchor for disconnected Travel action costs.
 - Places each selected Steward Token for free during setup; Steward House tiles and the old forced Round 1 opening Resource tile are no longer required.
 - Implements `The Burden of Command` and `Where Help Stands` against those markers.
 - Provides debug controls to manually set or clear each player's marker.
@@ -43,7 +42,7 @@ This note tracks the local prototype as of the v2.0 aligned production-set pass.
 ## Intentionally Rough
 
 - Steward Tokens are represented by each player's last interacted tile, with debug override controls for testing.
-- Steward House powers use plain selectors and buttons; this is not final UI.
+- Steward powers use plain selectors and buttons; this is not final UI.
 - Card and tile text display is a testing aid, not final presentation.
 - The larger Encounter Board is a readability pass for prototype playtesting, not final card layout or visual design.
 - The sticky testing bar and collapsible debug panels are usability aids for the local prototype, not final visual design.
@@ -56,7 +55,8 @@ This note tracks the local prototype as of the v2.0 aligned production-set pass.
 
 ## Robustness Checks To Keep Running
 
-- Full automated suite after each rules pass: `node --test tests/*.test.js` or `npm test` where npm is available.
+- Current deploy check after each rules/UI pass: `node --run check` where Node is available.
+- Legacy automated tests are being migrated after several rules changes; run focused current tests when changing a specific subsystem.
 - Prototype smoke flow: `node --test tests/prototype-smoke.test.js`.
 - Browser smoke after interface changes: load the local app, confirm no page errors, and verify key panels are visible.
 - Test each new Encounter against the source card text with at least one positive case and one invalid-choice case where useful.

@@ -1,5 +1,7 @@
 # The Quiet Vale - Tile And Card Component List
 
+> Legacy snapshot: this file was generated on 2026-05-28 and does not fully reflect the current blind-playtest build. Use `src/data/tiles.json`, `src/data/encounter_cards.json`, and current export scripts as the live source of truth.
+
 Draft date: 2026-05-28  
 Document status: source-derived component list for production-document preparation.  
 Primary source files: `src/data/tiles.json`, `src/data/encounter_cards.json`, `src/data/redesigned_basic_map_v0_2.json`.
